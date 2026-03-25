@@ -1,0 +1,339 @@
+### Identity Verification Endpoints (Stripe Identity)
+
+@baseUrl = http://localhost:5000
+@token = Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5NDA5MjYyNGVlZGE0ZjMyYjhlOTdmNiIsInJvbGUiOiJ1c2VyIiwiaXNzdWVkQXQiOjE3NjU4Mzk0NjMsImlhdCI6MTc2NTgzOTQ2MywiZXhwIjoxNzY2MDEyMjYzfQ.oZa6WFNb9fmwwrmI1lNqdKA6AESpGZtxWXhxDIdlKHw
+@userId = 6934067e42a4658985bf0fd5
+
+### 1. Create Identity Verification Session
+### Creates a Stripe Identity verification session for document upload
+### Requires: Authentication (JWT token)
+POST {{baseUrl}}/verification/identity/create-session
+Authorization: {{token}}
+Content-Type: application/json
+
+{
+  "returnUrl": "http://localhost:3000/verification/complete"
+}
+
+### Expected Response (Success):
+# {
+#   "success": true,
+#   "sessionId": "vs_1QNqYX2eZvKYlo2C8H7zg123",
+#   "url": "https://verify.stripe.com/start/test_YWNjdF8xUU5...",
+#   "clientSecret": "vs_1QNqYX2eZvKYlo2C8H7zg123_secret_abc123",
+#   "message": "Verification session created. Please complete verification on Stripe."
+# }
+
+### Expected Response (Unauthorized):
+# {
+#   "statusCode": 401,
+#   "message": "Authorization header is missing or invalid",
+#   "error": "Unauthorized"
+# }
+
+### Expected Response (Already Verified):
+# {
+#   "statusCode": 400,
+#   "message": "Identity already verified",
+#   "error": "Bad Request"
+# }
+
+
+### 2. Check Identity Verification Status
+### Returns the current identity verification status for authenticated user
+### Requires: Authentication (JWT token)
+GET {{baseUrl}}/verification/identity/status
+Authorization: {{token}}
+
+### Expected Response (Verified):
+# {
+#   "success": true,
+#   "isVerified": true,
+#   "details": {
+#     "idType": "driving_license",
+#     "verifiedName": "John Smith",
+#     "verifiedDOB": "1990-05-15",
+#     "licenseNumber": "SMITH905156JD9XX",
+#     "verifiedAt": "2025-12-06T14:30:00.000Z"
+#   }
+# }
+
+### Expected Response (Not Verified):
+# {
+#   "success": true,
+#   "isVerified": false,
+#   "details": null
+# }
+
+### Expected Response (Verification Pending):
+# {
+#   "success": true,
+#   "isVerified": false,
+#   "status": "processing",
+#   "message": "Verification is being processed"
+# }
+
+
+### 3. Check Driving License Status
+### Checks if user has verified with a driving license (required for chauffeurs)
+### Requires: Authentication (JWT token)
+GET {{baseUrl}}/verification/identity/has-license
+Authorization: {{token}}
+
+### Expected Response (Has License):
+# {
+#   "success": true,
+#   "hasDrivingLicense": true,
+#   "message": "User verified with driving license"
+# }
+
+### Expected Response (Has Passport Only):
+# {
+#   "success": true,
+#   "hasDrivingLicense": false,
+#   "message": "User verified with passport. Please re-verify with driving license to become a driver."
+# }
+
+### Expected Response (Not Verified):
+# {
+#   "success": false,
+#   "hasDrivingLicense": false,
+#   "message": "User has not completed identity verification"
+# }
+
+
+### 4. Stripe Webhook Endpoint
+### This endpoint receives webhook events from Stripe Identity
+### DO NOT call this manually - only Stripe should call this
+### See README.md for webhook setup instructions
+POST {{baseUrl}}/verification/identity/webhook
+stripe-signature: whsec_test_signature_from_stripe
+Content-Type: application/json
+
+{
+  "id": "evt_test_webhook",
+  "type": "identity.verification_session.verified",
+  "data": {
+    "object": {
+      "id": "vs_1QNqYX2eZvKYlo2C8H7zg123",
+      "status": "verified"
+    }
+  }
+}
+
+### Expected Response:
+# {
+#   "received": true
+# }
+
+### Note: This endpoint validates the Stripe signature
+### Invalid signatures will return 500 error
+
+
+### TEST SCENARIOS
+
+### Scenario 1: Complete Identity Verification Flow
+
+### Step 1: Create verification session
+POST {{baseUrl}}/verification/identity/create-session
+Authorization: {{token}}
+Content-Type: application/json
+
+{
+  "returnUrl": "http://localhost:3000/verification/complete"
+}
+
+### Step 2: User completes verification on Stripe
+### (Open the URL from step 1 in browser and upload documents)
+
+### Step 3: Stripe sends webhook (automatic - see webhook setup in README)
+### (This happens automatically when user completes verification)
+
+### Step 4: Check verification status
+GET {{baseUrl}}/verification/identity/status
+Authorization: {{token}}
+
+### Step 5: Check if user has driving license
+GET {{baseUrl}}/verification/identity/has-license
+Authorization: {{token}}
+
+
+### Scenario 2: Verify with Driving License
+
+### Create session
+POST {{baseUrl}}/verification/identity/create-session
+Authorization: {{token}}
+Content-Type: application/json
+
+{
+  "returnUrl": "http://localhost:3000/verification/complete"
+}
+
+### Upload UK driving license on Stripe verify page
+### Wait for webhook (automatic)
+### Check license status
+GET {{baseUrl}}/verification/identity/has-license
+Authorization: {{token}}
+
+
+### Scenario 3: Verify with Passport (then check license requirement)
+
+### Create session
+POST {{baseUrl}}/verification/identity/create-session
+Authorization: {{token}}
+Content-Type: application/json
+
+{
+  "returnUrl": "http://localhost:3000/verification/complete"
+}
+
+### Upload passport on Stripe verify page
+### Wait for webhook
+### Check license status (should be false)
+GET {{baseUrl}}/verification/identity/has-license
+Authorization: {{token}}
+
+
+### Scenario 4: Test Unauthorized Access
+
+### Try without token
+GET {{baseUrl}}/verification/identity/status
+
+### Expected Response:
+# {
+#   "statusCode": 401,
+#   "message": "Authorization header is missing or invalid",
+#   "error": "Unauthorized"
+# }
+
+
+### Scenario 5: Test Already Verified User
+
+### User already verified - try creating new session
+POST {{baseUrl}}/verification/identity/create-session
+Authorization: {{token}}
+Content-Type: application/json
+
+{
+  "returnUrl": "http://localhost:3000/verification/complete"
+}
+
+### Expected Response:
+# {
+#   "statusCode": 400,
+#   "message": "Identity already verified",
+#   "error": "Bad Request"
+# }
+
+
+### VALIDATION TESTS
+
+### Test: Missing Return URL
+POST {{baseUrl}}/verification/identity/create-session
+Authorization: {{token}}
+Content-Type: application/json
+
+{
+}
+
+### Expected Response:
+# {
+#   "statusCode": 400,
+#   "message": ["returnUrl should not be empty", "returnUrl must be a URL address"],
+#   "error": "Bad Request"
+# }
+
+
+### Test: Invalid Return URL Format
+POST {{baseUrl}}/verification/identity/create-session
+Authorization: {{token}}
+Content-Type: application/json
+
+{
+  "returnUrl": "not-a-valid-url"
+}
+
+### Expected Response:
+# {
+#   "statusCode": 400,
+#   "message": ["returnUrl must be a URL address"],
+#   "error": "Bad Request"
+# }
+
+
+### Test: Missing Authorization Header
+POST {{baseUrl}}/verification/identity/create-session
+Content-Type: application/json
+
+{
+  "returnUrl": "http://localhost:3000/verification/complete"
+}
+
+### Expected Response:
+# {
+#   "statusCode": 401,
+#   "message": "Authorization header is missing or invalid",
+#   "error": "Unauthorized"
+# }
+
+
+### PRODUCTION URLS (for reference)
+
+### Production Base URL
+# @baseUrl = https://api.rideandpark.com
+
+### Production Return URL (frontend)
+# {
+#   "returnUrl": "https://app.rideandpark.com/verification/complete"
+# }
+
+### Production Webhook URL (for Stripe dashboard)
+# https://api.rideandpark.com/verification/identity/webhook
+
+
+### NOTES
+
+# 1. AUTHENTICATION:
+#    - All endpoints except webhook require JWT token
+#    - Get token from login endpoint: POST /users/login
+#    - Include as: Authorization: Bearer <token>
+
+# 2. VERIFICATION FLOW:
+#    - Create session → Get URL → User uploads docs → Webhook fires → Status updated
+
+# 3. DOCUMENT TYPES:
+#    - Driving License (UK): Required to become a driver
+#    - Passport: Accepted for identity verification, but not sufficient for driver role
+
+# 4. WEBHOOK:
+#    - Only Stripe should call the webhook endpoint
+#    - Requires valid Stripe signature
+#    - See README.md for complete webhook setup guide
+
+# 5. RATE LIMITS:
+#    - No explicit rate limits on these endpoints
+#    - Stripe has their own rate limits on verification sessions
+
+# 6. TESTING:
+#    - Use Stripe test mode in development
+#    - Test webhooks locally using Stripe CLI
+#    - See README.md for local webhook testing setup
+
+# 7. RETURN URL:
+#    - Must be a valid URL
+#    - Should be your frontend page where user lands after verification
+#    - Can include query parameters for tracking
+
+# 8. SESSION EXPIRATION:
+#    - Stripe verification sessions expire after 30 days
+#    - If expired, user must create a new session
+
+# 9. SECURITY:
+#    - Webhook signature verification is critical
+#    - Never disable signature verification in production
+#    - Store STRIPE_WEBHOOK_SECRET securely in .env
+
+# 10. COMPLIANCE:
+#     - Stripe Identity is PCI compliant
+#     - Documents are encrypted at rest
+#     - No document images are stored on our servers

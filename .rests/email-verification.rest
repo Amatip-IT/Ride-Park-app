@@ -1,0 +1,358 @@
+### Email Verification & Login OTP Endpoints
+
+@baseUrl = http://localhost:5000
+@email = aethronex@gmail.com
+@otp = 706913
+
+### 1. Send Email OTP (Verification)
+### Sends a 6-digit OTP to verify the user's email
+### Rate limit: 1 request per minute per email
+POST {{baseUrl}}/verification/send-email-otp-verification
+Content-Type: application/json
+
+{
+  "email": "olusolasamson18@gmail.com"
+}
+
+### Expected Response (Success):
+# {
+#   "success": true,
+#   "message": "OTP sent successfully to your email",
+#   "expiresIn": "10 minutes"
+# }
+
+### Expected Response (Already Verified):
+# {
+#   "statusCode": 400,
+#   "message": "Email is already verified",
+#   "error": "Bad Request"
+# }
+
+### Expected Response (User Not Found):
+# {
+#   "statusCode": 404,
+#   "message": "User not found with this email",
+#   "error": "Not Found"
+# }
+
+### Expected Response (Rate Limited):
+# {
+#   "statusCode": 400,
+#   "message": "Please wait 45 seconds before requesting a new OTP",
+#   "error": "Bad Request"
+# }
+
+
+### 2. Verify Email OTP (Verification)
+### Verifies the OTP and marks email as verified
+POST {{baseUrl}}/verification/verify-email-otp-verification
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "otp": "{{otp}}"
+}
+
+### Expected Response (Success):
+# {
+#   "success": true,
+#   "message": "Email verified successfully",
+#   "isVerified": true
+# }
+
+### Expected Response (Invalid OTP):
+# {
+#   "statusCode": 400,
+#   "message": "Invalid OTP. Please check and try again",
+#   "error": "Bad Request"
+# }
+
+### Expected Response (Expired OTP):
+# {
+#   "statusCode": 400,
+#   "message": "OTP has expired. Please request a new one",
+#   "error": "Bad Request"
+# }
+
+### Expected Response (No OTP Found):
+# {
+#   "statusCode": 400,
+#   "message": "No OTP found. Please request a new OTP",
+#   "error": "Bad Request"
+# }
+
+### Expected Response (Already Verified):
+# {
+#   "statusCode": 400,
+#   "message": "Email is already verified",
+#   "error": "Bad Request"
+# }
+
+
+### 3. Resend Email OTP (Login)
+### Sends a 6-digit OTP to login without password
+POST {{baseUrl}}/verification/resend-email-otp-login
+Content-Type: application/json
+
+{
+  "email": "loginuser@example.com"
+}
+
+### Expected Response (Success):
+# {
+#   "success": true,
+#   "message": "OTP sent successfully to your email",
+#   "expiresIn": "10 minutes"
+# }
+
+
+### 4. Verify Email OTP (Login)
+### Verifies the OTP for login and returns JWT + user profile
+POST {{baseUrl}}/verification/verify-email-otp-login
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "otp": "{{otp}}"
+}
+
+### Expected Response (Success):
+# {
+#   "success": true,
+#   "requiresOTP": false,
+#   "token": "<jwt-token>",
+#   "data": {
+#     "_id": "...",
+#     "firstName": "John",
+#     "lastName": "Doe",
+#     "username": "johndoe",
+#     "email": "john@example.com",
+#     "phoneNumber": "+1234567890",
+#     "role": "user"
+#   },
+#   "message": "Login successful"
+# }
+
+### Expected Error Responses:
+# 400 Invalid/Expired/No OTP
+# 404 User not found
+
+
+### 5. Check Email Verification Status
+### Checks if an email is verified
+GET {{baseUrl}}/verification/email-status?email={{email}}
+
+### Expected Response (Verified):
+# {
+#   "success": true,
+#   "isVerified": true,
+#   "email": "john.smith@example.com"
+# }
+
+### Expected Response (Not Verified):
+# {
+#   "success": true,
+#   "isVerified": false,
+#   "email": "john.smith@example.com"
+# }
+
+### Expected Response (User Not Found):
+# {
+#   "statusCode": 404,
+#   "message": "User not found with this email",
+#   "error": "Not Found"
+# }
+
+
+### TEST SCENARIOS
+
+### Scenario 1: Complete Email Verification Flow
+
+### Step 1: Send OTP
+POST {{baseUrl}}/verification/send-email-otp-verification
+Content-Type: application/json
+
+{
+  "email": "newuser@example.com"
+}
+
+### Step 2: Check your email for the OTP
+### (In development, check console logs for the OTP)
+
+### Step 3: Verify OTP (replace with actual OTP from email)
+POST {{baseUrl}}/verification/verify-email-otp-verification
+Content-Type: application/json
+
+{
+  "email": "newuser@example.com",
+  "otp": "123456"
+}
+
+### Step 4: Confirm verification status
+GET {{baseUrl}}/verification/email-status?email=newuser@example.com
+
+
+### Scenario 2: Complete Email Login Flow
+
+### Step 1: Send OTP
+POST {{baseUrl}}/verification/resend-email-otp-login
+Content-Type: application/json
+
+{
+  "email": "loginuser@example.com"
+}
+
+### Step 2: Verify OTP (replace with actual OTP from email)
+POST {{baseUrl}}/verification/verify-email-otp-login
+Content-Type: application/json
+
+{
+  "email": "loginuser@example.com",
+  "otp": "123456"
+}
+
+
+### Scenario 3: Test Invalid OTP (Verification)
+
+### Send OTP
+POST {{baseUrl}}/verification/send-email-otp-verification
+Content-Type: application/json
+
+{
+  "email": "testuser@example.com"
+}
+
+### Try with wrong OTP
+POST {{baseUrl}}/verification/verify-email-otp-verification
+Content-Type: application/json
+
+{
+  "email": "testuser@example.com",
+  "otp": "999999"
+}
+
+
+### Scenario 4: Test OTP Expiration (Verification)
+
+### Send OTP
+POST {{baseUrl}}/verification/send-email-otp-verification
+Content-Type: application/json
+
+{
+  "email": "expiry-test@example.com"
+}
+
+### Wait 11 minutes (OTP expires after 10 minutes)
+### Then try to verify
+POST {{baseUrl}}/verification/verify-email-otp-verification
+Content-Type: application/json
+
+{
+  "email": "expiry-test@example.com",
+  "otp": "123456"
+}
+
+
+### Scenario 5: Test Rate Limiting (Verification)
+
+### First request (should succeed)
+POST {{baseUrl}}/verification/send-email-otp-verification
+Content-Type: application/json
+
+{
+  "email": "ratelimit-test@example.com"
+}
+
+### Second request immediately after (should fail with rate limit error)
+POST {{baseUrl}}/verification/send-email-otp-verification
+Content-Type: application/json
+
+{
+  "email": "ratelimit-test@example.com"
+}
+
+
+### Scenario 6: Test Already Verified Email
+
+### First verification
+POST {{baseUrl}}/verification/verify-email-otp-verification
+Content-Type: application/json
+
+{
+  "email": "verified@example.com",
+  "otp": "123456"
+}
+
+### Try to send OTP again (should fail - already verified)
+POST {{baseUrl}}/verification/send-email-otp-verification
+Content-Type: application/json
+
+{
+  "email": "verified@example.com"
+}
+
+
+### VALIDATION TESTS (Verification Endpoints)
+
+### Test: Invalid Email Format
+POST {{baseUrl}}/verification/send-email-otp-verification
+Content-Type: application/json
+
+{
+  "email": "invalid-email"
+}
+
+### Expected Response:
+# {
+#   "statusCode": 400,
+#   "message": ["email must be an email"],
+#   "error": "Bad Request"
+# }
+
+
+### Test: Missing Email
+POST {{baseUrl}}/verification/send-email-otp-verification
+Content-Type: application/json
+
+{
+}
+
+### Expected Response:
+# {
+#   "statusCode": 400,
+#   "message": ["Email is required", "Invalid email format"],
+#   "error": "Bad Request"
+# }
+
+
+### Test: OTP Not 6 Digits
+POST {{baseUrl}}/verification/verify-email-otp-verification
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "otp": "12345"
+}
+
+### Expected Response:
+# {
+#   "statusCode": 400,
+#   "message": ["OTP must be exactly 6 digits"],
+#   "error": "Bad Request"
+# }
+
+
+### Test: Missing OTP
+POST {{baseUrl}}/verification/verify-email-otp-verification
+Content-Type: application/json
+
+{
+  "email": "test@example.com"
+}
+
+### Expected Response:
+# {
+#   "statusCode": 400,
+#   "message": ["OTP is required", "OTP must be exactly 6 digits"],
+#   "error": "Bad Request"
+# }

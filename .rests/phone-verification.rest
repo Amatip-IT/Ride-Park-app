@@ -1,0 +1,193 @@
+### PHONE VERIFICATION ENDPOINTS
+
+@baseUrl = http://localhost:5000
+@phoneNumber = +2348072496614
+@phoneOtp = 654321
+
+
+### 1. Send Phone OTP
+POST {{baseUrl}}/verification/send-phone-otp
+Content-Type: application/json
+
+{
+  "phoneNumber": "{{phoneNumber}}"
+}
+
+### Expected Response (Success):
+# {
+#   "success": true,
+#   "message": "OTP sent successfully to your phone",
+#   "expiresIn": "10 minutes"
+# }
+
+### Expected Response (Already Verified):
+# {
+#   "statusCode": 400,
+#   "message": "Phone number is already verified",
+#   "error": "Bad Request"
+# }
+
+### Expected Response (User Not Found):
+# {
+#   "statusCode": 404,
+#   "message": "User not found with this phone number",
+#   "error": "Not Found"
+# }
+
+### Expected Response (Rate Limited):
+# {
+#   "statusCode": 400,
+#   "message": "Please wait 45 seconds before requesting a new OTP",
+#   "error": "Bad Request"
+# }
+
+
+### 2. Verify Phone OTP
+POST {{baseUrl}}/verification/verify-phone-otp
+Content-Type: application/json
+
+{
+  "phoneNumber": "{{phoneNumber}}",
+  "otp": "{{phoneOtp}}"
+}
+
+### Expected Response (Success):
+# {
+#   "success": true,
+#   "message": "Phone number verified successfully",
+#   "isVerified": true
+# }
+
+### Expected Response (Invalid OTP):
+# {
+#   "statusCode": 400,
+#   "message": "Invalid OTP. Please check and try again",
+#   "error": "Bad Request"
+# }
+
+### Expected Response (Expired OTP):
+# {
+#   "statusCode": 400,
+#   "message": "OTP has expired. Please request a new one",
+#   "error": "Bad Request"
+# }
+
+### Expected Response (No OTP Found):
+# {
+#   "statusCode": 400,
+#   "message": "No OTP found. Please request a new OTP",
+#   "error": "Bad Request"
+# }
+
+
+### 3. Check Phone Status
+GET {{baseUrl}}/verification/phone-status?phoneNumber={{phoneNumber}}
+
+### Expected Response (Verified):
+# {
+#   "success": true,
+#   "isVerified": true,
+#   "phoneNumber": "+1234567890"
+# }
+
+### Expected Response (Not Verified):
+# {
+#   "success": true,
+#   "isVerified": false,
+#   "phoneNumber": "+1234567890"
+# }
+
+
+### TEST SCENARIOS
+
+### Complete Phone Verification Flow
+
+### Step 1: Send Phone OTP
+POST {{baseUrl}}/verification/send-phone-otp
+Content-Type: application/json
+
+{
+  "phoneNumber": "+1234567890"
+}
+
+### Step 2: Verify Phone (check SMS for OTP)
+POST {{baseUrl}}/verification/verify-phone-otp
+Content-Type: application/json
+
+{
+  "phoneNumber": "+1234567890",
+  "otp": "654321"
+}
+
+### Step 3: Check Phone Statuse
+GET {{baseUrl}}/verification/phone-status?phoneNumber=+1234567890
+
+
+### VALIDATION TESTS
+
+### Test: Invalid Phone Format
+POST {{baseUrl}}/verification/send-phone-otp
+Content-Type: application/json
+
+{
+  "phoneNumber": "invalid-phone"
+}
+
+### Expected Response:
+# {
+#   "statusCode": 400,
+#   "message": ["Phone number must be in international format (e.g., +1234567890)"],
+#   "error": "Bad Request"
+# }
+
+
+### Test: Missing Phone Number
+POST {{baseUrl}}/verification/send-phone-otp
+Content-Type: application/json
+
+{
+}
+
+### Expected Response:
+# {
+#   "statusCode": 400,
+#   "message": ["Phone number is required"],
+#   "error": "Bad Request"
+# }
+
+
+### Test: Phone OTP Not 6 Digits
+POST {{baseUrl}}/verification/verify-phone-otp
+Content-Type: application/json
+
+{
+  "phoneNumber": "+1234567890",
+  "otp": "12345"
+}
+
+### Expected Response:
+# {
+#   "statusCode": 400,
+#   "message": ["OTP must be exactly 6 digits"],
+#   "error": "Bad Request"
+# }
+
+
+### RATE LIMITING TESTS
+
+### Test: Phone Rate Limit
+### Send first request
+POST {{baseUrl}}/verification/send-phone-otp
+Content-Type: application/json
+
+{
+  "phoneNumber": "+1234567890"
+}
+
+### Send second request immediately (should fail)
+POST {{baseUrl}}/verification/send-phone-otp
+Content-Type: application/json
+
+{
+  "phoneNumber": "+1234567890"
+}

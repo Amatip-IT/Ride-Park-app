@@ -1,0 +1,39 @@
+{{!-- This template only contains the main content --}}
+{{!-- Header and Footer are automatically added by the layout --}}
+
+<div class="content text-center">
+  <p>Hello!</p>
+  <p>Thank you for signing up with Ride and Park. To complete your email verification, please use the following One-Time Password (OTP):</p>
+
+  <div class="otp-box" style="
+    background-color: #f8f9fa;
+    border: 2px dashed #667eea;
+    border-radius: 8px;
+    padding: 20px;
+    margin: 30px 0;">
+    <div class="otp-code" style="
+      font-size: 36px;
+      font-weight: bold;
+      color: #667eea;
+      letter-spacing: 8px;
+      margin: 10px 0;">{{otp}}</div>
+    <div class="expiry" style="
+      font-size: 14px;
+      color: #666666;
+      margin-top: 10px;">⏰ This code expires in 10 minutes</div>
+  </div>
+
+  <div class="warning" style="
+    background-color: #fff3cd;
+    border-left: 4px solid #ffc107;
+    padding: 15px;
+    margin: 20px 0;
+    text-align: left;">
+    <p style="margin: 5px 0; font-size: 14px; color: #856404;"><strong>⚠️ Security Notice:</strong></p>
+    <p style="margin: 5px 0; font-size: 14px; color: #856404;">• Never share this code with anyone</p>
+    <p style="margin: 5px 0; font-size: 14px; color: #856404;">• Ride and Park will never ask for this code via phone or email</p>
+    <p style="margin: 5px 0; font-size: 14px; color: #856404;">• If you didn't request this code, please ignore this email</p>
+  </div>
+
+  <p class="mt-30">If you have any questions, feel free to contact our support team.</p>
+</div>

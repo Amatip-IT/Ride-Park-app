@@ -1,0 +1,400 @@
+### Driver Verification Endpoints
+
+@baseUrl = http://localhost:5000
+@token = Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5NDA5MjYyNGVlZGE0ZjMyYjhlOTdmNiIsInJvbGUiOiJ1c2VyIiwiaXNzdWVkQXQiOjE3NjU4Mzk0NjMsImlhdCI6MTc2NTgzOTQ2MywiZXhwIjoxNzY2MDEyMjYzfQ.oZa6WFNb9fmwwrmI1lNqdKA6AESpGZtxWXhxDIdlKHw
+@adminToken = Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5M2M2N2RlNmNkZDM2NDUxYjgyMzQ0NiIsInJvbGUiOiJhZG1pbiIsImlzc3VlZEF0IjoxNzY1NTY2NTU5LCJpYXQiOjE3NjU1NjY1NTksImV4cCI6MTc2NTczOTM1OX0.ggSKVJ9T__t69A_wNOyXmHptZ_dQL5JP3TjXk2GdIEQ
+@userId = 6934067e42a4658985bf0fd5
+
+### PREREQUISITES:
+# Before testing driver verification, ensure:
+# 1. User has verified email (isVerified.email = true)
+# 2. User has verified phone (isVerified.phone = true)
+# 3. User has verified identity with UK DRIVING LICENSE (isVerified.identity = true)
+# 4. Get JWT token from POST /users/login
+
+
+### 1. CHECK VEHICLE DETAILS (Step 1)
+### Checks vehicle registration with DVLA and MOT APIs
+### Returns basic vehicle info (tax, MOT status)
+### User does NOT see colour/make/year at this stage
+### Requires: Identity verified with driving license
+
+GET {{baseUrl}}/verification/taxi/check-vehicle?registration=EJ17PYA
+Authorization: {{token}}
+
+### Expected Response (Success):
+# {
+#   "success": true,
+#   "message": "Vehicle found. Please confirm the details to proceed.",
+#   "vehicleData": {
+#     "registration": "AA19MOT",
+#     "taxStatus": "Taxed",
+#     "motStatus": "Valid",
+#     "motExpiryDate": "2025-11-14"
+#   },
+#   "requiresConfirmation": true
+# }
+
+
+### 2. SUBMIT DRIVER APPLICATION (Step 2)
+### IMPORTANT: This endpoint uses multipart/form-data with file uploads
+### For VS Code REST Client, file uploads require actual files in the specified paths
+### Alternative: Use Postman or Thunder Client for easier file uploads
+
+POST {{baseUrl}}/verification/taxi/apply
+Authorization: {{token}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="registrationNumber"
+
+EJ17PYA
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="vehicleColour"
+
+Blue
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="vehicleMake"
+
+FIAT
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="vehicleYear"
+
+2017-06-16
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="hasValidInsurance"
+
+true
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="isRoadworthy"
+
+true
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="hasPermission"
+
+true
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="vehiclePhotos"; filename="front.jpg"
+Content-Type: image/jpeg
+
+< ./test-files/vehicle-front.jpg
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="vehiclePhotos"; filename="side.jpg"
+Content-Type: image/jpeg
+
+< ./test-files/vehicle-side.jpg
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="vehiclePhotos"; filename="rear.jpg"
+Content-Type: image/jpeg
+
+< ./test-files/vehicle-rear.jpg
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="vehiclePhotos"; filename="interior.jpg"
+Content-Type: image/jpeg
+
+< ./test-files/vehicle-interior.jpg
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="insuranceCertificate"; filename="insurance.pdf"
+Content-Type: application/pdf
+
+< ./test-files/insurance.pdf
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+
+### 3. CHECK DRIVER STATUS
+GET {{baseUrl}}/verification/taxi/status
+Authorization: {{token}}
+
+
+### 4. ADMIN: APPROVE DRIVER APPLICATION
+POST {{baseUrl}}/verification/taxi/admin/approve-reject
+Authorization: {{adminToken}}
+Content-Type: application/json
+
+{
+  "userId": "{{userId}}",
+  "decision": "approve"
+}
+# Note: 'reason' field is NOT needed for approval
+
+### 5. ADMIN: REJECT DRIVER APPLICATION
+POST {{baseUrl}}/verification/taxi/admin/approve-reject
+Authorization: {{adminToken}}
+Content-Type: application/json
+
+{
+  "userId": "{{userId}}",
+  "decision": "reject",
+  "reason": "Insurance certificate expired. Please upload current insurance valid for at least 6 months and re-apply."
+}
+# Note: 'reason' field is REQUIRED when rejecting (minimum 10 characters)
+
+### TEST SCENARIOS
+
+### Scenario 1: Complete Driver Application Flow (Happy Path)
+
+### Step 1: Check vehicle
+GET {{baseUrl}}/verification/taxi/check-vehicle?registration=AB12CDE
+Authorization: {{token}}
+
+### Step 2: Submit application (REQUIRES FILE UPLOADS - Use Postman for easier testing)
+# POST {{baseUrl}}/verification/taxi/apply
+# See endpoint #2 above for full multipart form
+
+### Step 3: Check status (should be pending_admin_review)
+GET {{baseUrl}}/verification/taxi/status
+Authorization: {{token}}
+
+### Step 4: Admin approves
+POST {{baseUrl}}/verification/taxi/admin/approve-reject
+Authorization: {{adminToken}}
+Content-Type: application/json
+
+{
+  "userId": "{{userId}}",
+  "decision": "approve"
+}
+
+### Step 5: Check status again (should be approved, isVerified = true)
+GET {{baseUrl}}/verification/taxi/status
+Authorization: {{token}}
+
+
+### Scenario 2: Test Smart Hybrid Validation - Vehicle Details Mismatch
+### This will fail because you're providing wrong vehicle details
+
+### Step 1: Check vehicle first
+GET {{baseUrl}}/verification/taxi/check-vehicle?registration=AB12CDE
+Authorization: {{token}}
+
+### Step 2: Submit with WRONG details (colour/make/year don't match DVLA)
+# This should return 400 Bad Request: "Vehicle details do not match"
+# Use Postman to test - submit the form with these values:
+# vehicleColour: "Red" (actual: Blue)
+# vehicleMake: "HONDA" (actual: TOYOTA)
+# vehicleYear: 2019 (actual: 2020)
+
+
+### Scenario 3: Test Without Identity Verification
+### Should return 403 Forbidden
+GET {{baseUrl}}/verification/taxi/check-vehicle?registration=AB12CDE
+Authorization: Bearer <unverified_user_token>
+
+
+### Scenario 4: Test With Passport Instead of Driving License
+### Should return 403 Forbidden with message about needing driving license
+GET {{baseUrl}}/verification/taxi/check-vehicle?registration=AB12CDE
+Authorization: Bearer <passport_verified_user_token>
+
+
+### Scenario 5: Test Invalid Registration Format
+GET {{baseUrl}}/verification/taxi/check-vehicle?registration=INVALID123
+Authorization: {{token}}
+# Expected: 400 Bad Request
+
+
+### Scenario 6: Test Vehicle Not Found
+GET {{baseUrl}}/verification/taxi/check-vehicle?registration=ZZ99ZZZ
+Authorization: {{token}}
+# Expected: 404 Not Found
+
+
+### Scenario 7: Test Missing Registration Parameter
+GET {{baseUrl}}/verification/taxi/check-vehicle
+Authorization: {{token}}
+# Expected: 400 Bad Request - "Registration number is required"
+
+
+### Scenario 8: Test Already Applied
+### First, submit an application
+### Then try checking vehicle again - should get 400 Bad Request
+GET {{baseUrl}}/verification/taxi/check-vehicle?registration=AB12CDE
+Authorization: {{token}}
+# Expected: 400 Bad Request - "You already have a driver application with status: pending_admin_review"
+
+
+### Scenario 9: Test Admin Rejection Without Reason
+POST {{baseUrl}}/verification/taxi/admin/approve-reject
+Authorization: {{adminToken}}
+Content-Type: application/json
+
+{
+  "userId": "{{userId}}",
+  "decision": "reject"
+}
+# Expected: 400 Bad Request - "Rejection reason is required when rejecting"
+
+
+### Scenario 10: Test Invalid Admin Decision
+POST {{baseUrl}}/verification/taxi/admin/approve-reject
+Authorization: {{adminToken}}
+Content-Type: application/json
+
+{
+  "userId": "{{userId}}",
+  "decision": "maybe"
+}
+# Expected: 400 Bad Request - validation error
+
+
+### Scenario 11: Test Unauthorized Access (No Token)
+GET {{baseUrl}}/verification/taxi/check-vehicle?registration=AB12CDE
+# Expected: 401 Unauthorized
+
+
+### Scenario 12: Test Non-Admin User Accessing Admin Endpoint
+POST {{baseUrl}}/verification/taxi/admin/approve-reject
+Authorization: {{token}}
+Content-Type: application/json
+
+{
+  "userId": "{{userId}}",
+  "decision": "approve"
+}
+# Expected: 403 Forbidden
+
+
+### NOTES & DOCUMENTATION
+
+# 1. FILE UPLOADS LIMITATION:
+#    VS Code REST Client has limited support for file uploads.
+#    For testing file uploads (endpoint #2), we recommend:
+#    - Postman: Import this file, easier file upload UI
+#    - Thunder Client: VS Code extension with better file support
+#    - cURL: Command line alternative
+
+# 2. FILE UPLOAD TESTING WITH POSTMAN:
+#    a. Import this file to Postman (File → Import → Raw text)
+#    b. For endpoint #2, switch Body to "form-data"
+#    c. Add fields:
+#       - registrationNumber (text): AB12CDE
+#       - vehicleColour (text): Blue
+#       - vehicleMake (text): TOYOTA
+#       - vehicleYear (text): 2020
+#       - hasValidInsurance (text): true
+#       - isRoadworthy (text): true
+#       - hasPermission (text): true
+#       - vehiclePhotos (file): Select 4 images
+#       - insuranceCertificate (file): Select 1 PDF
+
+# 3. FILE UPLOAD TESTING WITH CURL:
+curl -X POST http://localhost:5000/verification/taxi/apply \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -F "registrationNumber=AB12CDE" \
+  -F "vehicleColour=Blue" \
+  -F "vehicleMake=TOYOTA" \
+  -F "vehicleYear=2020" \
+  -F "hasValidInsurance=true" \
+  -F "isRoadworthy=true" \
+  -F "hasPermission=true" \
+  -F "vehiclePhotos=@./test-files/vehicle-front.jpg" \
+  -F "vehiclePhotos=@./test-files/vehicle-side.jpg" \
+  -F "vehiclePhotos=@./test-files/vehicle-rear.jpg" \
+  -F "vehiclePhotos=@./test-files/vehicle-interior.jpg" \
+  -F "insuranceCertificate=@./test-files/insurance.pdf"
+
+# 4. AUTHENTICATION FLOW:
+#    a. Register: POST /users/register
+#    b. Verify email: POST /users/verify-email
+#    c. Verify phone: POST /users/verify-phone
+#    d. Verify identity: POST /verification/identity/upload (with driving license)
+#    e. Login: POST /users/login (get JWT token)
+#    f. Use token in Authorization header for driver endpoints
+
+# 5. SMART HYBRID VALIDATION:
+#    - Step 1: User only sees registration, tax, MOT status
+#    - Step 2: User must answer colour/make/year (security questions)
+#    - Backend compares answers with DVLA data
+#    - Prevents fraud: User must have physical access to vehicle
+
+# 6. APPLICATION STATUSES:
+#    - pending_admin_review: Waiting for admin to review
+#    - approved: Driver verified, can activate driver mode
+#    - rejected: Application rejected, can re-apply after fixing issues
+
+# 7. REQUIRED FILES:
+#    Vehicle Photos (4 required):
+#    - Front view
+#    - Side view
+#    - Rear view
+#    - Interior view
+#    Format: JPEG/PNG, max 10MB each
+#
+#    Insurance Certificate (1 required):
+#    - Current insurance policy
+#    Format: PDF, max 10MB
+
+# 8. DVLA/MOT CHECKS:
+#    Automatic checks performed:
+#    - DVLA: Tax status, vehicle details, registration validity
+#    - MOT: Test history, expiry date, mileage, defects
+#    - Both must pass for application to proceed
+
+# 9. ADMIN WORKFLOW:
+#    a. View pending applications (future endpoint)
+#    b. Review vehicle photos
+#    c. Verify insurance certificate
+#    d. Check DVLA/MOT results
+#    e. Approve or reject with reason
+
+# 10. TESTING CHECKLIST:
+#     Before testing, ensure you have:
+#     [ ] Test DVLA API key in .env
+#     [ ] Test MOT API key in .env
+#     [ ] AWS S3 credentials in .env
+#     [ ] Test image files (4 JPEGs)
+#     [ ] Test PDF file (1 insurance doc)
+#     [ ] User with verified identity (driving license)
+#     [ ] Valid JWT tokens (user + admin)
+
+# 11. ERROR HANDLING:
+#     Common errors and solutions:
+#     - 400: Check request format, required fields
+#     - 401: Token expired or missing
+#     - 403: User not verified or not admin
+#     - 404: Vehicle not found or user not found
+#     - 500: Check API keys, S3 credentials, logs
+
+# 12. RATE LIMITS (Recommended Implementation):
+#     - Check vehicle: 10 req/hour per user
+#     - Submit application: 1 req/day per user
+#     - Status check: 60 req/hour per user
+#     - Admin endpoints: 100 req/hour
+
+# 13. PRODUCTION DEPLOYMENT:
+#     Update these for production:
+#     @baseUrl = https://api.rideandpark.com
+#     Use production API keys
+#     Use production S3 bucket
+#     Enable HTTPS only
+#     Set up proper CORS
+
+# 14. SECURITY CONSIDERATIONS:
+#     - Files stored privately in S3 (not public)
+#     - API keys never exposed to frontend
+#     - Admin endpoints require admin role
+#     - User can only access their own data
+#     - Input validation on all fields
+#     - File type and size validation
+
+# 15. MONITORING & LOGGING:
+#     Log these events:
+#     - Vehicle check requests
+#     - Application submissions
+#     - Admin decisions (approve/reject)
+#     - Failed DVLA/MOT checks
+#     - File upload errors
+#     - Security violations
+
+# 16. ADMIN DECISION FIELDS:
+#     For approval:
+#     - userId: required (string)
+#     - decision: required ("approve")
+#     - reason: NOT included (will be ignored if provided)
+#
+#     For rejection:
+#     - userId: required (string)
+#     - decision: required ("reject")
+#     - reason: REQUIRED (string, min 10 characters)
+#     - Must explain why application was rejected
+#     - User will see this reason in their status check

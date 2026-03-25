@@ -1,0 +1,59 @@
+### Define base URL
+@baseURL=http://localhost:5000
+
+### CREATE OR REGISTER NEW USER(NON-ADMIN)
+## Non-optional fields are: firstName, lastName, username, email, phoneNumber, password (role is auto assigned as 'user')
+## This request does not require authorization (unguarded route)
+POST {{baseURL}}/users/register
+Content-Type: application/json
+
+{
+  "firstName": "wariz",
+  "lastName": "kenny",
+  "username": "war_riz",
+  "email": "kenny@gmail.com",
+  "phoneNumber": "+1234567890",
+  "password": "SecurePassword123!",
+  "role": "admin"
+}
+
+### LOGIN USER
+## Required fields: email, password
+POST {{baseURL}}/users/login
+Content-Type: application/json
+
+{
+  "email": "kenny@gmail.com",
+  "password": "SecurePassword123!"
+}
+
+
+### verify email OTP for LOGIN
+### Verifies the OTP and allows login if successful
+POST {{baseURL}}/verification/verify-email-otp-login
+Content-Type: application/json
+
+{
+  "email": "olusolasamson18@gmail.com",
+  "otp": "945627"
+}
+
+
+###
+### Send Email OTP for LOGIN
+### Sends a 6-digit OTP to the user's email
+### Rate limit: 1 request per minute per email
+POST {{baseURL}}/verification/send-email-otp-login
+Content-Type: application/json
+
+{
+  "email": "olusolasamson18@gmail.com"
+}
+
+### GET ALL USERS WITH FILTERING
+### can take firstName, lastName, username as optional query params to filter users
+### request is in the format: {{baseURL}}/users?role=thief&firstName=black&lastName=widow&username=blackwidow
+### Taking query params: role, firstName, lastName, username
+### This request requires admin authorization
+GET {{baseURL}}/users
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5M2M2N2RlNmNkZDM2NDUxYjgyMzQ0NiIsInJvbGUiOiJhZG1pbiIsImlzc3VlZEF0IjoxNzY1NTY2NTU5LCJpYXQiOjE3NjU1NjY1NTksImV4cCI6MTc2NTczOTM1OX0.ggSKVJ9T__t69A_wNOyXmHptZ_dQL5JP3TjXk2GdIEQ

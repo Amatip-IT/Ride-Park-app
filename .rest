@@ -1,0 +1,2 @@
+### Server Health Check
+GET http://localhost:5000
