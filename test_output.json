@@ -1,0 +1,39 @@
+[
+  {
+    "_id": "69c519a26a4ca37741553d7b",
+    "user": "69c518e66a4ca37741553d5c",
+    "status": "pending_admin_review",
+    "isVerified": false,
+    "isActive": false,
+    "address": "73 Holburn Street Birmingham",
+    "postcode": "AB10 6DN",
+    "documents": {
+      "parkName": "Queen’s Park",
+      "parkPhotoUrl": "file:///var/mobile/Containers/Data/Application/F8C23301-DE9B-42A0-B1E1-1F792A28F3A3/Library/Caches/ExponentExperienceData/@anonymous/ride-and-park-mobile-f9a64ed4-ff70-45b9-8085-6be4fe06617e/ImagePicker/5D0E2790-3536-43BB-9D2D-9697C85E8807.png",
+      "proofOfAddressType": "driving_license"
+    },
+    "createdAt": "2026-03-26T11:33:54.442Z",
+    "updatedAt": "2026-03-26T11:33:54.442Z",
+    "__v": 0
+  },
+  {
+    "_id": "69c709fb881954d225aa9f9f",
+    "user": "69c7096f881954d225aa9f74",
+    "status": "pending_admin_review",
+    "isVerified": false,
+    "isActive": false,
+    "address": "55 Avenue Road",
+    "postcode": "BH2 5LS",
+    "documents": {
+      "parkName": "55 Avenue Road",
+      "parkPhotoUrl": "file:///var/mobile/Containers/Data/Application/F8C23301-DE9B-42A0-B1E1-1F792A28F3A3/Library/Caches/ExponentExperienceData/@anonymous/ride-and-park-mobile-f9a64ed4-ff70-45b9-8085-6be4fe06617e/ImagePicker/545552AA-7F91-4265-AD45-6C071059E232.png",
+      "cctvPhotoUrl": "file:///var/mobile/Containers/Data/Application/F8C23301-DE9B-42A0-B1E1-1F792A28F3A3/Library/Caches/ExponentExperienceData/@anonymous/ride-and-park-mobile-f9a64ed4-ff70-45b9-8085-6be4fe06617e/ImagePicker/159F4753-A4F7-474B-B6F1-8A83F2EA8066.png",
+      "nationalIdUrl": "file:///var/mobile/Containers/Data/Application/F8C23301-DE9B-42A0-B1E1-1F792A28F3A3/Library/Caches/ExponentExperienceData/@anonymous/ride-and-park-mobile-f9a64ed4-ff70-45b9-8085-6be4fe06617e/ImagePicker/471D00C8-DE8B-4D45-A841-FF14F05C3978.png",
+      "proofOfAddressUrl": "file:///var/mobile/Containers/Data/Application/F8C23301-DE9B-42A0-B1E1-1F792A28F3A3/Library/Caches/ExponentExperienceData/@anonymous/ride-and-park-mobile-f9a64ed4-ff70-45b9-8085-6be4fe06617e/ImagePicker/3F74BE36-C892-4627-863C-E8CF34F2E296.png",
+      "proofOfAddressType": "bank_statement"
+    },
+    "createdAt": "2026-03-27T22:51:39.868Z",
+    "updatedAt": "2026-03-27T22:51:39.868Z",
+    "__v": 0
+  }
+]

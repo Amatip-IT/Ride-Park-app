@@ -17,8 +17,12 @@ import { useAuthStore } from '@/store/authStore';
 import { authService } from '@/api/authService';
 import { RouteProp, useRoute } from '@react-navigation/native';
 import { RootStackParamList } from '@/navigation/RootNavigator';
+import { Ionicons } from '@expo/vector-icons';
+import PhoneInput from 'react-native-phone-number-input';
+import { Picker } from '@react-native-picker/picker';
+import { useRef } from 'react';
 
-type AuthStep = 'register' | 'otp' | 'login';
+type AuthStep = 'register_step1' | 'register_step2' | 'otp' | 'login';
 
 export function AuthScreen() {
   const route = useRoute<RouteProp<RootStackParamList, 'Auth'>>();
@@ -26,9 +30,10 @@ export function AuthScreen() {
   const initialRole = route.params?.role ?? 'user';
 
   const [isLogin, setIsLogin] = useState(initialIsLogin);
-  const [currentStep, setCurrentStep] = useState<AuthStep>(initialIsLogin ? 'login' : 'register');
+  const [currentStep, setCurrentStep] = useState<AuthStep>(initialIsLogin ? 'login' : 'register_step1');
   
   const [otp, setOtp] = useState('');
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   const [formData, setFormData] = useState({
     firstName: '',
@@ -37,8 +42,16 @@ export function AuthScreen() {
     email: '',
     phoneNumber: '',
     password: '',
+    confirmPassword: '',
+    postCode: '',
+    street: '',
+    county: '',
+    town: '',
+    country: 'United Kingdom',
     role: initialRole as import('@/types').UserRole,
   });
+
+  const phoneInput = useRef<PhoneInput>(null);
 
   const [loginData, setLoginData] = useState({
     email: '',
@@ -49,7 +62,8 @@ export function AuthScreen() {
     useEmailOtp();
   const { login: storeLogin, setIsLoading, setError: setStoreError } = useAuthStore();
 
-  const handleRegister = async () => {
+  // ── Step 1 validation ──
+  const handleStep1Next = () => {
     if (!formData.firstName.trim() || !formData.lastName.trim()) {
       Alert.alert('Error', 'Please enter your first and last name'); return;
     }
@@ -65,10 +79,48 @@ export function AuthScreen() {
     if (!formData.password.trim() || formData.password.length < 6) {
       Alert.alert('Error', 'Password must be at least 6 characters'); return;
     }
+    if (formData.password !== formData.confirmPassword) {
+      Alert.alert('Error', 'Passwords do not match'); return;
+    }
+    setCurrentStep('register_step2');
+  };
+
+  // ── Step 2 submit (full registration) ──
+  const handleRegister = async () => {
+    if (!formData.postCode.trim()) {
+      Alert.alert('Error', 'Please enter your post code'); return;
+    }
+    if (!formData.town.trim()) {
+      Alert.alert('Error', 'Please enter your town'); return;
+    }
+    if (!formData.country.trim()) {
+      Alert.alert('Error', 'Please enter your country'); return;
+    }
+    if (!termsAccepted) {
+      Alert.alert('Error', 'You must agree to the Terms & Conditions to continue'); return;
+    }
 
     setIsLoading(true);
     try {
-      const response = await authService.register(formData);
+      const payload = {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        username: formData.username,
+        email: formData.email,
+        phoneNumber: formData.phoneNumber,
+        password: formData.password,
+        role: formData.role,
+        postCode: formData.postCode,
+        address: {
+          street: formData.street || undefined,
+          county: formData.county || undefined,
+          town: formData.town,
+          country: formData.country,
+        },
+        termsAccepted: true,
+      };
+
+      const response = await authService.register(payload);
 
       if (!response.success) {
         setStoreError(response.message || 'Registration failed');
@@ -100,7 +152,7 @@ export function AuthScreen() {
       return;
     }
 
-    const emailToVerify = currentStep === 'register' || currentStep === 'otp' ? formData.email : loginData.email;
+    const emailToVerify = formData.email;
     const success = await verifyOtp(emailToVerify, otp);
     
     if (success) {
@@ -164,8 +216,9 @@ export function AuthScreen() {
   const toggleAuthMode = () => {
     const newIsLogin = !isLogin;
     setIsLogin(newIsLogin);
-    setCurrentStep(newIsLogin ? 'login' : 'register');
+    setCurrentStep(newIsLogin ? 'login' : 'register_step1');
     setOtp('');
+    setTermsAccepted(false);
     setFormData({
       firstName: '',
       lastName: '',
@@ -173,11 +226,35 @@ export function AuthScreen() {
       email: '',
       phoneNumber: '',
       password: '',
+      confirmPassword: '',
+      postCode: '',
+      street: '',
+      county: '',
+      town: '',
+      country: 'United Kingdom',
       role: initialRole as import('@/types').UserRole,
     });
     setLoginData({ email: '', password: '' });
     clearError();
   };
+
+  // ── Step indicator ──
+  const StepIndicator = ({ currentStepNum, totalSteps }: { currentStepNum: number; totalSteps: number }) => (
+    <View style={styles.stepIndicator}>
+      {Array.from({ length: totalSteps }, (_, i) => (
+        <View key={i} style={styles.stepRow}>
+          <View style={[styles.stepDot, i < currentStepNum && styles.stepDotActive, i === currentStepNum - 1 && styles.stepDotCurrent]}>
+            {i < currentStepNum - 1 && <Ionicons name="checkmark" size={12} color={COLORS.deepNavy} />}
+            {i === currentStepNum - 1 && <Text style={styles.stepDotText}>{i + 1}</Text>}
+            {i >= currentStepNum && <Text style={styles.stepDotTextInactive}>{i + 1}</Text>}
+          </View>
+          {i < totalSteps - 1 && (
+            <View style={[styles.stepLine, i < currentStepNum - 1 && styles.stepLineActive]} />
+          )}
+        </View>
+      ))}
+    </View>
+  );
 
   return (
     <KeyboardAvoidingView
@@ -195,28 +272,31 @@ export function AuthScreen() {
           </Text>
         </View>
 
-        {currentStep === 'register' && (
+        {/* ════════════ REGISTER STEP 1: Personal Details ════════════ */}
+        {currentStep === 'register_step1' && (
           <View style={styles.formContainer}>
-            <Text style={styles.label}>Complete Your Profile</Text>
+            <StepIndicator currentStepNum={1} totalSteps={2} />
+            <Text style={styles.label}>Personal Details</Text>
 
-            <View style={styles.inputWrapper}>
-              <TextInput
-                style={styles.input}
-                placeholder="First Name"
-                placeholderTextColor={COLORS.cloudWhite}
-                value={formData.firstName}
-                onChangeText={(text) => setFormData({ ...formData, firstName: text })}
-              />
-            </View>
-
-            <View style={styles.inputWrapper}>
-              <TextInput
-                style={styles.input}
-                placeholder="Last Name"
-                placeholderTextColor={COLORS.cloudWhite}
-                value={formData.lastName}
-                onChangeText={(text) => setFormData({ ...formData, lastName: text })}
-              />
+            <View style={styles.row}>
+              <View style={[styles.inputWrapper, styles.halfInput]}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="First Name"
+                  placeholderTextColor={COLORS.cloudWhite}
+                  value={formData.firstName}
+                  onChangeText={(text) => setFormData({ ...formData, firstName: text })}
+                />
+              </View>
+              <View style={[styles.inputWrapper, styles.halfInput]}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Last Name"
+                  placeholderTextColor={COLORS.cloudWhite}
+                  value={formData.lastName}
+                  onChangeText={(text) => setFormData({ ...formData, lastName: text })}
+                />
+              </View>
             </View>
 
             <View style={styles.inputWrapper}>
@@ -226,6 +306,7 @@ export function AuthScreen() {
                 placeholderTextColor={COLORS.cloudWhite}
                 value={formData.username}
                 onChangeText={(text) => setFormData({ ...formData, username: text })}
+                autoCapitalize="none"
               />
             </View>
             
@@ -241,14 +322,21 @@ export function AuthScreen() {
               />
             </View>
 
-            <View style={styles.inputWrapper}>
-              <TextInput
-                style={styles.input}
-                placeholder="Phone Number (e.g. +44...)"
-                placeholderTextColor={COLORS.cloudWhite}
-                value={formData.phoneNumber}
-                onChangeText={(text) => setFormData({ ...formData, phoneNumber: text })}
-                keyboardType="phone-pad"
+            <View style={styles.phoneInputWrapper}>
+              <PhoneInput
+                ref={phoneInput}
+                defaultValue={formData.phoneNumber}
+                defaultCode="GB"
+                layout="first"
+                onChangeFormattedText={(text) => {
+                  setFormData({ ...formData, phoneNumber: text });
+                }}
+                containerStyle={styles.phoneContainer}
+                textContainerStyle={styles.phoneTextContainer}
+                textInputStyle={styles.phoneTextInput}
+                codeTextStyle={styles.phoneCodeText}
+                withDarkTheme
+                withShadow={false}
               />
             </View>
 
@@ -262,6 +350,116 @@ export function AuthScreen() {
                 secureTextEntry
               />
             </View>
+
+            <View style={styles.inputWrapper}>
+              <TextInput
+                style={styles.input}
+                placeholder="Confirm Password"
+                placeholderTextColor={COLORS.cloudWhite}
+                value={formData.confirmPassword}
+                onChangeText={(text) => setFormData({ ...formData, confirmPassword: text })}
+                secureTextEntry
+              />
+            </View>
+
+            {error ? <Text style={styles.error}>{error}</Text> : null}
+
+            <TouchableOpacity
+              style={styles.button}
+              onPress={handleStep1Next}
+            >
+              <Text style={styles.buttonText}>Next — Address Details</Text>
+            </TouchableOpacity>
+
+            <View style={styles.toggleContainer}>
+              <Text style={styles.toggleText}>Already have an account? </Text>
+              <TouchableOpacity onPress={toggleAuthMode}>
+                <Text style={styles.toggleLink}>Sign In</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* ════════════ REGISTER STEP 2: Address & Terms ════════════ */}
+        {currentStep === 'register_step2' && (
+          <View style={styles.formContainer}>
+            <StepIndicator currentStepNum={2} totalSteps={2} />
+            <Text style={styles.label}>Address & Terms</Text>
+
+            <View style={styles.inputWrapper}>
+              <TextInput
+                style={styles.input}
+                placeholder="Post Code"
+                placeholderTextColor={COLORS.cloudWhite}
+                value={formData.postCode}
+                onChangeText={(text) => setFormData({ ...formData, postCode: text })}
+                autoCapitalize="characters"
+              />
+            </View>
+
+            <View style={styles.inputWrapper}>
+              <TextInput
+                style={styles.input}
+                placeholder="Street Address"
+                placeholderTextColor={COLORS.cloudWhite}
+                value={formData.street}
+                onChangeText={(text) => setFormData({ ...formData, street: text })}
+              />
+            </View>
+
+            <View style={styles.inputWrapper}>
+              <TextInput
+                style={styles.input}
+                placeholder="Town / City"
+                placeholderTextColor={COLORS.cloudWhite}
+                value={formData.town}
+                onChangeText={(text) => setFormData({ ...formData, town: text })}
+              />
+            </View>
+
+            <View style={styles.inputWrapper}>
+              <TextInput
+                style={styles.input}
+                placeholder="County (optional)"
+                placeholderTextColor={COLORS.cloudWhite}
+                value={formData.county}
+                onChangeText={(text) => setFormData({ ...formData, county: text })}
+              />
+            </View>
+
+            <View style={[styles.inputWrapper, { padding: 0, overflow: 'hidden', height: 50, justifyContent: 'center', backgroundColor: COLORS.steelBlue, borderRadius: 12, borderWidth: 1, borderColor: COLORS.softSlate }]}>
+              <Picker
+                selectedValue={formData.country}
+                onValueChange={(itemValue) => setFormData({ ...formData, country: itemValue })}
+                dropdownIconColor={COLORS.cloudWhite}
+                style={{ color: COLORS.cloudWhite, height: 50, width: '100%' }}
+              >
+                <Picker.Item label="United Kingdom" value="United Kingdom" />
+                <Picker.Item label="Nigeria" value="Nigeria" />
+                <Picker.Item label="United States" value="United States" />
+                <Picker.Item label="Canada" value="Canada" />
+                <Picker.Item label="Australia" value="Australia" />
+                <Picker.Item label="South Africa" value="South Africa" />
+                <Picker.Item label="Other" value="Other" />
+              </Picker>
+            </View>
+
+            {/* ── Terms & Conditions checkbox ── */}
+            <TouchableOpacity
+              style={styles.termsRow}
+              onPress={() => setTermsAccepted(!termsAccepted)}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.checkbox, termsAccepted && styles.checkboxChecked]}>
+                {termsAccepted && <Ionicons name="checkmark" size={16} color={COLORS.deepNavy} />}
+              </View>
+              <Text style={styles.termsText}>
+                I agree to the{' '}
+                <Text style={styles.termsLink}>Terms & Conditions</Text>
+                {' '}and{' '}
+                <Text style={styles.termsLink}>Privacy Policy</Text>
+              </Text>
+            </TouchableOpacity>
 
             {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -277,15 +475,17 @@ export function AuthScreen() {
               )}
             </TouchableOpacity>
 
-            <View style={styles.toggleContainer}>
-              <Text style={styles.toggleText}>Already have an account? </Text>
-              <TouchableOpacity onPress={toggleAuthMode}>
-                <Text style={styles.toggleLink}>Sign In</Text>
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity
+              style={styles.backStepButton}
+              onPress={() => setCurrentStep('register_step1')}
+            >
+              <Ionicons name="arrow-back" size={18} color={COLORS.softSlate} />
+              <Text style={styles.backStepText}>Back to Personal Details</Text>
+            </TouchableOpacity>
           </View>
         )}
 
+        {/* ════════════ OTP VERIFICATION ════════════ */}
         {currentStep === 'otp' && (
           <View style={styles.formContainer}>
             <Text style={styles.label}>Verify Email</Text>
@@ -333,6 +533,7 @@ export function AuthScreen() {
           </View>
         )}
 
+        {/* ════════════ LOGIN ════════════ */}
         {currentStep === 'login' && (
           <View style={styles.formContainer}>
             <Text style={styles.label}>Sign In</Text>
@@ -395,16 +596,106 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: FONT_SIZES.body, color: COLORS.cloudWhite },
   formContainer: { width: '100%' },
   label: { fontSize: FONT_SIZES.section, fontWeight: '600', color: COLORS.cloudWhite, marginBottom: SPACING.md },
+
+  // Step indicator
+  stepIndicator: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: SPACING.xl },
+  stepRow: { flexDirection: 'row', alignItems: 'center' },
+  stepDot: {
+    width: 28, height: 28, borderRadius: 14,
+    backgroundColor: COLORS.steelBlue,
+    justifyContent: 'center', alignItems: 'center',
+    borderWidth: 2, borderColor: COLORS.softSlate,
+  },
+  stepDotActive: { backgroundColor: COLORS.electricTeal, borderColor: COLORS.electricTeal },
+  stepDotCurrent: { borderColor: COLORS.electricTeal, backgroundColor: COLORS.electricTeal },
+  stepDotText: { color: COLORS.deepNavy, fontSize: 12, fontWeight: '700' },
+  stepDotTextInactive: { color: COLORS.softSlate, fontSize: 12, fontWeight: '600' },
+  stepLine: { width: 40, height: 2, backgroundColor: COLORS.softSlate, marginHorizontal: 4 },
+  stepLineActive: { backgroundColor: COLORS.electricTeal },
+
+  // Input fields
+  row: { flexDirection: 'row', gap: SPACING.sm },
+  halfInput: { flex: 1 },
   inputWrapper: { marginBottom: SPACING.md },
-  input: { backgroundColor: COLORS.steelBlue, borderRadius: 12, padding: SPACING.md, color: COLORS.cloudWhite, fontSize: FONT_SIZES.body, borderWidth: 1, borderColor: COLORS.softSlate },
-  button: { backgroundColor: COLORS.electricTeal, borderRadius: 12, padding: SPACING.lg, alignItems: 'center', marginTop: SPACING.lg, marginBottom: SPACING.md },
+  input: {
+    backgroundColor: COLORS.steelBlue, borderRadius: 12,
+    padding: SPACING.md, color: COLORS.cloudWhite,
+    fontSize: FONT_SIZES.body, borderWidth: 1, borderColor: COLORS.softSlate,
+    height: 50,
+  },
+  phoneInputWrapper: {
+    marginBottom: SPACING.md,
+  },
+  phoneContainer: {
+    width: '100%',
+    backgroundColor: COLORS.steelBlue,
+    borderRadius: 12,
+    borderWidth: 1, 
+    borderColor: COLORS.softSlate,
+    height: 50,
+  },
+  phoneTextContainer: {
+    backgroundColor: 'transparent',
+    paddingVertical: 0,
+    borderLeftWidth: 1,
+    borderLeftColor: COLORS.softSlate,
+  },
+  phoneTextInput: {
+    color: COLORS.cloudWhite,
+    fontSize: FONT_SIZES.body,
+    height: 50, padding: 0,
+  },
+  phoneCodeText: {
+    color: COLORS.cloudWhite,
+    fontSize: FONT_SIZES.body,
+  },
+
+  // Terms & conditions
+  termsRow: {
+    flexDirection: 'row', alignItems: 'flex-start',
+    marginBottom: SPACING.lg, marginTop: SPACING.sm,
+  },
+  checkbox: {
+    width: 24, height: 24, borderRadius: 6,
+    borderWidth: 2, borderColor: COLORS.softSlate,
+    justifyContent: 'center', alignItems: 'center',
+    marginRight: SPACING.sm, marginTop: 2,
+  },
+  checkboxChecked: {
+    backgroundColor: COLORS.electricTeal, borderColor: COLORS.electricTeal,
+  },
+  termsText: { flex: 1, color: COLORS.cloudWhite, fontSize: FONT_SIZES.small, lineHeight: 20 },
+  termsLink: { color: COLORS.electricTeal, textDecorationLine: 'underline' },
+
+  // Buttons
+  button: {
+    backgroundColor: COLORS.electricTeal, borderRadius: 12,
+    padding: SPACING.lg, alignItems: 'center',
+    marginTop: SPACING.lg, marginBottom: SPACING.md,
+  },
   buttonDisabled: { opacity: 0.6 },
   buttonText: { color: COLORS.deepNavy, fontSize: FONT_SIZES.label, fontWeight: '700' },
+
+  // Back step
+  backStepButton: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    marginTop: SPACING.md, padding: SPACING.sm,
+  },
+  backStepText: { color: COLORS.softSlate, fontSize: FONT_SIZES.body, marginLeft: SPACING.xs },
+
+  // Misc
   error: { color: COLORS.coralRed, fontSize: FONT_SIZES.small, marginBottom: SPACING.md, marginTop: -SPACING.md },
-  timerContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: SPACING.md, padding: SPACING.md, backgroundColor: COLORS.steelBlue, borderRadius: 8 },
+  timerContainer: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    marginVertical: SPACING.md, padding: SPACING.md,
+    backgroundColor: COLORS.steelBlue, borderRadius: 8,
+  },
   timerText: { color: COLORS.electricTeal, fontSize: FONT_SIZES.body, fontWeight: '600' },
   attemptsText: { color: COLORS.cloudWhite, fontSize: FONT_SIZES.small },
-  resendLink: { color: COLORS.electricTeal, fontSize: FONT_SIZES.body, textAlign: 'center', textDecorationLine: 'underline', marginTop: SPACING.md },
+  resendLink: {
+    color: COLORS.electricTeal, fontSize: FONT_SIZES.body,
+    textAlign: 'center', textDecorationLine: 'underline', marginTop: SPACING.md,
+  },
   toggleContainer: { flexDirection: 'row', justifyContent: 'center', marginTop: SPACING.lg },
   toggleText: { color: COLORS.cloudWhite, fontSize: FONT_SIZES.body },
   toggleLink: { color: COLORS.electricTeal, fontSize: FONT_SIZES.body, fontWeight: '600' },

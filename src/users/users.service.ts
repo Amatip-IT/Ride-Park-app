@@ -39,7 +39,24 @@ export class UsersService {
         };
       }
 
-      const newUser = new this.userModel({ ...createUserDTO, role: 'user' });
+      // Validate terms acceptance
+      if (!createUserDTO.termsAccepted) {
+        return {
+          success: false,
+          message: 'You must accept the Terms & Conditions to register',
+        };
+      }
+
+      // Validate role — only allow specific roles during registration
+      const allowedRoles = ['user', 'parking_provider', 'driver', 'taxi_driver'];
+      const role = allowedRoles.includes(createUserDTO.role) ? createUserDTO.role : 'user';
+
+      const newUser = new this.userModel({
+        ...createUserDTO,
+        role,
+        termsAccepted: true,
+        termsAcceptedAt: new Date(),
+      });
 
       if (!newUser) {
         return {
@@ -167,6 +184,8 @@ export class UsersService {
             lastName: userWithoutSensitiveData.lastName,
             email: userWithoutSensitiveData.email,
             phoneNumber: userWithoutSensitiveData.phoneNumber,
+            postCode: userWithoutSensitiveData.postCode,
+            address: userWithoutSensitiveData.address,
             role: userWithoutSensitiveData.role,
             isVerified: userWithoutSensitiveData.isVerified,
           },

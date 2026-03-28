@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, Image } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '@/navigation/RootNavigator';
@@ -20,7 +20,12 @@ export function OnboardingScreen() {
       <View style={styles.content}>
         {/* Header Section */}
         <View style={styles.header}>
-          <Text style={styles.logoText}>Ride & Park</Text>
+          {/* Logo placeholder - replace mobile/assets/images/logo.png with custom screenshot */}
+          <Image 
+            source={require('../../assets/images/logo.png')} 
+            style={styles.logoImage}
+            resizeMode="contain"
+          />
           <Text style={styles.subtitle}>Your all-in-one app for parking, professional drivers, and taxi rides.</Text>
         </View>
 
@@ -100,12 +105,10 @@ const styles = StyleSheet.create({
     marginTop: SPACING['3xl'],
     alignItems: 'center',
   },
-  logoText: {
-    fontSize: FONT_SIZES.hero,
-    fontWeight: '800',
-    color: COLORS.electricTeal,
-    marginBottom: SPACING.md,
-    textAlign: 'center',
+  logoImage: {
+    width: 200,
+    height: 120,
+    marginBottom: SPACING.lg,
   },
   subtitle: {
     fontSize: FONT_SIZES.body,

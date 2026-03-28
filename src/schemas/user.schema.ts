@@ -33,6 +33,31 @@ export class User {
   })
   phoneNumber: string;
 
+  @Prop({ type: String, trim: true })
+  postCode?: string;
+
+  @Prop({
+    type: {
+      street: { type: String },
+      county: { type: String },
+      town: { type: String },
+      country: { type: String },
+    },
+    default: {},
+  })
+  address?: {
+    street?: string;
+    county?: string;
+    town?: string;
+    country?: string;
+  };
+
+  @Prop({ required: true, default: false })
+  termsAccepted: boolean;
+
+  @Prop({ type: Date })
+  termsAcceptedAt?: Date;
+
   @Prop({ required: true, select: false })
   password: string;
 

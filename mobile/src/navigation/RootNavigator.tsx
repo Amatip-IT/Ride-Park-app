@@ -14,6 +14,7 @@ import { SearchScreen } from '@/screens/SearchScreen';
 import { BookingsScreen } from '@/screens/BookingsScreen';
 import { WalletScreen } from '@/screens/WalletScreen';
 import { ProfileScreen } from '@/screens/ProfileScreen';
+import { ParkingDetailScreen } from '@/screens/ParkingDetailScreen';
 import { ProviderHomeScreen } from '@/screens/ProviderHomeScreen';
 import { ProviderRequestsScreen } from '@/screens/ProviderRequestsScreen';
 import { ProviderEarningsScreen } from '@/screens/ProviderEarningsScreen';
@@ -21,12 +22,14 @@ import { ProviderVerificationScreen } from '@/screens/ProviderVerificationScreen
 import { AdminDashboardScreen } from '@/screens/AdminDashboardScreen';
 import { AdminUsersScreen } from '@/screens/AdminUsersScreen';
 import { AdminVerificationQueueScreen } from '@/screens/AdminVerificationQueueScreen';
+import { ChatListScreen } from '@/screens/ChatListScreen';
+import { ChatScreen } from '@/screens/ChatScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
-// Consumer Navigation (Home, Search, Bookings, Wallet, Profile)
-const ConsumerNavigator = () => (
+// Consumer Tab Navigator (Home, Search, Bookings, Wallet, Profile)
+const ConsumerTabs = () => (
   <Tab.Navigator
     screenOptions={{
       headerShown: false,
@@ -81,8 +84,18 @@ const ConsumerNavigator = () => (
   </Tab.Navigator>
 );
 
-// Provider Navigation
-const ProviderNavigator = () => (
+// Consumer Navigator — wraps tabs + detail screens in a stack
+const ConsumerNavigator = () => (
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Screen name="ConsumerTabs" component={ConsumerTabs} />
+    <Stack.Screen name="ParkingDetail" component={ParkingDetailScreen} />
+    <Stack.Screen name="ChatList" component={ChatListScreen} />
+    <Stack.Screen name="Chat" component={ChatScreen} />
+  </Stack.Navigator>
+);
+
+// Provider Navigation Tabs
+const ProviderTabs = () => (
   <Tab.Navigator
     screenOptions={{
       headerShown: false,
@@ -119,14 +132,6 @@ const ProviderNavigator = () => (
       }}
     />
     <Tab.Screen
-      name="ProviderVerification"
-      component={ProviderVerificationScreen}
-      options={{
-        title: 'Verification',
-        tabBarLabel: 'Verification',
-      }}
-    />
-    <Tab.Screen
       name="ProviderProfile"
       component={ProfileScreen}
       options={{
@@ -135,6 +140,16 @@ const ProviderNavigator = () => (
       }}
     />
   </Tab.Navigator>
+);
+
+// Provider Stack - wraps tabs and detail screens
+const ProviderNavigator = () => (
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Screen name="ProviderTabs" component={ProviderTabs} />
+    <Stack.Screen name="ProviderVerification" component={ProviderVerificationScreen} />
+    <Stack.Screen name="ChatList" component={ChatListScreen} />
+    <Stack.Screen name="Chat" component={ChatScreen} />
+  </Stack.Navigator>
 );
 
 // Admin Navigation
@@ -241,4 +256,5 @@ export type RootStackParamList = {
   ConsumerApp: undefined;
   ProviderApp: undefined;
   AdminApp: undefined;
+  ParkingDetail: { spaceId: string; space?: any };
 };

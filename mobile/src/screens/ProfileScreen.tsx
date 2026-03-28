@@ -3,9 +3,11 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, SafeAre
 import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/store/authStore';
+import { useNavigation } from '@react-navigation/native';
 
 export function ProfileScreen() {
   const { user, logout } = useAuthStore();
+  const navigation = useNavigation<any>();
 
   const handleLogout = () => {
     Alert.alert('Log out', 'Are you sure you want to log out of your account?', [
@@ -50,6 +52,26 @@ export function ProfileScreen() {
           </View>
 
           <View style={styles.divider} />
+
+          {/* Provider Specific Settings */}
+          {user?.role === 'parking_provider' && (
+            <>
+              <Text style={styles.sectionTitle}>Provider Tools</Text>
+              <View style={styles.menuContainer}>
+                <TouchableOpacity 
+                  style={styles.menuItem} 
+                  activeOpacity={0.7}
+                  onPress={() => navigation.navigate('ProviderVerification')}
+                >
+                  <View style={[styles.menuIconWrapper, { backgroundColor: `${COLORS.electricTeal}20` }]}>
+                    <Ionicons name="shield-checkmark-outline" size={22} color={COLORS.electricTeal} />
+                  </View>
+                  <Text style={styles.menuTitle}>Manage Space & Verification</Text>
+                  <Ionicons name="chevron-forward" size={20} color={COLORS.softSlate} />
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
 
           {/* Menu Items */}
           <Text style={styles.sectionTitle}>Account</Text>

@@ -1,0 +1,4 @@
+Found 2 account(s):
+
+1. Email: paulnigsade@gmail.com | Name: Paul Smith | Role: parking_provider | Verified: [object Object]
+2. Email: pauloadesiyan@gmail.com | Name: Lucas Favour | Role: user | Verified: [object Object]

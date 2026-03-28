@@ -7,4 +7,14 @@ export interface Response {
   requiresOTP?: boolean;
   isVerified?: boolean;
   expiresIn?: string;
+  meta?: {
+    total?: number;
+    page?: number;
+    limit?: number;
+    totalPages?: number;
+    what3words?: string;
+    nearestPlace?: string;
+    country?: string;
+    coordinates?: { lat: number; lng: number };
+  };
 }

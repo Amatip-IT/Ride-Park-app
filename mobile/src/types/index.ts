@@ -17,6 +17,13 @@ export interface User {
   email: string;
   phoneNumber: string;
   role: UserRole;
+  postCode?: string;
+  address?: {
+    county?: string;
+    town?: string;
+    country?: string;
+  };
+  termsAccepted?: boolean;
   isVerified: VerificationStatus;
   createdAt: string;
   updatedAt: string;
@@ -44,6 +51,13 @@ export interface RegisterRequest {
   phoneNumber: string;
   password: string;
   role: UserRole;
+  postCode?: string;
+  address?: {
+    county?: string;
+    town?: string;
+    country?: string;
+  };
+  termsAccepted: boolean;
 }
 
 export interface AuthResponse {

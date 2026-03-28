@@ -5,6 +5,12 @@ import { AppService } from './app.service';
 import { DatabaseModule } from './database/database.module';
 import { UsersModule } from './users/users.module';
 import { VerificationModule } from './verification/verification.module';
+import { SearchModule } from './search/search.module';
+import { BookingsModule } from './bookings/bookings.module';
+import { ProviderModule } from './provider/provider.module';
+import { ChatModule } from './chat/chat.module';
+import { UtilityModule } from './utility/utility.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [
@@ -14,6 +20,12 @@ import { VerificationModule } from './verification/verification.module';
     DatabaseModule,
     UsersModule,
     VerificationModule,
+    SearchModule,
+    BookingsModule,
+    ProviderModule,
+    ChatModule,
+    UtilityModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [AppService],

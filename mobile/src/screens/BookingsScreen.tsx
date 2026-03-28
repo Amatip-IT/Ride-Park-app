@@ -1,13 +1,151 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, SafeAreaView } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  View, Text, StyleSheet, TouchableOpacity, ScrollView,
+  Platform, SafeAreaView, ActivityIndicator, Alert, RefreshControl,
+} from 'react-native';
 import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
+import { bookingsApi } from '@/api';
+import { useFocusEffect } from '@react-navigation/native';
+
+const STATUS_CONFIG: Record<string, { color: string; label: string; icon: keyof typeof Ionicons.glyphMap }> = {
+  pending: { color: COLORS.amber, label: 'Pending', icon: 'time-outline' },
+  accepted: { color: COLORS.success, label: 'Accepted', icon: 'checkmark-circle-outline' },
+  rejected: { color: COLORS.coralRed, label: 'Rejected', icon: 'close-circle-outline' },
+  cancelled: { color: COLORS.softSlate, label: 'Cancelled', icon: 'ban-outline' },
+  completed: { color: COLORS.info, label: 'Completed', icon: 'trophy-outline' },
+};
 
 export function BookingsScreen() {
-  const [activeTab, setActiveTab] = useState<'Upcoming' | 'Past'>('Upcoming');
+  const [activeTab, setActiveTab] = useState<'active' | 'past'>('active');
+  const [bookings, setBookings] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const upcomingBookings: any[] = [];
-  const pastBookings: any[] = []; // empty datasets for now
+  const fetchBookings = async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
+    else setLoading(true);
+
+    try {
+      const response = await bookingsApi.getMyBookings();
+      if (response.data?.success) {
+        setBookings(response.data.data || []);
+      }
+    } catch (err) {
+      console.log('Failed to fetch bookings:', err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  // Reload when screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      fetchBookings();
+    }, [])
+  );
+
+  const handleCancelBooking = (bookingId: string) => {
+    Alert.alert(
+      'Cancel Booking',
+      'Are you sure you want to cancel this booking?',
+      [
+        { text: 'No', style: 'cancel' },
+        {
+          text: 'Yes, Cancel',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const res = await bookingsApi.cancelBooking(bookingId);
+              if (res.data?.success) {
+                Alert.alert('Cancelled', 'Your booking has been cancelled');
+                fetchBookings();
+              } else {
+                Alert.alert('Error', res.data?.message || 'Failed to cancel');
+              }
+            } catch (err) {
+              Alert.alert('Error', 'Failed to cancel booking');
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const activeBookings = bookings.filter(b => ['pending', 'accepted'].includes(b.status));
+  const pastBookings = bookings.filter(b => ['rejected', 'cancelled', 'completed'].includes(b.status));
+  const displayBookings = activeTab === 'active' ? activeBookings : pastBookings;
+
+  const renderBookingCard = (booking: any) => {
+    const statusCfg = STATUS_CONFIG[booking.status] || STATUS_CONFIG.pending;
+    const providerName = booking.provider?.firstName
+      ? `${booking.provider.firstName} ${booking.provider.lastName}`
+      : 'Provider';
+    const date = booking.createdAt ? new Date(booking.createdAt).toLocaleDateString('en-GB', {
+      day: 'numeric', month: 'short', year: 'numeric',
+    }) : '';
+
+    return (
+      <View key={booking._id} style={styles.bookingCard}>
+        {/* Header */}
+        <View style={styles.cardHeader}>
+          <View style={styles.serviceTag}>
+            <Ionicons
+              name={booking.serviceType === 'parking' ? 'car-sport' : booking.serviceType === 'driver' ? 'person' : 'navigate'}
+              size={16}
+              color={COLORS.electricTeal}
+            />
+            <Text style={styles.serviceTagText}>
+              {booking.serviceType === 'parking' ? 'Parking' : booking.serviceType === 'driver' ? 'Driver' : 'Taxi'}
+            </Text>
+          </View>
+          <View style={[styles.statusBadge, { backgroundColor: `${statusCfg.color}20` }]}>
+            <Ionicons name={statusCfg.icon} size={14} color={statusCfg.color} />
+            <Text style={[styles.statusText, { color: statusCfg.color }]}>{statusCfg.label}</Text>
+          </View>
+        </View>
+
+        {/* Service name */}
+        <Text style={styles.serviceName}>{booking.serviceName || 'Service'}</Text>
+
+        {/* Details */}
+        <View style={styles.detailRow}>
+          <Ionicons name="person-outline" size={14} color={COLORS.softSlate} />
+          <Text style={styles.detailText}>{providerName}</Text>
+        </View>
+        <View style={styles.detailRow}>
+          <Ionicons name="calendar-outline" size={14} color={COLORS.softSlate} />
+          <Text style={styles.detailText}>Requested {date}</Text>
+        </View>
+        {booking.quotedPrice != null && (
+          <View style={styles.detailRow}>
+            <Ionicons name="pricetag-outline" size={14} color={COLORS.softSlate} />
+            <Text style={styles.detailText}>£{booking.quotedPrice.toFixed(2)}/{booking.pricingUnit === 'per_hour' ? 'hr' : 'day'}</Text>
+          </View>
+        )}
+
+        {/* Response message from provider */}
+        {booking.responseMessage && (
+          <View style={styles.responseBox}>
+            <Text style={styles.responseLabel}>Provider's response:</Text>
+            <Text style={styles.responseText}>{booking.responseMessage}</Text>
+          </View>
+        )}
+
+        {/* Cancel button for active bookings */}
+        {['pending', 'accepted'].includes(booking.status) && (
+          <TouchableOpacity
+            style={styles.cancelBtn}
+            onPress={() => handleCancelBooking(booking._id)}
+          >
+            <Ionicons name="close" size={16} color={COLORS.coralRed} />
+            <Text style={styles.cancelBtnText}>Cancel Booking</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -16,38 +154,55 @@ export function BookingsScreen() {
           <Text style={styles.headerTitle}>My Bookings</Text>
         </View>
 
+        {/* Tabs */}
         <View style={styles.tabContainer}>
-          <TouchableOpacity 
-            style={[styles.tab, activeTab === 'Upcoming' && styles.activeTab]} 
-            onPress={() => setActiveTab('Upcoming')}
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'active' && styles.activeTab]}
+            onPress={() => setActiveTab('active')}
             activeOpacity={0.8}
           >
-            <Text style={[styles.tabText, activeTab === 'Upcoming' && styles.activeTabText]}>Upcoming</Text>
+            <Text style={[styles.tabText, activeTab === 'active' && styles.activeTabText]}>
+              Active ({activeBookings.length})
+            </Text>
           </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.tab, activeTab === 'Past' && styles.activeTab]} 
-            onPress={() => setActiveTab('Past')}
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'past' && styles.activeTab]}
+            onPress={() => setActiveTab('past')}
             activeOpacity={0.8}
           >
-            <Text style={[styles.tabText, activeTab === 'Past' && styles.activeTabText]}>Past</Text>
+            <Text style={[styles.tabText, activeTab === 'past' && styles.activeTabText]}>
+              Past ({pastBookings.length})
+            </Text>
           </TouchableOpacity>
         </View>
 
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          {(activeTab === 'Upcoming' ? upcomingBookings : pastBookings).length === 0 ? (
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={() => fetchBookings(true)} tintColor={COLORS.electricTeal} />
+          }
+        >
+          {loading ? (
+            <View style={styles.emptyState}>
+              <ActivityIndicator size="large" color={COLORS.electricTeal} />
+            </View>
+          ) : displayBookings.length === 0 ? (
             <View style={styles.emptyState}>
               <View style={styles.iconCircle}>
                 <Ionicons name="calendar-outline" size={48} color={COLORS.electricTeal} />
               </View>
-              <Text style={styles.emptyStateTitle}>No {activeTab.toLowerCase()} bookings</Text>
+              <Text style={styles.emptyStateTitle}>
+                No {activeTab === 'active' ? 'active' : 'past'} bookings
+              </Text>
               <Text style={styles.emptyStateSubtext}>
-                {activeTab === 'Upcoming' 
-                  ? "You don't have any parking or taxi reservations scheduled right now." 
-                  : "You haven't made any bookings in the past yet."}
+                {activeTab === 'active'
+                  ? "You don't have any pending or accepted bookings right now."
+                  : "You haven't completed or cancelled any bookings yet."}
               </Text>
             </View>
           ) : (
-             <></> /* Render real bookings here later */
+            displayBookings.map(renderBookingCard)
           )}
         </ScrollView>
       </View>
@@ -56,79 +211,87 @@ export function BookingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: COLORS.deepNavy,
-  },
-  container: {
-    flex: 1,
-  },
+  safeArea: { flex: 1, backgroundColor: COLORS.deepNavy },
+  container: { flex: 1 },
   header: {
     paddingHorizontal: SPACING.xl,
     paddingTop: Platform.OS === 'android' ? SPACING.xl : SPACING.sm,
     paddingBottom: SPACING.lg,
   },
   headerTitle: {
-    color: COLORS.cloudWhite,
-    fontSize: FONT_SIZES.hero,
-    fontWeight: FONT_WEIGHTS.bold,
+    color: COLORS.cloudWhite, fontSize: FONT_SIZES.hero, fontWeight: FONT_WEIGHTS.bold,
   },
   tabContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: SPACING.xl,
-    marginBottom: SPACING.md,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.steelBlue,
+    flexDirection: 'row', paddingHorizontal: SPACING.xl,
+    marginBottom: SPACING.md, borderBottomWidth: 1, borderBottomColor: COLORS.steelBlue,
   },
   tab: {
-    paddingBottom: SPACING.md,
-    marginRight: SPACING.xl,
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
+    paddingBottom: SPACING.md, marginRight: SPACING.xl,
+    borderBottomWidth: 2, borderBottomColor: 'transparent',
   },
-  activeTab: {
-    borderBottomColor: COLORS.electricTeal,
+  activeTab: { borderBottomColor: COLORS.electricTeal },
+  tabText: { color: COLORS.softSlate, fontSize: 16, fontWeight: FONT_WEIGHTS.medium },
+  activeTabText: { color: COLORS.electricTeal, fontWeight: FONT_WEIGHTS.semibold },
+  scrollContent: { padding: SPACING.lg, flexGrow: 1 },
+
+  // Booking Card
+  bookingCard: {
+    backgroundColor: COLORS.steelBlue, borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.lg, marginBottom: SPACING.md,
   },
-  tabText: {
-    color: COLORS.softSlate,
-    fontSize: 16,
-    fontWeight: FONT_WEIGHTS.medium,
+  cardHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    marginBottom: SPACING.sm,
   },
-  activeTabText: {
-    color: COLORS.electricTeal,
-    fontWeight: FONT_WEIGHTS.semibold,
+  serviceTag: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
   },
-  scrollContent: {
-    padding: SPACING.lg,
-    flexGrow: 1,
+  serviceTagText: {
+    color: COLORS.electricTeal, fontSize: FONT_SIZES.small, fontWeight: FONT_WEIGHTS.semibold,
+    textTransform: 'uppercase',
   },
-  emptyState: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 60,
+  statusBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: SPACING.sm, paddingVertical: 3, borderRadius: BORDER_RADIUS.sm,
   },
+  statusText: { fontSize: 12, fontWeight: FONT_WEIGHTS.semibold },
+  serviceName: {
+    color: COLORS.cloudWhite, fontSize: 17, fontWeight: FONT_WEIGHTS.semibold,
+    marginBottom: SPACING.sm,
+  },
+  detailRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4,
+  },
+  detailText: { color: COLORS.softSlate, fontSize: FONT_SIZES.label },
+
+  // Response
+  responseBox: {
+    backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: BORDER_RADIUS.sm,
+    padding: SPACING.sm, marginTop: SPACING.sm,
+  },
+  responseLabel: { color: COLORS.softSlate, fontSize: 11, marginBottom: 2 },
+  responseText: { color: COLORS.cloudWhite, fontSize: FONT_SIZES.label },
+
+  // Cancel
+  cancelBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    marginTop: SPACING.md, paddingVertical: SPACING.sm,
+    borderWidth: 1, borderColor: COLORS.coralRed, borderRadius: BORDER_RADIUS.md,
+  },
+  cancelBtnText: { color: COLORS.coralRed, fontSize: FONT_SIZES.label, fontWeight: FONT_WEIGHTS.semibold },
+
+  // Empty
+  emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 60 },
   iconCircle: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 100, height: 100, borderRadius: 50,
     backgroundColor: 'rgba(0, 194, 168, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: SPACING.xl,
+    justifyContent: 'center', alignItems: 'center', marginBottom: SPACING.xl,
   },
   emptyStateTitle: {
-    color: COLORS.cloudWhite,
-    fontSize: 22,
-    fontWeight: FONT_WEIGHTS.bold,
-    marginBottom: SPACING.md,
-    textAlign: 'center',
+    color: COLORS.cloudWhite, fontSize: 22, fontWeight: FONT_WEIGHTS.bold,
+    marginBottom: SPACING.md, textAlign: 'center',
   },
   emptyStateSubtext: {
-    color: COLORS.softSlate,
-    fontSize: 16,
-    textAlign: 'center',
-    maxWidth: '85%',
-    lineHeight: 24,
+    color: COLORS.softSlate, fontSize: 16, textAlign: 'center', maxWidth: '85%', lineHeight: 24,
   },
 });

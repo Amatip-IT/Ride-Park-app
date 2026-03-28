@@ -1,0 +1,53 @@
+import {
+  Controller,
+  Get,
+  Post,
+  Param,
+  Body,
+  HttpException,
+  HttpStatus,
+} from '@nestjs/common';
+import { AdminService } from './admin.service';
+
+// NOTE: In production, you would attach authentication and role-based guards 
+// (@UseGuards(JwtAuthGuard, RolesGuard)) to ensure only "admin" can hit these routes.
+// For testing purposes right now, we are leaving them open.
+
+@Controller('admin/verifications')
+export class AdminController {
+  constructor(private readonly adminService: AdminService) {}
+
+  @Get('parking')
+  async getPendingParkingVerifications() {
+    const result = await this.adminService.getPendingParkingVerifications();
+    if (!result.success) {
+      throw new HttpException(result, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+    return result;
+  }
+
+  @Post('parking/:id/approve')
+  async approveParkingVerification(@Param('id') id: string) {
+    const result = await this.adminService.approveParkingVerification(id);
+    if (!result.success) {
+      throw new HttpException(result, HttpStatus.BAD_REQUEST);
+    }
+    return result;
+  }
+
+  @Post('parking/:id/reject')
+  async rejectParkingVerification(
+    @Param('id') id: string,
+    @Body('reason') reason: string,
+  ) {
+    if (!reason) {
+      throw new HttpException({ success: false, message: 'Rejection reason is required' }, HttpStatus.BAD_REQUEST);
+    }
+
+    const result = await this.adminService.rejectParkingVerification(id, reason);
+    if (!result.success) {
+      throw new HttpException(result, HttpStatus.BAD_REQUEST);
+    }
+    return result;
+  }
+}
