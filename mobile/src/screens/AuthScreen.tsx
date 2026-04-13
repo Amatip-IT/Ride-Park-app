@@ -10,8 +10,9 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Image,
 } from 'react-native';
-import { COLORS, SPACING, FONT_SIZES } from '@/constants/theme';
+import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS, FONT_WEIGHTS } from '@/constants/theme';
 import { useEmailOtp } from '@/api/useOtpHooks';
 import { useAuthStore } from '@/store/authStore';
 import { authService } from '@/api/authService';
@@ -21,13 +22,24 @@ import { Ionicons } from '@expo/vector-icons';
 import PhoneInput from 'react-native-phone-number-input';
 import { Picker } from '@react-native-picker/picker';
 import { useRef } from 'react';
+import * as ImagePicker from 'expo-image-picker';
 
-type AuthStep = 'register_step1' | 'register_step2' | 'otp' | 'login';
+type AuthStep = 'register_step1' | 'register_step2' | 'register_step3' | 'otp' | 'login';
+
+const ID_TYPE_OPTIONS = [
+  { label: 'UK Driver\'s Licence', value: 'driver_license' },
+  { label: 'Passport', value: 'passport' },
+  { label: 'National Identity Card', value: 'national_identity_card' },
+];
+
+const PROOF_OF_ADDRESS_INFO = 'Upload a utility bill, bank statement, or council tax letter dated within the last 3 months.';
 
 export function AuthScreen() {
   const route = useRoute<RouteProp<RootStackParamList, 'Auth'>>();
   const initialIsLogin = route.params?.isLogin ?? false;
   const initialRole = route.params?.role ?? 'user';
+
+  const isProvider = ['parking_provider', 'driver', 'taxi_driver'].includes(initialRole);
 
   const [isLogin, setIsLogin] = useState(initialIsLogin);
   const [currentStep, setCurrentStep] = useState<AuthStep>(initialIsLogin ? 'login' : 'register_step1');
@@ -49,7 +61,17 @@ export function AuthScreen() {
     town: '',
     country: 'United Kingdom',
     role: initialRole as import('@/types').UserRole,
+    taxiType: 'Normal car',
+    vehicleMake: '',
+    vehicleModel: '',
+    vehicleColor: '',
+    plateNumber: '',
   });
+
+  // Identity verification state (Step 3 for providers)
+  const [idType, setIdType] = useState('');
+  const [identityDocUri, setIdentityDocUri] = useState('');
+  const [proofOfAddressUri, setProofOfAddressUri] = useState('');
 
   const phoneInput = useRef<PhoneInput>(null);
 
@@ -61,6 +83,8 @@ export function AuthScreen() {
   const { sendOtp, verifyOtp, formatTime, error, loading, otpAttempts, clearError } =
     useEmailOtp();
   const { login: storeLogin, setIsLoading, setError: setStoreError } = useAuthStore();
+
+  const totalSteps = isProvider ? 3 : 2;
 
   // ── Step 1 validation ──
   const handleStep1Next = () => {
@@ -85,8 +109,8 @@ export function AuthScreen() {
     setCurrentStep('register_step2');
   };
 
-  // ── Step 2 submit (full registration) ──
-  const handleRegister = async () => {
+  // ── Step 2 validation ──
+  const handleStep2Next = () => {
     if (!formData.postCode.trim()) {
       Alert.alert('Error', 'Please enter your post code'); return;
     }
@@ -96,13 +120,73 @@ export function AuthScreen() {
     if (!formData.country.trim()) {
       Alert.alert('Error', 'Please enter your country'); return;
     }
+
+    if (formData.role === 'taxi_driver') {
+      if (!formData.vehicleMake.trim()) {
+        Alert.alert('Error', 'Please enter your vehicle make'); return;
+      }
+      if (!formData.vehicleModel.trim()) {
+        Alert.alert('Error', 'Please enter your vehicle model'); return;
+      }
+      if (!formData.vehicleColor.trim()) {
+        Alert.alert('Error', 'Please enter your vehicle color'); return;
+      }
+      if (!formData.plateNumber.trim()) {
+        Alert.alert('Error', 'Please enter your plate number'); return;
+      }
+    }
+
     if (!termsAccepted) {
       Alert.alert('Error', 'You must agree to the Terms & Conditions to continue'); return;
     }
 
+    if (isProvider) {
+      // Go to Step 3 for providers
+      setCurrentStep('register_step3');
+    } else {
+      // Regular users: register directly
+      handleRegister();
+    }
+  };
+
+  // ── Image picker helper ──
+  const pickImage = async (setter: (uri: string) => void) => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permission Required', 'Please allow access to your photo library');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets.length > 0) {
+      setter(result.assets[0].uri);
+    }
+  };
+
+  // ── Step 3 validation (providers only) ──
+  const handleStep3Register = () => {
+    if (!idType) {
+      Alert.alert('Error', 'Please select your ID document type'); return;
+    }
+    if (!identityDocUri) {
+      Alert.alert('Error', 'Please upload your ID document'); return;
+    }
+    if (!proofOfAddressUri) {
+      Alert.alert('Error', 'Please upload your proof of address'); return;
+    }
+    handleRegister();
+  };
+
+  // ── Full registration (called from Step 2 for users, Step 3 for providers) ──
+  const handleRegister = async () => {
     setIsLoading(true);
     try {
-      const payload = {
+      const payload: any = {
         firstName: formData.firstName,
         lastName: formData.lastName,
         username: formData.username,
@@ -117,8 +201,21 @@ export function AuthScreen() {
           town: formData.town,
           country: formData.country,
         },
+        taxiType: formData.role === 'taxi_driver' ? formData.taxiType : undefined,
+        vehicleMake: formData.role === 'taxi_driver' ? formData.vehicleMake : undefined,
+        vehicleModel: formData.role === 'taxi_driver' ? formData.vehicleModel : undefined,
+        vehicleColor: formData.role === 'taxi_driver' ? formData.vehicleColor : undefined,
+        plateNumber: formData.role === 'taxi_driver' ? formData.plateNumber : undefined,
         termsAccepted: true,
       };
+
+      // Add identity verification data for providers
+      if (isProvider) {
+        payload.idType = idType;
+        payload.identityDocumentUrl = identityDocUri;
+        payload.proofOfAddressUrl = proofOfAddressUri;
+        payload.identityStatus = 'pending';
+      }
 
       const response = await authService.register(payload);
 
@@ -219,41 +316,79 @@ export function AuthScreen() {
     setCurrentStep(newIsLogin ? 'login' : 'register_step1');
     setOtp('');
     setTermsAccepted(false);
-    setFormData({
-      firstName: '',
-      lastName: '',
-      username: '',
-      email: '',
-      phoneNumber: '',
-      password: '',
-      confirmPassword: '',
-      postCode: '',
-      street: '',
-      county: '',
-      town: '',
-      country: 'United Kingdom',
-      role: initialRole as import('@/types').UserRole,
-    });
+    setIdType('');
+    setIdentityDocUri('');
+    setProofOfAddressUri('');
+    // Only clear if successful and not going to Step 3
+    if (!isProvider) {
+      setFormData({
+        firstName: '',
+        lastName: '',
+        username: '',
+        email: '',
+        phoneNumber: '',
+        password: '',
+        confirmPassword: '',
+        postCode: '',
+        street: '',
+        county: '',
+        town: '',
+        country: 'United Kingdom',
+        role: initialRole as import('@/types').UserRole,
+        taxiType: 'Normal car',
+        vehicleMake: '',
+        vehicleModel: '',
+        vehicleColor: '',
+        plateNumber: '',
+      });
+    }
     setLoginData({ email: '', password: '' });
     clearError();
   };
 
   // ── Step indicator ──
-  const StepIndicator = ({ currentStepNum, totalSteps }: { currentStepNum: number; totalSteps: number }) => (
+  const StepIndicator = ({ currentStepNum, totalSteps: total }: { currentStepNum: number; totalSteps: number }) => (
     <View style={styles.stepIndicator}>
-      {Array.from({ length: totalSteps }, (_, i) => (
+      {Array.from({ length: total }, (_, i) => (
         <View key={i} style={styles.stepRow}>
           <View style={[styles.stepDot, i < currentStepNum && styles.stepDotActive, i === currentStepNum - 1 && styles.stepDotCurrent]}>
-            {i < currentStepNum - 1 && <Ionicons name="checkmark" size={12} color={COLORS.deepNavy} />}
+            {i < currentStepNum - 1 && <Ionicons name="checkmark" size={12} color="#FFF" />}
             {i === currentStepNum - 1 && <Text style={styles.stepDotText}>{i + 1}</Text>}
             {i >= currentStepNum && <Text style={styles.stepDotTextInactive}>{i + 1}</Text>}
           </View>
-          {i < totalSteps - 1 && (
+          {i < total - 1 && (
             <View style={[styles.stepLine, i < currentStepNum - 1 && styles.stepLineActive]} />
           )}
         </View>
       ))}
     </View>
+  );
+
+  // ── Upload Button Component ──
+  const UploadButton = ({ label, uri, onPress }: { label: string; uri: string; onPress: () => void }) => (
+    <TouchableOpacity style={styles.uploadBtn} onPress={onPress} activeOpacity={0.7}>
+      {uri ? (
+        <View style={styles.uploadPreviewRow}>
+          <Image source={{ uri }} style={styles.uploadPreview} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.uploadLabelDone}>{label}</Text>
+            <Text style={styles.uploadStatusDone}>Document uploaded ✓</Text>
+          </View>
+          <Ionicons name="checkmark-circle" size={24} color={COLORS.success} />
+        </View>
+      ) : (
+        <View style={styles.uploadPlaceholderRow}>
+          <View style={styles.uploadIconContainer}>
+            <Ionicons name="cloud-upload-outline" size={28} color={COLORS.electricTeal} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.uploadLabel}>{label}</Text>
+            <Text style={styles.uploadHint}>Tap to select from gallery</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={COLORS.softSlate} />
+        </View>
+      )}
+    </TouchableOpacity>
   );
 
   return (
@@ -266,7 +401,11 @@ export function AuthScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <Text style={styles.appName}>Ride & Park</Text>
+          <Image 
+            source={require('../../assets/images/logo.jpg')} 
+            style={styles.logoImage}
+            resizeMode="contain"
+          />
           <Text style={styles.subtitle}>
             {isLogin ? 'Sign In to your account' : `Create your ${initialRole === 'user' ? 'account' : 'provider account'}`}
           </Text>
@@ -275,7 +414,7 @@ export function AuthScreen() {
         {/* ════════════ REGISTER STEP 1: Personal Details ════════════ */}
         {currentStep === 'register_step1' && (
           <View style={styles.formContainer}>
-            <StepIndicator currentStepNum={1} totalSteps={2} />
+            <StepIndicator currentStepNum={1} totalSteps={totalSteps} />
             <Text style={styles.label}>Personal Details</Text>
 
             <View style={styles.row}>
@@ -283,7 +422,7 @@ export function AuthScreen() {
                 <TextInput
                   style={styles.input}
                   placeholder="First Name"
-                  placeholderTextColor={COLORS.cloudWhite}
+                  placeholderTextColor={COLORS.textTertiary}
                   value={formData.firstName}
                   onChangeText={(text) => setFormData({ ...formData, firstName: text })}
                 />
@@ -292,7 +431,7 @@ export function AuthScreen() {
                 <TextInput
                   style={styles.input}
                   placeholder="Last Name"
-                  placeholderTextColor={COLORS.cloudWhite}
+                  placeholderTextColor={COLORS.textTertiary}
                   value={formData.lastName}
                   onChangeText={(text) => setFormData({ ...formData, lastName: text })}
                 />
@@ -303,7 +442,7 @@ export function AuthScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="Username"
-                placeholderTextColor={COLORS.cloudWhite}
+                placeholderTextColor={COLORS.textTertiary}
                 value={formData.username}
                 onChangeText={(text) => setFormData({ ...formData, username: text })}
                 autoCapitalize="none"
@@ -314,7 +453,7 @@ export function AuthScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="Email Address"
-                placeholderTextColor={COLORS.cloudWhite}
+                placeholderTextColor={COLORS.textTertiary}
                 value={formData.email}
                 onChangeText={(text) => setFormData({ ...formData, email: text })}
                 keyboardType="email-address"
@@ -344,7 +483,7 @@ export function AuthScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="Password (min 6 chars)"
-                placeholderTextColor={COLORS.cloudWhite}
+                placeholderTextColor={COLORS.textTertiary}
                 value={formData.password}
                 onChangeText={(text) => setFormData({ ...formData, password: text })}
                 secureTextEntry
@@ -355,7 +494,7 @@ export function AuthScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="Confirm Password"
-                placeholderTextColor={COLORS.cloudWhite}
+                placeholderTextColor={COLORS.textTertiary}
                 value={formData.confirmPassword}
                 onChangeText={(text) => setFormData({ ...formData, confirmPassword: text })}
                 secureTextEntry
@@ -383,14 +522,14 @@ export function AuthScreen() {
         {/* ════════════ REGISTER STEP 2: Address & Terms ════════════ */}
         {currentStep === 'register_step2' && (
           <View style={styles.formContainer}>
-            <StepIndicator currentStepNum={2} totalSteps={2} />
+            <StepIndicator currentStepNum={2} totalSteps={totalSteps} />
             <Text style={styles.label}>Address & Terms</Text>
 
             <View style={styles.inputWrapper}>
               <TextInput
                 style={styles.input}
                 placeholder="Post Code"
-                placeholderTextColor={COLORS.cloudWhite}
+                placeholderTextColor={COLORS.textTertiary}
                 value={formData.postCode}
                 onChangeText={(text) => setFormData({ ...formData, postCode: text })}
                 autoCapitalize="characters"
@@ -401,7 +540,7 @@ export function AuthScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="Street Address"
-                placeholderTextColor={COLORS.cloudWhite}
+                placeholderTextColor={COLORS.textTertiary}
                 value={formData.street}
                 onChangeText={(text) => setFormData({ ...formData, street: text })}
               />
@@ -411,7 +550,7 @@ export function AuthScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="Town / City"
-                placeholderTextColor={COLORS.cloudWhite}
+                placeholderTextColor={COLORS.textTertiary}
                 value={formData.town}
                 onChangeText={(text) => setFormData({ ...formData, town: text })}
               />
@@ -421,28 +560,90 @@ export function AuthScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="County (optional)"
-                placeholderTextColor={COLORS.cloudWhite}
+                placeholderTextColor={COLORS.textTertiary}
                 value={formData.county}
                 onChangeText={(text) => setFormData({ ...formData, county: text })}
               />
             </View>
 
-            <View style={[styles.inputWrapper, { padding: 0, overflow: 'hidden', height: 50, justifyContent: 'center', backgroundColor: COLORS.steelBlue, borderRadius: 12, borderWidth: 1, borderColor: COLORS.softSlate }]}>
+            <View style={[styles.inputWrapper, { padding: 0, overflow: 'hidden', height: 50, justifyContent: 'center', backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.md, borderWidth: 1, borderColor: COLORS.border }]}>
               <Picker
                 selectedValue={formData.country}
                 onValueChange={(itemValue) => setFormData({ ...formData, country: itemValue })}
-                dropdownIconColor={COLORS.cloudWhite}
-                style={{ color: COLORS.cloudWhite, height: 50, width: '100%' }}
+                dropdownIconColor={COLORS.textSecondary}
+                style={{ color: COLORS.textPrimary, height: 50, width: '100%' }}
               >
-                <Picker.Item label="United Kingdom" value="United Kingdom" />
-                <Picker.Item label="Nigeria" value="Nigeria" />
-                <Picker.Item label="United States" value="United States" />
-                <Picker.Item label="Canada" value="Canada" />
-                <Picker.Item label="Australia" value="Australia" />
-                <Picker.Item label="South Africa" value="South Africa" />
-                <Picker.Item label="Other" value="Other" />
+                <Picker.Item label="United Kingdom" value="United Kingdom" color={COLORS.textPrimary} />
+                <Picker.Item label="Nigeria" value="Nigeria" color={COLORS.textPrimary} />
+                <Picker.Item label="United States" value="United States" color={COLORS.textPrimary} />
+                <Picker.Item label="Canada" value="Canada" color={COLORS.textPrimary} />
+                <Picker.Item label="Australia" value="Australia" color={COLORS.textPrimary} />
+                <Picker.Item label="South Africa" value="South Africa" color={COLORS.textPrimary} />
+                <Picker.Item label="Other" value="Other" color={COLORS.textPrimary} />
               </Picker>
             </View>
+
+            {initialRole === 'taxi_driver' && (
+              <>
+                <Text style={[styles.fieldLabel, { marginTop: SPACING.md }]}>Taxi Type & Capacity</Text>
+                <View style={[styles.inputWrapper, { padding: 0, overflow: 'hidden', height: 50, justifyContent: 'center', backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.md, borderWidth: 1, borderColor: COLORS.border }]}>
+                  <Picker
+                    selectedValue={formData.taxiType}
+                    onValueChange={(itemValue) => setFormData({ ...formData, taxiType: itemValue })}
+                    dropdownIconColor={COLORS.textSecondary}
+                    style={{ color: COLORS.textPrimary, height: 50, width: '100%' }}
+                  >
+                    <Picker.Item label="Normal car ➔ 4 seats" value="Normal car" color={COLORS.textPrimary} />
+                    <Picker.Item label="Mini Bus ➔ 6 seats" value="Mini Bus" color={COLORS.textPrimary} />
+                    <Picker.Item label="Bus ➔ 8 seats" value="Bus" color={COLORS.textPrimary} />
+                  </Picker>
+                </View>
+
+                {/* Additional Vehicle Details */}
+                <Text style={[styles.fieldLabel, { marginTop: SPACING.md }]}>Vehicle Details</Text>
+                <View style={styles.inputWrapper}>
+                  <Ionicons name="car-outline" size={20} color={COLORS.textTertiary} style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Vehicle Make (e.g. Toyota)"
+                    placeholderTextColor={COLORS.textTertiary}
+                    value={formData.vehicleMake}
+                    onChangeText={(t) => setFormData({ ...formData, vehicleMake: t })}
+                  />
+                </View>
+                <View style={[styles.inputWrapper, { marginTop: SPACING.md }]}>
+                  <Ionicons name="car-sport-outline" size={20} color={COLORS.textTertiary} style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Vehicle Model (e.g. Prius)"
+                    placeholderTextColor={COLORS.textTertiary}
+                    value={formData.vehicleModel}
+                    onChangeText={(t) => setFormData({ ...formData, vehicleModel: t })}
+                  />
+                </View>
+                <View style={[styles.inputWrapper, { marginTop: SPACING.md }]}>
+                  <Ionicons name="color-palette-outline" size={20} color={COLORS.textTertiary} style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Vehicle Color (e.g. Silver)"
+                    placeholderTextColor={COLORS.textTertiary}
+                    value={formData.vehicleColor}
+                    onChangeText={(t) => setFormData({ ...formData, vehicleColor: t })}
+                  />
+                </View>
+                <View style={[styles.inputWrapper, { marginTop: SPACING.md }]}>
+                  <Ionicons name="information-circle-outline" size={20} color={COLORS.textTertiary} style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Plate Number"
+                    placeholderTextColor={COLORS.textTertiary}
+                    value={formData.plateNumber}
+                    onChangeText={(t) => setFormData({ ...formData, plateNumber: t.toUpperCase() })}
+                    autoCapitalize="characters"
+                  />
+                </View>
+              </>
+            )}
 
             {/* ── Terms & Conditions checkbox ── */}
             <TouchableOpacity
@@ -451,7 +652,7 @@ export function AuthScreen() {
               activeOpacity={0.7}
             >
               <View style={[styles.checkbox, termsAccepted && styles.checkboxChecked]}>
-                {termsAccepted && <Ionicons name="checkmark" size={16} color={COLORS.deepNavy} />}
+                {termsAccepted && <Ionicons name="checkmark" size={16} color="#FFF" />}
               </View>
               <Text style={styles.termsText}>
                 I agree to the{' '}
@@ -465,13 +666,15 @@ export function AuthScreen() {
 
             <TouchableOpacity
               style={[styles.button, loading && styles.buttonDisabled]}
-              onPress={handleRegister}
+              onPress={handleStep2Next}
               disabled={loading}
             >
-              {loading ? (
-                <ActivityIndicator color={COLORS.deepNavy} />
+              {loading && !isProvider ? (
+                <ActivityIndicator color="#FFF" />
               ) : (
-                <Text style={styles.buttonText}>Register & Verify Email</Text>
+                <Text style={styles.buttonText}>
+                  {isProvider ? 'Next — Identity Verification' : 'Register & Verify Email'}
+                </Text>
               )}
             </TouchableOpacity>
 
@@ -479,8 +682,86 @@ export function AuthScreen() {
               style={styles.backStepButton}
               onPress={() => setCurrentStep('register_step1')}
             >
-              <Ionicons name="arrow-back" size={18} color={COLORS.softSlate} />
+              <Ionicons name="arrow-back" size={18} color={COLORS.textSecondary} />
               <Text style={styles.backStepText}>Back to Personal Details</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* ════════════ REGISTER STEP 3: Identity Verification (Providers Only) ════════════ */}
+        {currentStep === 'register_step3' && (
+          <View style={styles.formContainer}>
+            <StepIndicator currentStepNum={3} totalSteps={3} />
+            <Text style={styles.label}>Identity Verification</Text>
+            <Text style={styles.step3Subtitle}>
+              To verify your identity as a provider, please upload the following documents.
+            </Text>
+
+            {/* ID Type Selection */}
+            <Text style={styles.fieldLabel}>Select ID Document Type</Text>
+            <View style={styles.idTypeContainer}>
+              {ID_TYPE_OPTIONS.map((option) => {
+                const isSelected = idType === option.value;
+                return (
+                  <TouchableOpacity
+                    key={option.value}
+                    style={[styles.idTypeOption, isSelected && styles.idTypeOptionActive]}
+                    onPress={() => setIdType(option.value)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.radioOuter, isSelected && styles.radioOuterActive]}>
+                      {isSelected && <View style={styles.radioInner} />}
+                    </View>
+                    <Text style={[styles.idTypeLabel, isSelected && styles.idTypeLabelActive]}>
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* Upload ID Document */}
+            <Text style={styles.fieldLabel}>
+              Upload {idType ? ID_TYPE_OPTIONS.find(o => o.value === idType)?.label : 'ID Document'}
+            </Text>
+            <UploadButton
+              label={idType ? ID_TYPE_OPTIONS.find(o => o.value === idType)?.label || 'ID Document' : 'ID Document'}
+              uri={identityDocUri}
+              onPress={() => pickImage(setIdentityDocUri)}
+            />
+
+            {/* Upload Proof of Address */}
+            <Text style={[styles.fieldLabel, { marginTop: SPACING.lg }]}>Proof of Address</Text>
+            <Text style={styles.proofHint}>{PROOF_OF_ADDRESS_INFO}</Text>
+            <UploadButton
+              label="Proof of Address"
+              uri={proofOfAddressUri}
+              onPress={() => pickImage(setProofOfAddressUri)}
+            />
+
+            {error ? <Text style={styles.error}>{error}</Text> : null}
+
+            <TouchableOpacity
+              style={[styles.button, loading && styles.buttonDisabled]}
+              onPress={handleStep3Register}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="#FFF" />
+              ) : (
+                <View style={styles.buttonRow}>
+                  <Ionicons name="shield-checkmark" size={20} color="#FFF" style={{ marginRight: 8 }} />
+                  <Text style={styles.buttonText}>Register & Verify Email</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.backStepButton}
+              onPress={() => setCurrentStep('register_step2')}
+            >
+              <Ionicons name="arrow-back" size={18} color={COLORS.textSecondary} />
+              <Text style={styles.backStepText}>Back to Address Details</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -497,7 +778,7 @@ export function AuthScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="000000"
-                placeholderTextColor={COLORS.cloudWhite}
+                placeholderTextColor={COLORS.textTertiary}
                 value={otp}
                 onChangeText={(text) => setOtp(text.replace(/[^0-9]/g, '').slice(0, 6))}
                 keyboardType="numeric"
@@ -521,7 +802,7 @@ export function AuthScreen() {
               disabled={loading}
             >
               {loading ? (
-                <ActivityIndicator color={COLORS.deepNavy} />
+                <ActivityIndicator color="#FFF" />
               ) : (
                 <Text style={styles.buttonText}>Verify Code & Login</Text>
               )}
@@ -542,7 +823,7 @@ export function AuthScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="Email"
-                placeholderTextColor={COLORS.cloudWhite}
+                placeholderTextColor={COLORS.textTertiary}
                 value={loginData.email}
                 onChangeText={(text) => setLoginData({ ...loginData, email: text })}
                 keyboardType="email-address"
@@ -554,7 +835,7 @@ export function AuthScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="Password"
-                placeholderTextColor={COLORS.cloudWhite}
+                placeholderTextColor={COLORS.textTertiary}
                 value={loginData.password}
                 onChangeText={(text) => setLoginData({ ...loginData, password: text })}
                 secureTextEntry
@@ -569,7 +850,7 @@ export function AuthScreen() {
               disabled={loading}
             >
               {loading ? (
-                <ActivityIndicator color={COLORS.deepNavy} />
+                <ActivityIndicator color="#FFF" />
               ) : (
                 <Text style={styles.buttonText}>Sign In</Text>
               )}
@@ -589,28 +870,31 @@ export function AuthScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.deepNavy },
+  container: { flex: 1, backgroundColor: COLORS.background },
   scrollContent: { flexGrow: 1, padding: SPACING.lg, justifyContent: 'center' },
+  inputIcon: { marginRight: SPACING.sm },
+  eyeIcon: { padding: SPACING.xs },
   header: { alignItems: 'center', marginBottom: SPACING.xl, marginTop: Platform.OS === 'ios' ? 40 : 20 },
-  appName: { fontSize: FONT_SIZES.section, fontWeight: '700', color: COLORS.electricTeal, marginBottom: SPACING.sm },
-  subtitle: { fontSize: FONT_SIZES.body, color: COLORS.cloudWhite },
+  logoImage: { width: 220, height: 70, marginBottom: SPACING.sm },
+  appName: { fontSize: FONT_SIZES.hero, fontWeight: FONT_WEIGHTS.bold, color: COLORS.electricTeal, marginBottom: SPACING.sm },
+  subtitle: { fontSize: FONT_SIZES.body, color: COLORS.textSecondary },
   formContainer: { width: '100%' },
-  label: { fontSize: FONT_SIZES.section, fontWeight: '600', color: COLORS.cloudWhite, marginBottom: SPACING.md },
+  label: { fontSize: FONT_SIZES.section, fontWeight: FONT_WEIGHTS.bold, color: COLORS.textPrimary, marginBottom: SPACING.md },
 
   // Step indicator
   stepIndicator: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: SPACING.xl },
   stepRow: { flexDirection: 'row', alignItems: 'center' },
   stepDot: {
     width: 28, height: 28, borderRadius: 14,
-    backgroundColor: COLORS.steelBlue,
+    backgroundColor: COLORS.surfaceAlt,
     justifyContent: 'center', alignItems: 'center',
-    borderWidth: 2, borderColor: COLORS.softSlate,
+    borderWidth: 2, borderColor: COLORS.border,
   },
   stepDotActive: { backgroundColor: COLORS.electricTeal, borderColor: COLORS.electricTeal },
   stepDotCurrent: { borderColor: COLORS.electricTeal, backgroundColor: COLORS.electricTeal },
-  stepDotText: { color: COLORS.deepNavy, fontSize: 12, fontWeight: '700' },
-  stepDotTextInactive: { color: COLORS.softSlate, fontSize: 12, fontWeight: '600' },
-  stepLine: { width: 40, height: 2, backgroundColor: COLORS.softSlate, marginHorizontal: 4 },
+  stepDotText: { color: COLORS.background, fontSize: 12, fontWeight: FONT_WEIGHTS.bold },
+  stepDotTextInactive: { color: COLORS.textSecondary, fontSize: 12, fontWeight: FONT_WEIGHTS.semibold },
+  stepLine: { width: 40, height: 2, backgroundColor: COLORS.border, marginHorizontal: 4 },
   stepLineActive: { backgroundColor: COLORS.electricTeal },
 
   // Input fields
@@ -618,9 +902,9 @@ const styles = StyleSheet.create({
   halfInput: { flex: 1 },
   inputWrapper: { marginBottom: SPACING.md },
   input: {
-    backgroundColor: COLORS.steelBlue, borderRadius: 12,
-    padding: SPACING.md, color: COLORS.cloudWhite,
-    fontSize: FONT_SIZES.body, borderWidth: 1, borderColor: COLORS.softSlate,
+    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md, color: COLORS.textPrimary,
+    fontSize: FONT_SIZES.body, borderWidth: 1, borderColor: COLORS.border,
     height: 50,
   },
   phoneInputWrapper: {
@@ -628,25 +912,25 @@ const styles = StyleSheet.create({
   },
   phoneContainer: {
     width: '100%',
-    backgroundColor: COLORS.steelBlue,
-    borderRadius: 12,
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.md,
     borderWidth: 1, 
-    borderColor: COLORS.softSlate,
+    borderColor: COLORS.border,
     height: 50,
   },
   phoneTextContainer: {
     backgroundColor: 'transparent',
     paddingVertical: 0,
     borderLeftWidth: 1,
-    borderLeftColor: COLORS.softSlate,
+    borderLeftColor: COLORS.border,
   },
   phoneTextInput: {
-    color: COLORS.cloudWhite,
+    color: COLORS.textPrimary,
     fontSize: FONT_SIZES.body,
     height: 50, padding: 0,
   },
   phoneCodeText: {
-    color: COLORS.cloudWhite,
+    color: COLORS.textPrimary,
     fontSize: FONT_SIZES.body,
   },
 
@@ -657,46 +941,137 @@ const styles = StyleSheet.create({
   },
   checkbox: {
     width: 24, height: 24, borderRadius: 6,
-    borderWidth: 2, borderColor: COLORS.softSlate,
+    borderWidth: 2, borderColor: COLORS.border,
     justifyContent: 'center', alignItems: 'center',
     marginRight: SPACING.sm, marginTop: 2,
+    backgroundColor: COLORS.surface,
   },
   checkboxChecked: {
     backgroundColor: COLORS.electricTeal, borderColor: COLORS.electricTeal,
   },
-  termsText: { flex: 1, color: COLORS.cloudWhite, fontSize: FONT_SIZES.small, lineHeight: 20 },
+  termsText: { flex: 1, color: COLORS.textSecondary, fontSize: FONT_SIZES.small, lineHeight: 20 },
   termsLink: { color: COLORS.electricTeal, textDecorationLine: 'underline' },
 
   // Buttons
   button: {
-    backgroundColor: COLORS.electricTeal, borderRadius: 12,
+    backgroundColor: COLORS.electricTeal, borderRadius: BORDER_RADIUS.md,
     padding: SPACING.lg, alignItems: 'center',
     marginTop: SPACING.lg, marginBottom: SPACING.md,
   },
   buttonDisabled: { opacity: 0.6 },
-  buttonText: { color: COLORS.deepNavy, fontSize: FONT_SIZES.label, fontWeight: '700' },
+  buttonText: { color: '#FFF', fontSize: FONT_SIZES.label, fontWeight: FONT_WEIGHTS.bold },
+  buttonRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
 
   // Back step
   backStepButton: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     marginTop: SPACING.md, padding: SPACING.sm,
   },
-  backStepText: { color: COLORS.softSlate, fontSize: FONT_SIZES.body, marginLeft: SPACING.xs },
+  backStepText: { color: COLORS.textSecondary, fontSize: FONT_SIZES.body, marginLeft: SPACING.xs },
+
+  // Step 3 - Identity Verification
+  step3Subtitle: {
+    color: COLORS.textSecondary, fontSize: FONT_SIZES.body,
+    lineHeight: 22, marginBottom: SPACING.xl,
+  },
+  fieldLabel: {
+    color: COLORS.textPrimary, fontSize: FONT_SIZES.label,
+    fontWeight: FONT_WEIGHTS.semibold, marginBottom: SPACING.sm, marginTop: SPACING.sm,
+  },
+  proofHint: {
+    color: COLORS.textSecondary, fontSize: FONT_SIZES.small,
+    lineHeight: 18, marginBottom: SPACING.md,
+  },
+
+  // ID Type radio buttons
+  idTypeContainer: {
+    marginBottom: SPACING.lg,
+    gap: SPACING.sm,
+  },
+  idTypeOption: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md, borderWidth: 1.5,
+    borderColor: COLORS.border,
+  },
+  idTypeOptionActive: {
+    borderColor: COLORS.electricTeal,
+    backgroundColor: 'rgba(0, 194, 168, 0.08)',
+  },
+  radioOuter: {
+    width: 22, height: 22, borderRadius: 11,
+    borderWidth: 2, borderColor: COLORS.border,
+    justifyContent: 'center', alignItems: 'center',
+    marginRight: SPACING.md,
+    backgroundColor: COLORS.background,
+  },
+  radioOuterActive: {
+    borderColor: COLORS.electricTeal,
+  },
+  radioInner: {
+    width: 12, height: 12, borderRadius: 6,
+    backgroundColor: COLORS.electricTeal,
+  },
+  idTypeLabel: {
+    color: COLORS.textPrimary, fontSize: FONT_SIZES.body,
+    fontWeight: FONT_WEIGHTS.medium,
+  },
+  idTypeLabelActive: {
+    color: COLORS.electricTeal, fontWeight: FONT_WEIGHTS.bold,
+  },
+
+  // Upload buttons
+  uploadBtn: {
+    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md, borderWidth: 1.5,
+    borderColor: COLORS.border, borderStyle: 'dashed',
+    marginBottom: SPACING.sm,
+  },
+  uploadPlaceholderRow: {
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.md,
+  },
+  uploadIconContainer: {
+    width: 48, height: 48, borderRadius: BORDER_RADIUS.md,
+    backgroundColor: 'rgba(0, 194, 168, 0.12)',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  uploadLabel: {
+    color: COLORS.textPrimary, fontSize: FONT_SIZES.label,
+    fontWeight: FONT_WEIGHTS.semibold,
+  },
+  uploadHint: {
+    color: COLORS.textSecondary, fontSize: FONT_SIZES.small,
+    marginTop: 2,
+  },
+  uploadPreviewRow: {
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.md,
+  },
+  uploadPreview: {
+    width: 48, height: 48, borderRadius: BORDER_RADIUS.sm,
+  },
+  uploadLabelDone: {
+    color: COLORS.textPrimary, fontSize: FONT_SIZES.label,
+    fontWeight: FONT_WEIGHTS.semibold,
+  },
+  uploadStatusDone: {
+    color: COLORS.success, fontSize: FONT_SIZES.small,
+    marginTop: 2, fontWeight: FONT_WEIGHTS.medium,
+  },
 
   // Misc
   error: { color: COLORS.coralRed, fontSize: FONT_SIZES.small, marginBottom: SPACING.md, marginTop: -SPACING.md },
   timerContainer: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     marginVertical: SPACING.md, padding: SPACING.md,
-    backgroundColor: COLORS.steelBlue, borderRadius: 8,
+    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.md, borderWidth: 1, borderColor: COLORS.border,
   },
-  timerText: { color: COLORS.electricTeal, fontSize: FONT_SIZES.body, fontWeight: '600' },
-  attemptsText: { color: COLORS.cloudWhite, fontSize: FONT_SIZES.small },
+  timerText: { color: COLORS.electricTeal, fontSize: FONT_SIZES.body, fontWeight: FONT_WEIGHTS.semibold },
+  attemptsText: { color: COLORS.textSecondary, fontSize: FONT_SIZES.small },
   resendLink: {
     color: COLORS.electricTeal, fontSize: FONT_SIZES.body,
     textAlign: 'center', textDecorationLine: 'underline', marginTop: SPACING.md,
   },
   toggleContainer: { flexDirection: 'row', justifyContent: 'center', marginTop: SPACING.lg },
-  toggleText: { color: COLORS.cloudWhite, fontSize: FONT_SIZES.body },
-  toggleLink: { color: COLORS.electricTeal, fontSize: FONT_SIZES.body, fontWeight: '600' },
+  toggleText: { color: COLORS.textSecondary, fontSize: FONT_SIZES.body },
+  toggleLink: { color: COLORS.electricTeal, fontSize: FONT_SIZES.body, fontWeight: FONT_WEIGHTS.bold },
 });

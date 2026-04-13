@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, TextInput, ScrollView, TouchableOpacity,
   Platform, SafeAreaView, ActivityIndicator, Alert,
@@ -15,24 +15,27 @@ type SearchParams = {
   Search: { serviceType?: ServiceType } | undefined;
 };
 
-const SERVICE_CONFIG: Record<ServiceType, { label: string; icon: keyof typeof Ionicons.glyphMap; color: string; emptyMsg: string }> = {
+const SERVICE_CONFIG: Record<ServiceType, { label: string; icon: keyof typeof Ionicons.glyphMap; color: string; emptyMsg: string; searchHint: string }> = {
   parking: {
     label: 'Parking',
     icon: 'car-sport',
     color: COLORS.electricTeal,
     emptyMsg: 'No parking spaces available in this area',
+    searchHint: 'Search by location, town, or name...',
   },
   driver: {
     label: 'Drivers',
     icon: 'person',
     color: COLORS.info,
     emptyMsg: 'No drivers available in this area',
+    searchHint: 'Search by location, postcode, or driver number...',
   },
   taxi: {
     label: 'Taxis',
     icon: 'navigate',
     color: COLORS.amber,
     emptyMsg: 'No taxis available in this area',
+    searchHint: 'Search by location, postcode, or driver number...',
   },
 };
 
@@ -48,12 +51,70 @@ export function SearchScreen() {
   const [hasSearched, setHasSearched] = useState(false);
   const [resultMessage, setResultMessage] = useState('');
 
+  // Autocomplete suggestions
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const config = SERVICE_CONFIG[serviceType];
+
+  // Debounced autocomplete fetch
+  const handleQueryChange = useCallback((text: string) => {
+    setSearchQuery(text);
+
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+
+    if (text.trim().length < 2) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    debounceRef.current = setTimeout(async () => {
+      try {
+        let response;
+        switch (serviceType) {
+          case 'parking':
+            response = await searchApi.searchParking(text.trim(), 1, 5);
+            break;
+          case 'driver':
+            response = await searchApi.searchDrivers(text.trim(), 1, 5);
+            break;
+          case 'taxi':
+            response = await searchApi.searchTaxis(text.trim(), 1, 5);
+            break;
+        }
+        const items = response.data?.data || [];
+        setSuggestions(items);
+        setShowSuggestions(items.length > 0);
+      } catch {
+        setSuggestions([]);
+        setShowSuggestions(false);
+      }
+    }, 400);
+  }, [serviceType]);
+
+  const selectSuggestion = useCallback((item: any) => {
+    setShowSuggestions(false);
+    setSuggestions([]);
+
+    if (serviceType === 'parking') {
+      setSearchQuery(item.name || item.town || item.postCode || '');
+      handleParkingTap(item);
+    } else {
+      const name = `${item.user?.firstName || ''} ${item.user?.lastName || ''}`.trim();
+      setSearchQuery(name || item.driverNumber?.toString() || '');
+      // Full search with that name
+      setResults([item]);
+      setHasSearched(true);
+      setResultMessage(`Showing result for "${name}"`);
+    }
+  }, [serviceType]);
 
   const handleSearch = useCallback(async () => {
     const query = searchQuery.trim();
     if (!query) {
-      Alert.alert('Search', 'Please enter a location or postcode to search');
+      Alert.alert('Search', 'Please enter a location, postcode, or driver number');
       return;
     }
 
@@ -98,7 +159,7 @@ export function SearchScreen() {
 
     setIsSearching(true);
     setHasSearched(true);
-    setSearchQuery(''); // clear text query since we're using GPS
+    setSearchQuery('');
 
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -138,30 +199,33 @@ export function SearchScreen() {
     setResults([]);
     setHasSearched(false);
     setResultMessage('');
+    setSuggestions([]);
+    setShowSuggestions(false);
   };
 
   const handleParkingTap = (space: any) => {
     navigation.navigate('ParkingDetail', { spaceId: space._id, space });
   };
 
-  // ── Render a single result card ──
+  // ── Render Cards ──
+
   const renderParkingCard = (item: any) => (
-    <TouchableOpacity key={item._id} style={styles.resultCard} activeOpacity={0.8} onPress={() => handleParkingTap(item)}>
+    <TouchableOpacity key={item._id} style={styles.resultCard} activeOpacity={0.7} onPress={() => handleParkingTap(item)}>
       <View style={styles.cardHeader}>
-        <Text style={styles.spotName}>{item.name}</Text>
-        <Text style={styles.spotPrice}>£{item.hourlyRate?.toFixed(2)}/hr</Text>
+        <Text style={styles.cardTitle}>{item.name}</Text>
+        <Text style={styles.cardPrice}>£{item.hourlyRate?.toFixed(2)}/hr</Text>
       </View>
       {item.description ? (
         <Text style={styles.cardDescription} numberOfLines={2}>{item.description}</Text>
       ) : null}
       <View style={styles.cardFooter}>
-        <View style={styles.badgeContainer}>
-          <Ionicons name="location-outline" size={14} color={COLORS.cloudWhite} />
+        <View style={styles.badge}>
+          <Ionicons name="location-outline" size={13} color={COLORS.textSecondary} />
           <Text style={styles.badgeText}>{item.town || item.postCode}</Text>
         </View>
         {item.totalSpots != null && (
-          <View style={[styles.badgeContainer, { backgroundColor: 'rgba(16, 185, 129, 0.2)' }]}>
-            <Text style={[styles.badgeText, { color: COLORS.success, marginLeft: 0 }]}>
+          <View style={[styles.badge, { backgroundColor: '#E8FFF3' }]}>
+            <Text style={[styles.badgeText, { color: COLORS.success }]}>
               {Math.max(0, item.totalSpots - (item.occupiedSpots || 0))} spots left
             </Text>
           </View>
@@ -172,18 +236,27 @@ export function SearchScreen() {
 
   const renderDriverCard = (item: any) => {
     const user = item.user || {};
+    const driverNum = item.driverNumber;
     return (
-      <TouchableOpacity key={item._id} style={styles.resultCard} activeOpacity={0.8}>
+      <TouchableOpacity key={item._id} style={styles.resultCard} activeOpacity={0.7}>
         <View style={styles.cardHeader}>
-          <Text style={styles.spotName}>{user.firstName} {user.lastName}</Text>
-          <View style={[styles.statusBadge, { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
-            <Text style={[styles.statusText, { color: COLORS.success }]}>Available</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.cardTitle}>{user.firstName} {user.lastName}</Text>
+            {driverNum && <Text style={styles.driverNumber}>Driver #{driverNum}</Text>}
+          </View>
+          <View style={styles.statusOnline}>
+            <View style={styles.statusDot} />
+            <Text style={styles.statusOnlineText}>Online</Text>
           </View>
         </View>
         <View style={styles.cardFooter}>
-          <View style={styles.badgeContainer}>
-            <Ionicons name="location-outline" size={14} color={COLORS.cloudWhite} />
+          <View style={styles.badge}>
+            <Ionicons name="location-outline" size={13} color={COLORS.textSecondary} />
             <Text style={styles.badgeText}>{user.address?.town || user.postCode || 'N/A'}</Text>
+          </View>
+          <View style={styles.badge}>
+            <Ionicons name="cash-outline" size={13} color={COLORS.textSecondary} />
+            <Text style={styles.badgeText}>£1.10/mile</Text>
           </View>
         </View>
       </TouchableOpacity>
@@ -192,12 +265,17 @@ export function SearchScreen() {
 
   const renderTaxiCard = (item: any) => {
     const user = item.user || {};
+    const driverNum = item.driverNumber;
     return (
-      <TouchableOpacity key={item._id} style={styles.resultCard} activeOpacity={0.8}>
+      <TouchableOpacity key={item._id} style={styles.resultCard} activeOpacity={0.7}>
         <View style={styles.cardHeader}>
-          <Text style={styles.spotName}>{user.firstName} {user.lastName}</Text>
-          <View style={[styles.statusBadge, { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
-            <Text style={[styles.statusText, { color: COLORS.success }]}>Available</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.cardTitle}>{user.firstName} {user.lastName}</Text>
+            {driverNum && <Text style={styles.driverNumber}>Taxi #{driverNum}</Text>}
+          </View>
+          <View style={styles.statusOnline}>
+            <View style={styles.statusDot} />
+            <Text style={styles.statusOnlineText}>Online</Text>
           </View>
         </View>
         {item.vehicleInfo?.make && (
@@ -206,9 +284,13 @@ export function SearchScreen() {
           </Text>
         )}
         <View style={styles.cardFooter}>
-          <View style={styles.badgeContainer}>
-            <Ionicons name="location-outline" size={14} color={COLORS.cloudWhite} />
+          <View style={styles.badge}>
+            <Ionicons name="location-outline" size={13} color={COLORS.textSecondary} />
             <Text style={styles.badgeText}>{user.address?.town || user.postCode || 'N/A'}</Text>
+          </View>
+          <View style={styles.badge}>
+            <Ionicons name="cash-outline" size={13} color={COLORS.textSecondary} />
+            <Text style={styles.badgeText}>£1.10/mi + £0.20/min</Text>
           </View>
         </View>
       </TouchableOpacity>
@@ -242,7 +324,7 @@ export function SearchScreen() {
                 style={[styles.tab, isActive && { borderBottomColor: cfg.color, borderBottomWidth: 2 }]}
                 onPress={() => handleServiceChange(type)}
               >
-                <Ionicons name={cfg.icon} size={18} color={isActive ? cfg.color : COLORS.softSlate} />
+                <Ionicons name={cfg.icon} size={18} color={isActive ? cfg.color : COLORS.textTertiary} />
                 <Text style={[styles.tabLabel, isActive && { color: cfg.color }]}>{cfg.label}</Text>
               </TouchableOpacity>
             );
@@ -252,45 +334,81 @@ export function SearchScreen() {
         {/* Search Bar */}
         <View style={styles.searchContainer}>
           <View style={styles.searchBar}>
-            <Ionicons name="search" size={20} color={COLORS.softSlate} style={styles.searchIcon} />
+            <Ionicons name="search" size={20} color={COLORS.textTertiary} style={styles.searchIcon} />
             <TextInput
               style={styles.searchInput}
-              placeholder={`Search ${config.label.toLowerCase()} by location or postcode...`}
-              placeholderTextColor={COLORS.softSlate}
+              placeholder={config.searchHint}
+              placeholderTextColor={COLORS.textTertiary}
               value={searchQuery}
-              onChangeText={setSearchQuery}
+              onChangeText={handleQueryChange}
               onSubmitEditing={handleSearch}
               returnKeyType="search"
+              onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
             />
             {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => { setSearchQuery(''); setResults([]); setHasSearched(false); }} style={styles.clearBtn}>
-                <Ionicons name="close-circle" size={20} color={COLORS.softSlate} />
+              <TouchableOpacity onPress={() => { setSearchQuery(''); setResults([]); setHasSearched(false); setSuggestions([]); setShowSuggestions(false); }} style={styles.clearBtn}>
+                <Ionicons name="close-circle" size={20} color={COLORS.textTertiary} />
               </TouchableOpacity>
             )}
           </View>
 
+          {/* Autocomplete Suggestions Dropdown */}
+          {showSuggestions && (
+            <View style={styles.suggestionsContainer}>
+              {suggestions.map((item: any, index: number) => {
+                let label = '';
+                let sublabel = '';
+                if (serviceType === 'parking') {
+                  label = item.name || 'Parking Space';
+                  sublabel = [item.town, item.postCode].filter(Boolean).join(' · ');
+                } else {
+                  label = `${item.user?.firstName || ''} ${item.user?.lastName || ''}`.trim() || 'Driver';
+                  sublabel = item.driverNumber ? `#${item.driverNumber}` : (item.user?.address?.town || '');
+                }
+                return (
+                  <TouchableOpacity
+                    key={item._id || index}
+                    style={styles.suggestionItem}
+                    onPress={() => selectSuggestion(item)}
+                    activeOpacity={0.6}
+                  >
+                    <Ionicons
+                      name={serviceType === 'parking' ? 'car-sport-outline' : 'person-outline'}
+                      size={18}
+                      color={config.color}
+                      style={{ marginRight: SPACING.sm }}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.suggestionLabel} numberOfLines={1}>{label}</Text>
+                      {sublabel ? <Text style={styles.suggestionSub} numberOfLines={1}>{sublabel}</Text> : null}
+                    </View>
+                    <Ionicons name="arrow-forward" size={16} color={COLORS.textTertiary} />
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
+
           <View style={styles.actionButtonsContainer}>
-            {/* Search Button */}
             <TouchableOpacity
               style={[styles.searchButton, isSearching && { opacity: 0.6 }]}
-              onPress={handleSearch}
+              onPress={() => { setShowSuggestions(false); handleSearch(); }}
               disabled={isSearching}
             >
               {isSearching ? (
-                <ActivityIndicator size="small" color={COLORS.deepNavy} />
+                <ActivityIndicator size="small" color="#FFF" />
               ) : (
                 <Text style={styles.searchButtonText}>Search</Text>
               )}
             </TouchableOpacity>
 
-            {/* Location Search Button (Only for Parking) */}
             {serviceType === 'parking' && (
               <TouchableOpacity
                 style={[styles.locationButton, isSearching && { opacity: 0.6 }]}
                 onPress={handleLocationSearch}
                 disabled={isSearching}
               >
-                <Ionicons name="location" size={18} color={COLORS.cloudWhite} style={{ marginRight: 6 }} />
+                <Ionicons name="location" size={18} color={COLORS.info} style={{ marginRight: 6 }} />
                 <Text style={styles.locationButtonText}>Nearby</Text>
               </TouchableOpacity>
             )}
@@ -301,10 +419,12 @@ export function SearchScreen() {
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           {!hasSearched && !isSearching ? (
             <View style={styles.emptyState}>
-              <Ionicons name="map-outline" size={64} color={COLORS.steelBlue} />
+              <Ionicons name="map-outline" size={64} color={COLORS.textTertiary} />
               <Text style={styles.emptyStateTitle}>Where to?</Text>
               <Text style={styles.emptyStateSubtext}>
-                Enter a location or postcode to find available {config.label.toLowerCase()} near you.
+                {serviceType !== 'parking'
+                  ? `Enter a location, postcode, or driver number to find ${config.label.toLowerCase()}.`
+                  : `Enter a location or postcode to find available ${config.label.toLowerCase()} near you.`}
               </Text>
             </View>
           ) : isSearching ? (
@@ -314,7 +434,7 @@ export function SearchScreen() {
             </View>
           ) : results.length === 0 ? (
             <View style={styles.emptyState}>
-              <Ionicons name="alert-circle-outline" size={64} color={COLORS.softSlate} />
+              <Ionicons name="alert-circle-outline" size={64} color={COLORS.textTertiary} />
               <Text style={styles.emptyStateTitle}>No Results</Text>
               <Text style={styles.emptyStateSubtext}>{config.emptyMsg}</Text>
             </View>
@@ -333,7 +453,7 @@ export function SearchScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.deepNavy,
+    backgroundColor: COLORS.background,
   },
   container: {
     flex: 1,
@@ -344,7 +464,7 @@ const styles = StyleSheet.create({
     paddingBottom: SPACING.sm,
   },
   headerTitle: {
-    color: COLORS.cloudWhite,
+    color: COLORS.textPrimary,
     fontSize: FONT_SIZES.section,
     fontWeight: FONT_WEIGHTS.bold,
   },
@@ -354,6 +474,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingHorizontal: SPACING.lg,
     marginBottom: SPACING.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
   },
   tab: {
     flex: 1,
@@ -366,7 +488,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   tabLabel: {
-    color: COLORS.softSlate,
+    color: COLORS.textTertiary,
     fontSize: FONT_SIZES.label,
     fontWeight: FONT_WEIGHTS.medium,
   },
@@ -379,17 +501,17 @@ const styles = StyleSheet.create({
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.steelBlue,
+    backgroundColor: COLORS.surfaceAlt,
     borderRadius: BORDER_RADIUS.full,
     paddingHorizontal: SPACING.md,
-    height: 50,
+    height: 48,
   },
   searchIcon: {
     marginRight: SPACING.sm,
   },
   searchInput: {
     flex: 1,
-    color: COLORS.cloudWhite,
+    color: COLORS.textPrimary,
     fontSize: FONT_SIZES.body,
     height: '100%',
   },
@@ -410,13 +532,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   searchButtonText: {
-    color: COLORS.deepNavy,
+    color: '#FFF',
     fontSize: FONT_SIZES.body,
     fontWeight: FONT_WEIGHTS.bold,
   },
   locationButton: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(59, 130, 246, 0.2)', // Info color with opacity
+    backgroundColor: COLORS.surface,
     borderWidth: 1,
     borderColor: COLORS.info,
     borderRadius: BORDER_RADIUS.md,
@@ -426,7 +548,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   locationButtonText: {
-    color: COLORS.cloudWhite,
+    color: COLORS.info,
     fontSize: FONT_SIZES.body,
     fontWeight: FONT_WEIGHTS.semibold,
   },
@@ -443,30 +565,34 @@ const styles = StyleSheet.create({
     marginTop: 60,
   },
   emptyStateTitle: {
-    color: COLORS.cloudWhite,
+    color: COLORS.textPrimary,
     fontSize: 20,
     fontWeight: FONT_WEIGHTS.semibold,
     marginTop: SPACING.lg,
     marginBottom: SPACING.sm,
   },
   emptyStateSubtext: {
-    color: COLORS.softSlate,
+    color: COLORS.textSecondary,
     fontSize: 14,
     textAlign: 'center',
     maxWidth: '80%',
     lineHeight: 20,
   },
   resultsHeader: {
-    color: COLORS.softSlate,
+    color: COLORS.textSecondary,
     fontSize: 14,
     fontWeight: FONT_WEIGHTS.medium,
     marginBottom: SPACING.md,
   },
+
+  // Result Cards
   resultCard: {
-    backgroundColor: COLORS.steelBlue,
+    backgroundColor: COLORS.surface,
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.lg,
     marginBottom: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -474,20 +600,20 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: SPACING.sm,
   },
-  spotName: {
-    color: COLORS.cloudWhite,
+  cardTitle: {
+    color: COLORS.textPrimary,
     fontSize: 16,
     fontWeight: FONT_WEIGHTS.semibold,
     flex: 1,
     marginRight: SPACING.sm,
   },
-  spotPrice: {
+  cardPrice: {
     color: COLORS.electricTeal,
     fontSize: 16,
     fontWeight: FONT_WEIGHTS.bold,
   },
   cardDescription: {
-    color: COLORS.softSlate,
+    color: COLORS.textSecondary,
     fontSize: 13,
     lineHeight: 18,
     marginBottom: SPACING.sm,
@@ -495,29 +621,87 @@ const styles = StyleSheet.create({
   cardFooter: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: SPACING.sm,
   },
-  badgeContainer: {
+
+  // Badges
+  badge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: COLORS.surfaceAlt,
     paddingHorizontal: SPACING.sm,
     paddingVertical: 4,
     borderRadius: BORDER_RADIUS.sm,
-    marginRight: SPACING.sm,
   },
   badgeText: {
-    color: COLORS.cloudWhite,
+    color: COLORS.textSecondary,
     fontSize: 12,
     marginLeft: 4,
     fontWeight: FONT_WEIGHTS.medium,
   },
-  statusBadge: {
+
+  // Driver number
+  driverNumber: {
+    color: COLORS.textSecondary,
+    fontSize: 12,
+    fontWeight: FONT_WEIGHTS.medium,
+    marginTop: 2,
+  },
+
+  // Online status
+  statusOnline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E8FFF3',
     paddingHorizontal: SPACING.sm,
     paddingVertical: 4,
     borderRadius: BORDER_RADIUS.sm,
   },
-  statusText: {
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: COLORS.success,
+    marginRight: 6,
+  },
+  statusOnlineText: {
     fontSize: 12,
     fontWeight: FONT_WEIGHTS.semibold,
+    color: COLORS.success,
+  },
+
+  // Autocomplete Suggestions
+  suggestionsContainer: {
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginTop: -4,
+    marginBottom: SPACING.sm,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+  },
+  suggestionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: SPACING.sm + 2,
+    paddingHorizontal: SPACING.md,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.divider,
+  },
+  suggestionLabel: {
+    color: COLORS.textPrimary,
+    fontSize: FONT_SIZES.label,
+    fontWeight: FONT_WEIGHTS.medium,
+  },
+  suggestionSub: {
+    color: COLORS.textTertiary,
+    fontSize: 11,
+    marginTop: 1,
   },
 });

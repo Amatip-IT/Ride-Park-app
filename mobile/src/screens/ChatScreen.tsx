@@ -114,7 +114,7 @@ export function ChatScreen() {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <Ionicons name="arrow-back" size={24} color={COLORS.cloudWhite} />
+            <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
           </TouchableOpacity>
           
           <View style={styles.headerTitleContainer}>
@@ -159,7 +159,7 @@ export function ChatScreen() {
           <TextInput
             style={styles.textInput}
             placeholder="Type a message..."
-            placeholderTextColor={COLORS.softSlate}
+            placeholderTextColor={COLORS.textSecondary}
             value={inputText}
             onChangeText={setInputText}
             multiline
@@ -179,7 +179,7 @@ export function ChatScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: COLORS.deepNavy },
+  safeArea: { flex: 1, backgroundColor: COLORS.background },
   container: { flex: 1 },
   
   // Header
@@ -188,21 +188,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
     paddingTop: Platform.OS === 'android' ? SPACING.xl : SPACING.sm,
     paddingBottom: SPACING.md,
-    borderBottomWidth: 1, borderBottomColor: COLORS.steelBlue,
-    backgroundColor: COLORS.deepNavy,
+    borderBottomWidth: 1, borderBottomColor: COLORS.border,
+    backgroundColor: COLORS.background,
   },
   backBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
   headerTitleContainer: { flexDirection: 'row', alignItems: 'center', flex: 1, justifyContent: 'center' },
   avatarCircle: {
     width: 36, height: 36, borderRadius: 18,
-    backgroundColor: COLORS.steelBlue,
+    backgroundColor: COLORS.surfaceAlt,
     justifyContent: 'center', alignItems: 'center', marginRight: SPACING.sm,
+    borderWidth: 1, borderColor: COLORS.border,
   },
   avatarLetter: { color: COLORS.electricTeal, fontSize: 16, fontWeight: FONT_WEIGHTS.bold },
-  headerTitle: { color: COLORS.cloudWhite, fontSize: 16, fontWeight: FONT_WEIGHTS.bold },
+  headerTitle: { color: COLORS.textPrimary, fontSize: 16, fontWeight: FONT_WEIGHTS.bold },
 
   // Messages Area
-  messagesContainer: { flex: 1, backgroundColor: COLORS.deepNavy },
+  messagesContainer: { flex: 1, backgroundColor: COLORS.background },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   listContent: { padding: SPACING.lg, paddingBottom: SPACING.xl },
   
@@ -218,44 +219,46 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 4,
   },
   theirBubble: { 
-    backgroundColor: COLORS.steelBlue,
+    backgroundColor: COLORS.surfaceAlt,
     borderBottomLeftRadius: 4,
+    borderWidth: 1, borderColor: COLORS.border,
   },
   
   messageText: { fontSize: 15, lineHeight: 22 },
   myMessageText: { color: COLORS.deepNavy },
-  theirMessageText: { color: COLORS.cloudWhite },
+  theirMessageText: { color: COLORS.textPrimary },
   
   messageFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', marginTop: 4 },
   messageTime: { fontSize: 11 },
   myMessageTime: { color: 'rgba(0,0,0,0.5)' },
-  theirMessageTime: { color: COLORS.softSlate },
+  theirMessageTime: { color: COLORS.textSecondary },
   
   // Input
   inputContainer: {
     flexDirection: 'row', alignItems: 'center',
     padding: SPACING.md, paddingBottom: Platform.OS === 'ios' ? SPACING.xl : SPACING.md,
-    backgroundColor: COLORS.steelBlue,
-    borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: COLORS.surface,
+    borderTopWidth: 1, borderTopColor: COLORS.border,
   },
   textInput: {
-    flex: 1, backgroundColor: COLORS.deepNavy, borderRadius: 20,
+    flex: 1, backgroundColor: COLORS.surfaceAlt, borderRadius: 20,
     paddingHorizontal: SPACING.lg, paddingTop: 12, paddingBottom: 12,
-    color: COLORS.cloudWhite, fontSize: 15,
+    color: COLORS.textPrimary, fontSize: 15,
     minHeight: 44, maxHeight: 100,
+    borderWidth: 1, borderColor: COLORS.border,
   },
   sendBtn: {
     width: 44, height: 44, borderRadius: 22,
     backgroundColor: COLORS.electricTeal,
     justifyContent: 'center', alignItems: 'center', marginLeft: SPACING.sm,
   },
-  sendBtnDisabled: { backgroundColor: 'rgba(255,255,255,0.1)' },
+  sendBtnDisabled: { backgroundColor: COLORS.surfaceAlt, borderWidth: 1, borderColor: COLORS.border },
 
   // Empty State
   emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 100 },
   emptyStateTitle: {
-    color: COLORS.cloudWhite, fontSize: 18, fontWeight: FONT_WEIGHTS.semibold,
+    color: COLORS.textPrimary, fontSize: 18, fontWeight: FONT_WEIGHTS.semibold,
     marginBottom: SPACING.xs,
   },
-  emptyStateSubtext: { color: COLORS.softSlate, fontSize: 14 },
+  emptyStateSubtext: { color: COLORS.textSecondary, fontSize: 14 },
 });

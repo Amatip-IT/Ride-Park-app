@@ -97,6 +97,7 @@ export class ProviderService {
 
       return {
         success: true,
+        message: 'Earnings fetched successfully',
         data: {
           balance,
           weeklyEarnings,
@@ -264,5 +265,102 @@ export class ProviderService {
         message: `Failed to submit documents: ${error instanceof Error ? error.message : 'Unknown error'}`,
       };
     }
+  }
+
+  /**
+   * Toggle driver/taxi availability (online/offline)
+   * Cannot toggle if currently busy (on a trip)
+   */
+  async toggleAvailability(userId: string, role: string, status: 'online' | 'offline'): Promise<Response> {
+    try {
+      const record: any = role === 'driver'
+        ? await this.chauffeurModel.findOne({ user: userId })
+        : await this.taxiModel.findOne({ user: userId });
+
+      if (!record) {
+        return { success: false, message: 'Provider record not found. Complete verification first.' };
+      }
+
+      if (record.availability === 'busy') {
+        return { success: false, message: 'Cannot change status while on an active trip.' };
+      }
+
+      record.availability = status;
+      await record.save();
+
+      return {
+        success: true,
+        data: { availability: record.availability },
+        message: `Status changed to ${status}`,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: `Failed to toggle status: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      };
+    }
+  }
+
+  /**
+   * Get assigned driver number
+   */
+  async getDriverNumber(userId: string, role: string): Promise<Response> {
+    try {
+      const record: any = role === 'driver'
+        ? await this.chauffeurModel.findOne({ user: userId })
+        : await this.taxiModel.findOne({ user: userId });
+
+      if (!record) {
+        return { success: false, message: 'Provider record not found' };
+      }
+
+      // If no number yet, assign one
+      if (!record.driverNumber) {
+        record.driverNumber = await this.generateNextDriverNumber();
+        await record.save();
+      }
+
+      return {
+        success: true,
+        data: { driverNumber: record.driverNumber },
+        message: `Your driver number is ${record.driverNumber}`,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: `Failed to get driver number: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      };
+    }
+  }
+
+  /**
+   * Generate the next sequential driver number across both chauffeurs and taxis
+   */
+  private async generateNextDriverNumber(): Promise<string> {
+    // Find the highest driver number from both collections
+    const [latestChauffeur, latestTaxi] = await Promise.all([
+      this.chauffeurModel
+        .findOne({ driverNumber: { $exists: true, $ne: null } })
+        .sort({ driverNumber: -1 })
+        .select('driverNumber')
+        .exec(),
+      this.taxiModel
+        .findOne({ driverNumber: { $exists: true, $ne: null } })
+        .sort({ driverNumber: -1 })
+        .select('driverNumber')
+        .exec(),
+    ]);
+
+    const chauffeurNum = latestChauffeur?.driverNumber
+      ? parseInt(latestChauffeur.driverNumber, 10)
+      : 0;
+    const taxiNum = latestTaxi?.driverNumber
+      ? parseInt(latestTaxi.driverNumber, 10)
+      : 0;
+
+    const nextNum = Math.max(chauffeurNum, taxiNum) + 1;
+
+    // Pad to 3 digits minimum (001, 002, ..., 999, 1000, ...)
+    return nextNum.toString().padStart(3, '0');
   }
 }

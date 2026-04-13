@@ -21,8 +21,8 @@ export function OnboardingScreen() {
         {/* Header Section */}
         <View style={styles.header}>
           {/* Logo placeholder - replace mobile/assets/images/logo.png with custom screenshot */}
-          <Image 
-            source={require('../../assets/images/logo.png')} 
+          <Image
+            source={require('../../assets/images/logo.jpg')}
             style={styles.logoImage}
             resizeMode="contain"
           />
@@ -32,22 +32,22 @@ export function OnboardingScreen() {
         {/* Action Buttons */}
         {!showProviderOptions ? (
           <View style={styles.actionsContainer}>
-            <TouchableOpacity 
-              style={[styles.button, styles.primaryButton]} 
+            <TouchableOpacity
+              style={[styles.button, styles.primaryButton]}
               onPress={() => navigateToAuth(false, 'user')}
             >
               <Text style={styles.primaryButtonText}>Sign Up as General User</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={[styles.button, styles.secondaryButton]} 
+            <TouchableOpacity
+              style={[styles.button, styles.secondaryButton]}
               onPress={() => setShowProviderOptions(true)}
             >
               <Text style={styles.secondaryButtonText}>Become a Provider</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={styles.loginContainer} 
+            <TouchableOpacity
+              style={styles.loginContainer}
               onPress={() => navigateToAuth(true)}
             >
               <Text style={styles.loginText}>Already have an account? <Text style={styles.loginLink}>Log In</Text></Text>
@@ -56,30 +56,30 @@ export function OnboardingScreen() {
         ) : (
           <View style={styles.actionsContainer}>
             <Text style={styles.sectionTitle}>Choose Provider Type</Text>
-            
-            <TouchableOpacity 
-              style={[styles.button, styles.providerButton]} 
+
+            <TouchableOpacity
+              style={[styles.button, styles.providerButton]}
               onPress={() => navigateToAuth(false, 'parking_provider')}
             >
               <Text style={styles.providerButtonText}>Register Parking Space</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={[styles.button, styles.providerButton]} 
+            <TouchableOpacity
+              style={[styles.button, styles.providerButton]}
               onPress={() => navigateToAuth(false, 'driver')}
             >
               <Text style={styles.providerButtonText}>Register as Driver (Hire)</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={[styles.button, styles.providerButton]} 
+            <TouchableOpacity
+              style={[styles.button, styles.providerButton]}
               onPress={() => navigateToAuth(false, 'taxi_driver')}
             >
               <Text style={styles.providerButtonText}>Register as Taxi Driver</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={styles.backButton} 
+            <TouchableOpacity
+              style={styles.backButton}
               onPress={() => setShowProviderOptions(false)}
             >
               <Text style={styles.backButtonText}>← Back</Text>
@@ -94,7 +94,7 @@ export function OnboardingScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.deepNavy,
+    backgroundColor: COLORS.background,
   },
   content: {
     flex: 1,
@@ -112,7 +112,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: FONT_SIZES.body,
-    color: COLORS.softSlate,
+    color: COLORS.textSecondary,
     textAlign: 'center',
     lineHeight: 24,
     paddingHorizontal: SPACING.lg,
@@ -123,7 +123,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: FONT_SIZES.section,
-    color: COLORS.cloudWhite,
+    color: COLORS.textPrimary,
     fontWeight: '600',
     marginBottom: SPACING.xl,
     textAlign: 'center',
@@ -139,7 +139,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.electricTeal,
   },
   primaryButtonText: {
-    color: COLORS.deepNavy,
+    color: '#FFF',
     fontSize: FONT_SIZES.body,
     fontWeight: '700',
   },
@@ -154,10 +154,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   providerButton: {
-    backgroundColor: COLORS.steelBlue,
+    backgroundColor: COLORS.surfaceAlt,
   },
   providerButtonText: {
-    color: COLORS.cloudWhite,
+    color: COLORS.textPrimary,
     fontSize: FONT_SIZES.body,
     fontWeight: '600',
   },
@@ -166,7 +166,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loginText: {
-    color: COLORS.softSlate,
+    color: COLORS.textSecondary,
     fontSize: FONT_SIZES.body,
   },
   loginLink: {
@@ -179,7 +179,7 @@ const styles = StyleSheet.create({
     padding: SPACING.sm,
   },
   backButtonText: {
-    color: COLORS.softSlate,
+    color: COLORS.textSecondary,
     fontSize: FONT_SIZES.body,
     fontWeight: '600',
   },

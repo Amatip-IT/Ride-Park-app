@@ -8,6 +8,8 @@ import { user_settings } from 'src/schemas/user-settings-schema';
 import { EmailVerificationService } from 'src/verification/email/verification.service';
 import { Response } from 'src/common/interfaces/response.interface';
 
+import { Taxi, TaxiDocument } from 'src/schemas/taxi.schema';
+
 interface UserWithId extends User {
   _id: string;
 }
@@ -16,13 +18,14 @@ interface UserWithId extends User {
 export class UsersService {
   constructor(
     @InjectModel(User.name) private userModel: Model<UserDocument>,
+    @InjectModel(Taxi.name) private taxiModel: Model<TaxiDocument>,
     @InjectModel(user_settings.name)
     private userSettingsModel: Model<user_settings>,
     private emailVerificationService: EmailVerificationService,
   ) {}
 
   /* METHOD TO CREATE A NEW USER (NON-ADMIN) */
-  async createUser(createUserDTO: UserDocument): Promise<Response> {
+  async createUser(createUserDTO: any): Promise<Response> {
     try {
       // find if user with the same email or username already exists
       const existingUser: User | null = await this.userModel.findOne({
@@ -51,12 +54,26 @@ export class UsersService {
       const allowedRoles = ['user', 'parking_provider', 'driver', 'taxi_driver'];
       const role = allowedRoles.includes(createUserDTO.role) ? createUserDTO.role : 'user';
 
-      const newUser = new this.userModel({
+      // Build user data with identity verification for providers
+      const providerRoles = ['parking_provider', 'driver', 'taxi_driver'];
+      const isProvider = providerRoles.includes(role);
+
+      const userData: any = {
         ...createUserDTO,
         role,
         termsAccepted: true,
         termsAcceptedAt: new Date(),
-      });
+      };
+
+      // Store identity verification data for providers
+      if (isProvider && createUserDTO.idType) {
+        userData.idType = createUserDTO.idType;
+        userData.identityDocumentUrl = createUserDTO.identityDocumentUrl || '';
+        userData.proofOfAddressUrl = createUserDTO.proofOfAddressUrl || '';
+        userData.identityStatus = 'pending';
+      }
+
+      const newUser = new this.userModel(userData);
 
       if (!newUser) {
         return {
@@ -65,8 +82,23 @@ export class UsersService {
         };
       }
 
-      // Save the new user to the database and return the saved user minus hashed password
+      // Save the new user to the database
       await newUser.save();
+
+      // IF Taxi Driver, auto-create their Taxi record with the vehicle info provided during registration
+      if (role === 'taxi_driver') {
+        await this.taxiModel.create({
+          user: newUser._id,
+          status: 'not_applied', // Admin will review later upon doc upload
+          vehicleInfo: {
+            make: createUserDTO.vehicleMake,
+            model: createUserDTO.vehicleModel,
+            color: createUserDTO.vehicleColor,
+            plateNumber: createUserDTO.plateNumber,
+          },
+        });
+      }
+
       const newUserWithoutPassword: User | null = await this.userModel
         .findById(newUser._id)
         .select('-password')
@@ -284,6 +316,10 @@ export class UsersService {
     } catch (error) {
       return { success: false, message: 'Invalid or expired refresh token' };
     }
+  }
+
+  findById(id: string) {
+    return this.userModel.findById(id).exec();
   }
 
   findOne(id: number) {

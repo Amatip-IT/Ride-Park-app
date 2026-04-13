@@ -138,4 +138,41 @@ export class ProviderController {
     }
     return result;
   }
+
+  /**
+   * POST /provider/toggle-status
+   * Toggle driver/taxi online/offline status
+   */
+  @Post('toggle-status')
+  async toggleStatus(
+    @Req() req: any,
+    @Body() body: { status: 'online' | 'offline' },
+  ) {
+    const user = req.user;
+    const userId = user._id || user.id;
+
+    if (!['driver', 'taxi_driver'].includes(user.role)) {
+      throw new HttpException(
+        { message: 'Only drivers and taxi drivers can toggle status' },
+        HttpStatus.FORBIDDEN,
+      );
+    }
+
+    const result = await this.providerService.toggleAvailability(userId, user.role, body.status);
+    if (!result.success) {
+      throw new HttpException(result, HttpStatus.BAD_REQUEST);
+    }
+    return result;
+  }
+
+  /**
+   * GET /provider/my-driver-number
+   * Get current driver's assigned number
+   */
+  @Get('my-driver-number')
+  async getMyDriverNumber(@Req() req: any) {
+    const user = req.user;
+    const userId = user._id || user.id;
+    return this.providerService.getDriverNumber(userId, user.role);
+  }
 }

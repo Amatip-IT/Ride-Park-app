@@ -152,15 +152,15 @@ export function ChatListScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: COLORS.deepNavy },
+  safeArea: { flex: 1, backgroundColor: COLORS.background },
   container: { flex: 1 },
   header: {
     paddingHorizontal: SPACING.xl,
     paddingTop: Platform.OS === 'android' ? SPACING.xl : SPACING.sm,
     paddingBottom: SPACING.md,
-    borderBottomWidth: 1, borderBottomColor: COLORS.steelBlue,
+    borderBottomWidth: 1, borderBottomColor: COLORS.border,
   },
-  headerTitle: { color: COLORS.cloudWhite, fontSize: FONT_SIZES.hero, fontWeight: FONT_WEIGHTS.bold },
+  headerTitle: { color: COLORS.textPrimary, fontSize: FONT_SIZES.hero, fontWeight: FONT_WEIGHTS.bold },
   
   listContent: { paddingVertical: SPACING.md },
 
@@ -168,23 +168,24 @@ const styles = StyleSheet.create({
   chatCard: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: SPACING.lg, paddingVertical: SPACING.md,
-    borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)',
+    borderBottomWidth: 1, borderBottomColor: COLORS.border,
   },
   avatarCircle: {
     width: 50, height: 50, borderRadius: 25,
-    backgroundColor: COLORS.steelBlue,
+    backgroundColor: COLORS.surfaceAlt,
     justifyContent: 'center', alignItems: 'center', marginRight: SPACING.md,
+    borderWidth: 1, borderColor: COLORS.border,
   },
   avatarLetter: { color: COLORS.electricTeal, fontSize: 20, fontWeight: FONT_WEIGHTS.bold },
   chatInfo: { flex: 1 },
   chatHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
-  chatName: { color: COLORS.cloudWhite, fontSize: 16, fontWeight: FONT_WEIGHTS.medium },
-  chatTime: { color: COLORS.softSlate, fontSize: 12 },
+  chatName: { color: COLORS.textPrimary, fontSize: 16, fontWeight: FONT_WEIGHTS.medium },
+  chatTime: { color: COLORS.textSecondary, fontSize: 12 },
   
   messageRow: { flexDirection: 'row', alignItems: 'center' },
-  messagePreview: { color: COLORS.softSlate, fontSize: 14, flex: 1 },
+  messagePreview: { color: COLORS.textSecondary, fontSize: 14, flex: 1 },
   
-  unreadText: { fontWeight: FONT_WEIGHTS.bold, color: COLORS.cloudWhite },
+  unreadText: { fontWeight: FONT_WEIGHTS.bold, color: COLORS.textPrimary },
   unreadTime: { color: COLORS.electricTeal, fontWeight: FONT_WEIGHTS.bold },
   
   unreadBadge: {
@@ -192,20 +193,20 @@ const styles = StyleSheet.create({
     minWidth: 20, height: 20, justifyContent: 'center', alignItems: 'center', marginLeft: 8,
     paddingHorizontal: 6,
   },
-  unreadCount: { color: COLORS.deepNavy, fontSize: 10, fontWeight: FONT_WEIGHTS.bold },
+  unreadCount: { color: '#FFF', fontSize: 10, fontWeight: FONT_WEIGHTS.bold },
 
   // Empty State
-  emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: SPACING.xl },
+  emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: SPACING.xl, marginTop: 40 },
   iconCircle: {
     width: 100, height: 100, borderRadius: 50,
-    backgroundColor: 'rgba(0, 194, 168, 0.1)',
+    backgroundColor: 'rgba(0, 180, 160, 0.1)',
     justifyContent: 'center', alignItems: 'center', marginBottom: SPACING.xl,
   },
   emptyStateTitle: {
-    color: COLORS.cloudWhite, fontSize: 22, fontWeight: FONT_WEIGHTS.bold,
+    color: COLORS.textPrimary, fontSize: 22, fontWeight: FONT_WEIGHTS.bold,
     marginBottom: SPACING.md, textAlign: 'center',
   },
   emptyStateSubtext: {
-    color: COLORS.softSlate, fontSize: 16, textAlign: 'center', lineHeight: 24,
+    color: COLORS.textSecondary, fontSize: 16, textAlign: 'center', lineHeight: 24,
   },
 });

@@ -1,10 +1,20 @@
-// Color Palette - Per Design Spec
+// Color Palette - Clean White Theme
 export const COLORS = {
   // Primary
-  deepNavy: '#0D1B2A',
-  electricTeal: '#00C2A8',
-  cloudWhite: '#F5F8FF',
-  steelBlue: '#1A3C6E',
+  deepNavy: '#1A1A2E',        // Dark text / accents
+  electricTeal: '#00B4A0',    // Primary action color
+  cloudWhite: '#F5F8FF',      // Text on dark backgrounds
+  steelBlue: '#1A3C6E',       // Dark header accents
+
+  // Light Theme Backgrounds
+  background: '#FFFFFF',       // Main white background
+  surface: '#F7F8FA',         // Card / section backgrounds
+  surfaceAlt: '#ECEEF2',      // Alternate surfaces (search bar, etc.)
+
+  // Text Colors
+  textPrimary: '#1A1A2E',     // Main text (dark)
+  textSecondary: '#64748B',   // Secondary / muted text
+  textTertiary: '#94A3B8',    // Hint / placeholder text
 
   // Secondary
   softSlate: '#8899BB',
@@ -18,6 +28,7 @@ export const COLORS = {
   info: '#3B82F6',
   placeholder: '#9CA3AF',
   border: '#E5E7EB',
+  divider: '#F1F3F5',
 };
 
 // Spacing scale

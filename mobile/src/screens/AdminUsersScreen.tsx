@@ -13,12 +13,12 @@ export function AdminUsersScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.deepNavy,
+    backgroundColor: COLORS.background,
     justifyContent: 'center',
     alignItems: 'center',
   },
   text: {
-    color: COLORS.cloudWhite,
+    color: COLORS.textPrimary,
     fontSize: 18,
   },
 });

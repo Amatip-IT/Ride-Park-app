@@ -40,6 +40,7 @@ export class SearchService {
       // 2. Town/name partial match (case-insensitive regex)
       const searchFilter = {
         isAvailable: true,
+        isVerified: true, // Only show admin-approved parking spaces
         $or: [
           { postCode: { $regex: new RegExp(`^${cleanQuery}`, 'i') } },
           { town: { $regex: new RegExp(cleanQuery, 'i') } },
@@ -107,6 +108,7 @@ export class SearchService {
       // Try multiple search strategies
       const searchFilter = {
         isAvailable: true,
+        isVerified: true, // Only show admin-approved parking spaces
         $or: [
           // Match by what3words address
           { what3words: words },
@@ -190,6 +192,7 @@ export class SearchService {
 
     const searchFilter = {
       isAvailable: true,
+      isVerified: true, // Only show admin-approved parking spaces
       'coordinates.lat': { $gte: lat - delta, $lte: lat + delta },
       'coordinates.lng': { $gte: lng - delta, $lte: lng + delta },
     };
@@ -229,8 +232,7 @@ export class SearchService {
   }
 
   /**
-   * Search available drivers (chauffeurs for hire) by location.
-   * Searches providers with role 'driver' who are verified and available.
+   * Search available drivers (chauffeurs for hire) by location or driver number.
    */
   async searchDrivers(
     query: string,
@@ -242,7 +244,31 @@ export class SearchService {
       const cleanQuery = query.trim();
 
       if (!cleanQuery) {
-        return { success: false, message: 'Please enter a location to search for drivers' };
+        return { success: false, message: 'Please enter a location or driver number to search' };
+      }
+
+      // Check if query is a driver number (all digits)
+      const isDriverNumber = /^\d+$/.test(cleanQuery);
+
+      if (isDriverNumber) {
+        // Search by driver number directly
+        const paddedNumber = cleanQuery.padStart(3, '0');
+        const drivers = await this.chauffeurModel
+          .find({
+            driverNumber: paddedNumber,
+            isVerified: true,
+            isActive: true,
+          })
+          .populate('user', 'firstName lastName postCode address phoneNumber')
+          .exec();
+
+        return {
+          success: true,
+          data: drivers,
+          message: drivers.length
+            ? `Found driver #${paddedNumber}`
+            : `No driver found with number #${paddedNumber}`,
+        };
       }
 
       // Find users who are drivers and match the location query
@@ -275,7 +301,7 @@ export class SearchService {
             user: { $in: driverUserIds },
             isVerified: true,
             isActive: true,
-            availability: { $in: ['available'] },
+            availability: 'online',
           })
           .populate('user', 'firstName lastName postCode address phoneNumber')
           .skip(skip)
@@ -285,7 +311,7 @@ export class SearchService {
           user: { $in: driverUserIds },
           isVerified: true,
           isActive: true,
-          availability: { $in: ['available'] },
+          availability: 'online',
         }).exec(),
       ]);
 
@@ -306,8 +332,7 @@ export class SearchService {
   }
 
   /**
-   * Search available taxis by location.
-   * Searches providers with role 'taxi_driver' who are verified and available.
+   * Search available taxis by location or driver number.
    */
   async searchTaxis(
     query: string,
@@ -319,7 +344,31 @@ export class SearchService {
       const cleanQuery = query.trim();
 
       if (!cleanQuery) {
-        return { success: false, message: 'Please enter a location to search for taxis' };
+        return { success: false, message: 'Please enter a location or driver number to search' };
+      }
+
+      // Check if query is a driver number (all digits)
+      const isDriverNumber = /^\d+$/.test(cleanQuery);
+
+      if (isDriverNumber) {
+        // Search by driver number directly
+        const paddedNumber = cleanQuery.padStart(3, '0');
+        const taxis = await this.taxiModel
+          .find({
+            driverNumber: paddedNumber,
+            isVerified: true,
+            isActive: true,
+          })
+          .populate('user', 'firstName lastName postCode address phoneNumber')
+          .exec();
+
+        return {
+          success: true,
+          data: taxis,
+          message: taxis.length
+            ? `Found taxi #${paddedNumber}`
+            : `No taxi found with number #${paddedNumber}`,
+        };
       }
 
       // Find users who are taxi drivers and match the location query
@@ -351,6 +400,7 @@ export class SearchService {
             user: { $in: taxiUserIds },
             isVerified: true,
             isActive: true,
+            availability: 'online',
           })
           .populate('user', 'firstName lastName postCode address phoneNumber')
           .skip(skip)
@@ -360,6 +410,7 @@ export class SearchService {
           user: { $in: taxiUserIds },
           isVerified: true,
           isActive: true,
+          availability: 'online',
         }).exec(),
       ]);
 

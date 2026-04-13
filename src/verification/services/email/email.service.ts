@@ -135,21 +135,21 @@ export class EmailService {
     try {
       const html = this.compileTemplate('otp', {
         otp,
-        subject: 'Email Verification - Ride and Park',
+        subject: 'Email Verification - Gleezip',
         headerGradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
         headerPadding: '30px',
         titleSize: '28px',
         headerIcon: '🚗',
-        headerTitle: 'Ride and Park',
+        headerTitle: 'Gleezip',
         headerSubtitle: 'Email Verification',
         year: new Date().getFullYear(),
-        contactEmail: 'support@rideandpark.com',
+        contactEmail: 'support@gleezip.com',
       });
 
       const mailOptions = {
-        from: `"Ride and Park" <${this.configService.get<string>('GMAIL_USER')}>`,
+        from: `"Gleezip" <${this.configService.get<string>('GMAIL_USER')}>`,
         to: email,
-        subject: 'Email Verification - Ride and Park',
+        subject: 'Email Verification - Gleezip',
         html,
       };
 
@@ -173,20 +173,20 @@ export class EmailService {
     try {
       const html = this.compileTemplate('welcome', {
         firstName,
-        subject: 'Welcome to Ride and Park! 🎉',
+        subject: 'Welcome to Gleezip! 🎉',
         headerGradient: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
         headerPadding: '40px 30px',
         titleSize: '32px',
         headerIcon: '🎉',
         headerTitle: 'Welcome Aboard!',
         year: new Date().getFullYear(),
-        contactEmail: 'support@rideandpark.com',
+        contactEmail: 'support@gleezip.com',
       });
 
       const mailOptions = {
-        from: `"Ride and Park" <${this.configService.get<string>('GMAIL_USER')}>`,
+        from: `"Gleezip" <${this.configService.get<string>('GMAIL_USER')}>`,
         to: email,
-        subject: 'Welcome to Ride and Park! 🎉',
+        subject: 'Welcome to Gleezip! 🎉',
         html,
       };
 
@@ -218,7 +218,7 @@ export class EmailService {
       });
 
       const mailOptions = {
-        from: `"Ride and Park" <${this.configService.get<string>('GMAIL_USER')}>`,
+        from: `"Gleezip" <${this.configService.get<string>('GMAIL_USER')}>`,
         to: email,
         subject,
         html,

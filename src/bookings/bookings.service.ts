@@ -18,14 +18,23 @@ export class BookingsService {
   async createBookingRequest(data: {
     requesterId: string;
     serviceType: 'parking' | 'driver' | 'taxi';
-    serviceId: string;
+    serviceId?: string;
     message?: string;
     startDate?: string;
     endDate?: string;
+    // Driver/Taxi request fields
+    pickupAddress?: string;
+    pickupPostcode?: string;
+    pickupLat?: number;
+    pickupLng?: number;
+    startTime?: string;
+    endTime?: string;
+    notes?: string;
+    taxiType?: string;
   }): Promise<Response> {
     try {
       // Look up the service to get provider and pricing info
-      let providerId: string;
+      let providerId: string | undefined;
       let serviceName: string;
       let quotedPrice: number | undefined;
       let pricingUnit: string | undefined;
@@ -42,39 +51,51 @@ export class BookingsService {
         serviceName = space.name;
         quotedPrice = space.hourlyRate;
         pricingUnit = 'per_hour';
+      } else if (data.serviceType === 'driver') {
+        // Driver request — no specific provider yet (broadcast)
+        serviceName = 'Driver Request';
+        pricingUnit = 'per_mile';
+        quotedPrice = 1.10;
       } else {
-        // For driver/taxi, serviceId IS the chauffeur/taxi record
-        // We'll handle these in future phases with their own logic
-        return { success: false, message: 'Driver and taxi booking coming soon' };
+        // Taxi request — no specific provider yet (broadcast)
+        serviceName = `Taxi Request${data.taxiType ? ` (${data.taxiType})` : ''}`;
+        pricingUnit = 'per_ride';
+        quotedPrice = undefined;
       }
 
-      // Check user isn't requesting their own service
-      if (data.requesterId === providerId) {
+      // Check user isn't requesting their own service (only relevant for parking)
+      if (providerId && data.requesterId === providerId) {
         return { success: false, message: 'You cannot book your own service' };
       }
 
-      // Check for existing pending request for the same service
-      const existingRequest = await this.bookingModel.findOne({
-        requester: data.requesterId,
-        serviceId: data.serviceId,
-        status: 'pending',
-      });
+      // Check for existing pending request for the same service (only for parking)
+      if (data.serviceType === 'parking' && data.serviceId) {
+        const existingRequest = await this.bookingModel.findOne({
+          requester: data.requesterId,
+          serviceId: data.serviceId,
+          status: 'pending',
+        });
 
-      if (existingRequest) {
-        return { success: false, message: 'You already have a pending request for this space' };
+        if (existingRequest) {
+          return { success: false, message: 'You already have a pending request for this space' };
+        }
       }
 
       const booking = new this.bookingModel({
         requester: data.requesterId,
-        provider: providerId,
+        provider: providerId || undefined,
         serviceType: data.serviceType,
-        serviceId: data.serviceId,
+        serviceId: data.serviceId || undefined,
         serviceName,
         quotedPrice,
         pricingUnit,
-        message: data.message,
-        startDate: data.startDate ? new Date(data.startDate) : undefined,
-        endDate: data.endDate ? new Date(data.endDate) : undefined,
+        message: data.message || data.notes,
+        startDate: data.startDate ? new Date(data.startDate) : (data.startTime ? new Date(data.startTime) : undefined),
+        endDate: data.endDate ? new Date(data.endDate) : (data.endTime ? new Date(data.endTime) : undefined),
+        pickupAddress: data.pickupAddress,
+        pickupPostcode: data.pickupPostcode,
+        pickupCoords: data.pickupLat && data.pickupLng ? { lat: data.pickupLat, lng: data.pickupLng } : undefined,
+        taxiType: data.taxiType,
         status: 'pending',
       });
 

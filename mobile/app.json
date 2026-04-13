@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Ride & Park",
-    "slug": "ride-and-park-mobile",
+    "name": "Gleezip",
+    "slug": "gleezip",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -38,7 +38,8 @@
             "backgroundColor": "#000000"
           }
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true,

@@ -5,6 +5,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { RootNavigator } from '@/navigation/RootNavigator';
 import { useAuthStore } from '@/store/authStore';
+import { usePushNotifications } from '@/hooks/usePushNotifications';
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
@@ -15,7 +16,10 @@ export default function App() {
   // });
   const fontsLoaded = true; // Temporarily skip font loading
 
-  const { restoreToken } = useAuthStore();
+  const { restoreToken, isAuthenticated } = useAuthStore();
+
+  // Initialize push notifications securely when user logs in
+  usePushNotifications(isAuthenticated);
 
   useEffect(() => {
     async function prepare() {

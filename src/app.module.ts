@@ -11,6 +11,10 @@ import { ProviderModule } from './provider/provider.module';
 import { ChatModule } from './chat/chat.module';
 import { UtilityModule } from './utility/utility.module';
 import { AdminModule } from './admin/admin.module';
+import { ReviewsModule } from './reviews/reviews.module';
+import { RidesModule } from './rides/rides.module';
+import { TaxiBookingsModule } from './taxi-bookings/taxi-bookings.module';
+import { PaymentsModule } from './payments/payments.module';
 
 @Module({
   imports: [
@@ -26,6 +30,10 @@ import { AdminModule } from './admin/admin.module';
     ChatModule,
     UtilityModule,
     AdminModule,
+    ReviewsModule,
+    RidesModule,
+    TaxiBookingsModule,
+    PaymentsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

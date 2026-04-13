@@ -211,7 +211,7 @@ export function BookingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: COLORS.deepNavy },
+  safeArea: { flex: 1, backgroundColor: COLORS.background },
   container: { flex: 1 },
   header: {
     paddingHorizontal: SPACING.xl,
@@ -219,25 +219,26 @@ const styles = StyleSheet.create({
     paddingBottom: SPACING.lg,
   },
   headerTitle: {
-    color: COLORS.cloudWhite, fontSize: FONT_SIZES.hero, fontWeight: FONT_WEIGHTS.bold,
+    color: COLORS.textPrimary, fontSize: FONT_SIZES.hero, fontWeight: FONT_WEIGHTS.bold,
   },
   tabContainer: {
     flexDirection: 'row', paddingHorizontal: SPACING.xl,
-    marginBottom: SPACING.md, borderBottomWidth: 1, borderBottomColor: COLORS.steelBlue,
+    marginBottom: SPACING.md, borderBottomWidth: 1, borderBottomColor: COLORS.border,
   },
   tab: {
     paddingBottom: SPACING.md, marginRight: SPACING.xl,
     borderBottomWidth: 2, borderBottomColor: 'transparent',
   },
   activeTab: { borderBottomColor: COLORS.electricTeal },
-  tabText: { color: COLORS.softSlate, fontSize: 16, fontWeight: FONT_WEIGHTS.medium },
+  tabText: { color: COLORS.textSecondary, fontSize: 16, fontWeight: FONT_WEIGHTS.medium },
   activeTabText: { color: COLORS.electricTeal, fontWeight: FONT_WEIGHTS.semibold },
   scrollContent: { padding: SPACING.lg, flexGrow: 1 },
 
   // Booking Card
   bookingCard: {
-    backgroundColor: COLORS.steelBlue, borderRadius: BORDER_RADIUS.lg,
+    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.lg, marginBottom: SPACING.md,
+    borderWidth: 1, borderColor: COLORS.border,
   },
   cardHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
@@ -247,51 +248,52 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 6,
   },
   serviceTagText: {
-    color: COLORS.electricTeal, fontSize: FONT_SIZES.small, fontWeight: FONT_WEIGHTS.semibold,
+    color: COLORS.electricTeal, fontSize: FONT_SIZES.small, fontWeight: FONT_WEIGHTS.bold,
     textTransform: 'uppercase',
   },
   statusBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: SPACING.sm, paddingVertical: 3, borderRadius: BORDER_RADIUS.sm,
   },
-  statusText: { fontSize: 12, fontWeight: FONT_WEIGHTS.semibold },
+  statusText: { fontSize: 12, fontWeight: FONT_WEIGHTS.bold },
   serviceName: {
-    color: COLORS.cloudWhite, fontSize: 17, fontWeight: FONT_WEIGHTS.semibold,
+    color: COLORS.textPrimary, fontSize: 17, fontWeight: FONT_WEIGHTS.bold,
     marginBottom: SPACING.sm,
   },
   detailRow: {
     flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4,
   },
-  detailText: { color: COLORS.softSlate, fontSize: FONT_SIZES.label },
+  detailText: { color: COLORS.textSecondary, fontSize: FONT_SIZES.label },
 
   // Response
   responseBox: {
-    backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: BORDER_RADIUS.sm,
+    backgroundColor: COLORS.surfaceAlt, borderRadius: BORDER_RADIUS.md,
     padding: SPACING.sm, marginTop: SPACING.sm,
   },
-  responseLabel: { color: COLORS.softSlate, fontSize: 11, marginBottom: 2 },
-  responseText: { color: COLORS.cloudWhite, fontSize: FONT_SIZES.label },
+  responseLabel: { color: COLORS.textSecondary, fontSize: 11, marginBottom: 2 },
+  responseText: { color: COLORS.textPrimary, fontSize: FONT_SIZES.label, fontWeight: FONT_WEIGHTS.medium },
 
   // Cancel
   cancelBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     marginTop: SPACING.md, paddingVertical: SPACING.sm,
     borderWidth: 1, borderColor: COLORS.coralRed, borderRadius: BORDER_RADIUS.md,
+    backgroundColor: COLORS.background,
   },
-  cancelBtnText: { color: COLORS.coralRed, fontSize: FONT_SIZES.label, fontWeight: FONT_WEIGHTS.semibold },
+  cancelBtnText: { color: COLORS.coralRed, fontSize: FONT_SIZES.label, fontWeight: FONT_WEIGHTS.bold },
 
   // Empty
   emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 60 },
   iconCircle: {
     width: 100, height: 100, borderRadius: 50,
-    backgroundColor: 'rgba(0, 194, 168, 0.1)',
+    backgroundColor: 'rgba(0, 180, 160, 0.1)',
     justifyContent: 'center', alignItems: 'center', marginBottom: SPACING.xl,
   },
   emptyStateTitle: {
-    color: COLORS.cloudWhite, fontSize: 22, fontWeight: FONT_WEIGHTS.bold,
+    color: COLORS.textPrimary, fontSize: 22, fontWeight: FONT_WEIGHTS.bold,
     marginBottom: SPACING.md, textAlign: 'center',
   },
   emptyStateSubtext: {
-    color: COLORS.softSlate, fontSize: 16, textAlign: 'center', maxWidth: '85%', lineHeight: 24,
+    color: COLORS.textSecondary, fontSize: 16, textAlign: 'center', maxWidth: '85%', lineHeight: 24,
   },
 });

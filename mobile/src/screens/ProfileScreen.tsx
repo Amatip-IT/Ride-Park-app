@@ -54,21 +54,37 @@ export function ProfileScreen() {
           <View style={styles.divider} />
 
           {/* Provider Specific Settings */}
-          {user?.role === 'parking_provider' && (
+          {(user?.role === 'parking_provider' || user?.role === 'driver' || user?.role === 'taxi_driver') && (
             <>
               <Text style={styles.sectionTitle}>Provider Tools</Text>
               <View style={styles.menuContainer}>
-                <TouchableOpacity 
-                  style={styles.menuItem} 
-                  activeOpacity={0.7}
-                  onPress={() => navigation.navigate('ProviderVerification')}
-                >
-                  <View style={[styles.menuIconWrapper, { backgroundColor: `${COLORS.electricTeal}20` }]}>
-                    <Ionicons name="shield-checkmark-outline" size={22} color={COLORS.electricTeal} />
-                  </View>
-                  <Text style={styles.menuTitle}>Manage Space & Verification</Text>
-                  <Ionicons name="chevron-forward" size={20} color={COLORS.softSlate} />
-                </TouchableOpacity>
+                {user?.role === 'parking_provider' && (
+                  <TouchableOpacity 
+                    style={styles.menuItem} 
+                    activeOpacity={0.7}
+                    onPress={() => navigation.navigate('ProviderVerification')}
+                  >
+                    <View style={[styles.menuIconWrapper, { backgroundColor: `${COLORS.electricTeal}20` }]}>
+                      <Ionicons name="shield-checkmark-outline" size={22} color={COLORS.electricTeal} />
+                    </View>
+                    <Text style={styles.menuTitle}>Manage Space & Verification</Text>
+                    <Ionicons name="chevron-forward" size={20} color={COLORS.softSlate} />
+                  </TouchableOpacity>
+                )}
+
+                {(user?.role === 'driver' || user?.role === 'taxi_driver') && (
+                  <TouchableOpacity 
+                    style={styles.menuItem} 
+                    activeOpacity={0.7}
+                    onPress={() => navigation.navigate('DriverVerification')}
+                  >
+                    <View style={[styles.menuIconWrapper, { backgroundColor: `${COLORS.amber}20` }]}>
+                      <Ionicons name="document-text-outline" size={22} color={COLORS.amber} />
+                    </View>
+                    <Text style={styles.menuTitle}>Manage Requirements & Documents</Text>
+                    <Ionicons name="chevron-forward" size={20} color={COLORS.softSlate} />
+                  </TouchableOpacity>
+                )}
               </View>
             </>
           )}
@@ -96,7 +112,7 @@ export function ProfileScreen() {
             <Text style={styles.logoutText}>Log Out</Text>
           </TouchableOpacity>
           
-          <Text style={styles.versionText}>Ride & Park App v1.0.0</Text>
+          <Text style={styles.versionText}>GleeZip App v1.0.0</Text>
 
         </ScrollView>
       </View>
@@ -107,7 +123,7 @@ export function ProfileScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.deepNavy,
+    backgroundColor: COLORS.background,
   },
   container: {
     flex: 1,
@@ -118,7 +134,7 @@ const styles = StyleSheet.create({
     paddingBottom: SPACING.md,
   },
   headerTitle: {
-    color: COLORS.cloudWhite,
+    color: COLORS.textPrimary,
     fontSize: FONT_SIZES.hero,
     fontWeight: FONT_WEIGHTS.bold,
   },
@@ -147,7 +163,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
   },
   avatarText: {
-    color: COLORS.deepNavy,
+    color: '#FFF',
     fontSize: 32,
     fontWeight: FONT_WEIGHTS.bold,
   },
@@ -155,18 +171,18 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   userName: {
-    color: COLORS.cloudWhite,
+    color: COLORS.textPrimary,
     fontSize: 22,
     fontWeight: FONT_WEIGHTS.bold,
     marginBottom: 4,
   },
   userPhone: {
-    color: COLORS.softSlate,
+    color: COLORS.textSecondary,
     fontSize: 14,
     marginBottom: 8,
   },
   roleBadge: {
-    backgroundColor: 'rgba(0, 194, 168, 0.15)',
+    backgroundColor: 'rgba(0, 180, 160, 0.15)',
     paddingHorizontal: SPACING.md,
     paddingVertical: 4,
     borderRadius: BORDER_RADIUS.full,
@@ -175,26 +191,29 @@ const styles = StyleSheet.create({
   roleBadgeText: {
     color: COLORS.electricTeal,
     fontSize: 12,
-    fontWeight: FONT_WEIGHTS.semibold,
+    fontWeight: FONT_WEIGHTS.bold,
   },
   divider: {
     height: 1,
-    backgroundColor: COLORS.steelBlue,
+    backgroundColor: COLORS.border,
     marginVertical: SPACING.xl,
   },
   sectionTitle: {
-    color: COLORS.softSlate,
+    color: COLORS.textSecondary,
     fontSize: 14,
-    fontWeight: FONT_WEIGHTS.medium,
+    fontWeight: FONT_WEIGHTS.bold,
     marginBottom: SPACING.md,
     marginLeft: SPACING.sm,
     textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   menuContainer: {
-    backgroundColor: COLORS.steelBlue,
+    backgroundColor: COLORS.surface,
     borderRadius: BORDER_RADIUS.xl,
     overflow: 'hidden',
     marginBottom: SPACING['2xl'],
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   menuItem: {
     flexDirection: 'row',
@@ -211,13 +230,13 @@ const styles = StyleSheet.create({
   },
   menuTitle: {
     flex: 1,
-    color: COLORS.cloudWhite,
+    color: COLORS.textPrimary,
     fontSize: 16,
-    fontWeight: FONT_WEIGHTS.medium,
+    fontWeight: FONT_WEIGHTS.semibold,
   },
   menuDivider: {
     height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: COLORS.border,
     marginLeft: 76,
   },
   logoutBtn: {
@@ -225,7 +244,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: SPACING.lg,
-    backgroundColor: 'rgba(231, 76, 60, 0.1)',
+    backgroundColor: 'rgba(231, 76, 60, 0.08)',
     borderRadius: BORDER_RADIUS.xl,
     marginBottom: SPACING.xl,
   },
@@ -236,7 +255,7 @@ const styles = StyleSheet.create({
     marginLeft: SPACING.sm,
   },
   versionText: {
-    color: COLORS.softSlate,
+    color: COLORS.textTertiary,
     fontSize: 12,
     textAlign: 'center',
     marginBottom: SPACING.xl,

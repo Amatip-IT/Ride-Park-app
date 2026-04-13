@@ -95,7 +95,7 @@ export class AdminService {
       const newSpace = new this.parkingSpaceModel({
         owner: user._id,
         name: parkName,
-        description: 'Secure parking space approved by ride & park admins.',
+        description: 'Secure parking space approved by Gleezip admins.',
         postCode: verification.postcode || 'UNKNOWN',
         hourlyRate: parseFloat(docs.hourlyRate) || customHourlyRate,
         dailyRate: docs.dailyRate ? parseFloat(docs.dailyRate) : undefined,
@@ -179,6 +179,91 @@ export class AdminService {
       return {
         success: false,
         message: `Failed to reject verification: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      };
+    }
+  }
+
+  /**
+   * Get all providers with pending identity verification
+   */
+  async getPendingIdentityVerifications(): Promise<Response> {
+    try {
+      const pending = await this.userModel
+        .find({ identityStatus: 'pending' })
+        .select('firstName lastName email phoneNumber role idType identityDocumentUrl proofOfAddressUrl identityStatus createdAt')
+        .sort({ createdAt: -1 })
+        .exec();
+
+      return {
+        success: true,
+        data: pending,
+        message: `Found ${pending.length} pending identity verifications`,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: `Failed to fetch identity verifications: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      };
+    }
+  }
+
+  /**
+   * Approve a provider's identity verification
+   */
+  async approveIdentityVerification(userId: string): Promise<Response> {
+    try {
+      const user = await this.userModel.findById(userId).exec();
+
+      if (!user) {
+        return { success: false, message: 'User not found' };
+      }
+
+      if ((user as any).identityStatus === 'verified') {
+        return { success: false, message: 'This user is already verified' };
+      }
+
+      (user as any).identityStatus = 'verified';
+      await user.save();
+
+      return {
+        success: true,
+        data: {
+          userId: user._id,
+          identityStatus: 'verified',
+        },
+        message: `Identity verified for ${user.firstName} ${user.lastName}. They can now create parking spaces.`,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: `Failed to approve identity: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      };
+    }
+  }
+
+  /**
+   * Reject a provider's identity verification
+   */
+  async rejectIdentityVerification(userId: string, reason: string): Promise<Response> {
+    try {
+      const user = await this.userModel.findById(userId).exec();
+
+      if (!user) {
+        return { success: false, message: 'User not found' };
+      }
+
+      (user as any).identityStatus = 'rejected';
+      await user.save();
+
+      return {
+        success: true,
+        data: null,
+        message: `Identity verification rejected for ${user.firstName} ${user.lastName}. Reason: ${reason}`,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: `Failed to reject identity: ${error instanceof Error ? error.message : 'Unknown error'}`,
       };
     }
   }

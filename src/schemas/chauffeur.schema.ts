@@ -26,6 +26,10 @@ export class Chauffeur {
   @Prop({ default: false })
   isActive: boolean;
 
+  // Sequential driver number (001, 002, etc.)
+  @Prop({ type: String, unique: true, sparse: true })
+  driverNumber?: string;
+
   @Prop({ type: Object })
   documents?: any;
 
@@ -36,8 +40,8 @@ export class Chauffeur {
   };
 
   @Prop({
-    default: 'unavailable',
-    enum: ['unavailable', 'available', 'on_trip', 'offline'],
+    default: 'offline',
+    enum: ['online', 'offline', 'busy'],
   })
   availability: string;
 
@@ -58,3 +62,4 @@ export const ChauffeurSchema: MongooseSchema<Chauffeur> =
 ChauffeurSchema.index({ user: 1 });
 ChauffeurSchema.index({ isActive: 1 });
 ChauffeurSchema.index({ availability: 1 });
+ChauffeurSchema.index({ driverNumber: 1 });

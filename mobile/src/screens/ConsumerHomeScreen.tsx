@@ -7,6 +7,12 @@ import { useNavigation, NavigationProp } from '@react-navigation/native';
 
 type ServiceType = 'parking' | 'driver' | 'taxi';
 
+const SERVICE_CARDS: { type: ServiceType; title: string; desc: string; icon: keyof typeof Ionicons.glyphMap; color: string }[] = [
+  { type: 'parking', title: 'Find Parking', desc: 'Locate and reserve a secure parking spot near you.', icon: 'car-sport', color: COLORS.electricTeal },
+  { type: 'driver', title: 'Book a Driver', desc: 'Hire a professional driver. £1.10/mile.', icon: 'person', color: COLORS.info },
+  { type: 'taxi', title: 'Hire a Taxi', desc: 'Get a taxi ride. £1.10/mile + £0.20/min.', icon: 'navigate', color: COLORS.amber },
+];
+
 export function ConsumerHomeScreen() {
   const { user } = useAuthStore();
   const navigation = useNavigation<NavigationProp<any>>();
@@ -15,26 +21,23 @@ export function ConsumerHomeScreen() {
     navigation.navigate('Search', { serviceType });
   };
 
-  const navigateToBookings = () => {
-    navigation.navigate('Bookings');
-  };
-
   return (
     <View style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
         <View>
           <Text style={styles.greeting}>Hello, {user?.firstName || 'Explorer'} 👋</Text>
           <Text style={styles.subtext}>What would you like to do today?</Text>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <TouchableOpacity 
-            style={{ marginRight: SPACING.md, padding: SPACING.xs }} 
+          <TouchableOpacity
+            style={styles.headerBtn}
             onPress={() => navigation.navigate('ChatList')}
           >
-            <Ionicons name="chatbubble-ellipses-outline" size={26} color={COLORS.cloudWhite} />
+            <Ionicons name="chatbubble-ellipses-outline" size={24} color={COLORS.textPrimary} />
           </TouchableOpacity>
           <TouchableOpacity style={styles.profileBtn} onPress={() => navigation.navigate('Profile')}>
-            <View style={styles.avatarPlaceholder}>
+            <View style={styles.avatar}>
               <Text style={styles.avatarText}>{user?.firstName?.charAt(0) || 'U'}</Text>
             </View>
           </TouchableOpacity>
@@ -42,47 +45,42 @@ export function ConsumerHomeScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Hero Card 1: Find a Parking Space */}
-        <TouchableOpacity style={styles.heroCard} onPress={() => navigateToSearch('parking')} activeOpacity={0.8}>
-          <View style={[styles.iconContainer, { backgroundColor: 'rgba(0, 194, 168, 0.1)' }]}>
-            <Ionicons name="car-sport" size={32} color={COLORS.electricTeal} />
-          </View>
-          <View style={styles.cardContent}>
-            <Text style={styles.cardTitle}>Find a Parking Space</Text>
-            <Text style={styles.cardDesc}>Locate and reserve a secure parking spot near you or at your destination.</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={24} color={COLORS.softSlate} />
-        </TouchableOpacity>
+        {/* Service Cards */}
+        {SERVICE_CARDS.map(card => (
+          <TouchableOpacity
+            key={card.type}
+            style={styles.serviceCard}
+            onPress={() => {
+              if (card.type === 'parking') {
+                navigateToSearch('parking');
+              } else if (card.type === 'driver') {
+                navigation.navigate('ServiceChoice', { mode: 'driver' });
+              } else {
+                navigation.navigate('ServiceChoice', { mode: 'taxi' });
+              }
+            }}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.iconCircle, { backgroundColor: `${card.color}15` }]}>
+              <Ionicons name={card.icon} size={28} color={card.color} />
+            </View>
+            <View style={styles.cardContent}>
+              <Text style={styles.cardTitle}>{card.title}</Text>
+              <Text style={styles.cardDesc}>{card.desc}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={22} color={COLORS.textTertiary} />
+          </TouchableOpacity>
+        ))}
 
-        {/* Hero Card 2: Book a Driver */}
-        <TouchableOpacity style={styles.heroCard} onPress={() => navigateToSearch('driver')} activeOpacity={0.8}>
-          <View style={[styles.iconContainer, { backgroundColor: 'rgba(59, 130, 246, 0.1)' }]}>
-            <Ionicons name="person" size={32} color={COLORS.info} />
-          </View>
-          <View style={styles.cardContent}>
-            <Text style={styles.cardTitle}>Book a Driver</Text>
-            <Text style={styles.cardDesc}>Hire a professional driver to take you wherever you need to go.</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={24} color={COLORS.softSlate} />
-        </TouchableOpacity>
-
-        {/* Hero Card 3: Hire a Taxi */}
-        <TouchableOpacity style={styles.heroCard} onPress={() => navigateToSearch('taxi')} activeOpacity={0.8}>
-          <View style={[styles.iconContainer, { backgroundColor: 'rgba(243, 156, 18, 0.1)' }]}>
-            <Ionicons name="navigate" size={32} color={COLORS.amber} />
-          </View>
-          <View style={styles.cardContent}>
-            <Text style={styles.cardTitle}>Hire a Taxi</Text>
-            <Text style={styles.cardDesc}>Get a taxi ride to your destination quickly and affordably.</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={24} color={COLORS.softSlate} />
-        </TouchableOpacity>
-
-        {/* Quick access to bookings */}
-        <TouchableOpacity style={styles.bookingsCard} onPress={navigateToBookings} activeOpacity={0.8}>
-          <Ionicons name="calendar-outline" size={22} color={COLORS.electricTeal} />
+        {/* Bookings quick link */}
+        <TouchableOpacity
+          style={styles.bookingsCard}
+          onPress={() => navigation.navigate('Bookings')}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="calendar-outline" size={20} color={COLORS.electricTeal} />
           <Text style={styles.bookingsText}>View My Bookings</Text>
-          <Ionicons name="chevron-forward" size={20} color={COLORS.softSlate} />
+          <Ionicons name="chevron-forward" size={18} color={COLORS.textTertiary} />
         </TouchableOpacity>
       </ScrollView>
     </View>
@@ -92,7 +90,7 @@ export function ConsumerHomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.deepNavy,
+    backgroundColor: COLORS.background,
   },
   header: {
     flexDirection: 'row',
@@ -101,63 +99,60 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.xl,
     paddingTop: Platform.OS === 'ios' ? 60 : 40,
     paddingBottom: SPACING.lg,
-    backgroundColor: COLORS.steelBlue,
-    borderBottomLeftRadius: BORDER_RADIUS.xl,
-    borderBottomRightRadius: BORDER_RADIUS.xl,
-    elevation: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    zIndex: 10,
+    backgroundColor: COLORS.background,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
   },
   greeting: {
-    color: COLORS.cloudWhite,
+    color: COLORS.textPrimary,
     fontSize: FONT_SIZES.section,
     fontWeight: FONT_WEIGHTS.bold,
   },
   subtext: {
-    color: COLORS.softSlate,
+    color: COLORS.textSecondary,
     fontSize: FONT_SIZES.label,
     marginTop: 4,
+  },
+  headerBtn: {
+    padding: SPACING.sm,
+    marginRight: SPACING.sm,
   },
   profileBtn: {
     padding: SPACING.xs,
   },
-  avatarPlaceholder: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: COLORS.electricTeal,
     justifyContent: 'center',
     alignItems: 'center',
   },
   avatarText: {
-    color: COLORS.deepNavy,
-    fontSize: 18,
-    fontWeight: 'bold',
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '700',
   },
   scrollContent: {
     padding: SPACING.lg,
     paddingTop: SPACING.xl,
   },
-  heroCard: {
+
+  // Service cards
+  serviceCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.steelBlue,
+    backgroundColor: COLORS.surface,
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.lg,
-    marginBottom: SPACING.lg,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
+    marginBottom: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
-  iconContainer: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+  iconCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: SPACING.md,
@@ -167,26 +162,28 @@ const styles = StyleSheet.create({
     marginRight: SPACING.sm,
   },
   cardTitle: {
-    color: COLORS.cloudWhite,
-    fontSize: 18,
+    color: COLORS.textPrimary,
+    fontSize: 17,
     fontWeight: FONT_WEIGHTS.semibold,
     marginBottom: 4,
   },
   cardDesc: {
-    color: COLORS.softSlate,
-    fontSize: 14,
-    lineHeight: 20,
+    color: COLORS.textSecondary,
+    fontSize: 13,
+    lineHeight: 18,
   },
+
+  // Bookings
   bookingsCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 194, 168, 0.08)',
+    backgroundColor: COLORS.surface,
     borderRadius: BORDER_RADIUS.lg,
     paddingVertical: SPACING.md,
     paddingHorizontal: SPACING.lg,
     marginTop: SPACING.sm,
     borderWidth: 1,
-    borderColor: 'rgba(0, 194, 168, 0.2)',
+    borderColor: COLORS.border,
   },
   bookingsText: {
     flex: 1,

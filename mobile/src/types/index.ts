@@ -23,6 +23,7 @@ export interface User {
     town?: string;
     country?: string;
   };
+  taxiType?: string;
   termsAccepted?: boolean;
   isVerified: VerificationStatus;
   createdAt: string;

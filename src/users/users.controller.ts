@@ -10,6 +10,7 @@ import {
   HttpStatus,
   UseGuards,
   Query,
+  Req,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { User } from 'src/schemas/user.schema';
@@ -79,6 +80,25 @@ export class UsersController {
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.usersService.findOne(+id);
+  }
+
+  // Update own profile (or save push tokens)
+  @Patch('profile')
+  @UseGuards(AuthGuard)
+  async updateProfile(@Req() req: any, @Body() updateData: Partial<User>) {
+    const userId = req.user._id || req.user.id;
+    const user = await this.usersService.findById(userId);
+    if (!user) {
+      throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+    }
+    
+    // Quick update logic to support generic patching without full DTO override
+    if (updateData.pushToken) user.pushToken = updateData.pushToken;
+    if (updateData.firstName) user.firstName = updateData.firstName;
+    if (updateData.lastName) user.lastName = updateData.lastName;
+    
+    await user.save();
+    return { success: true, message: 'Profile updated properly' };
   }
 
   @Patch(':id')

@@ -73,6 +73,17 @@ export class Taxi {
   @Prop({ default: false })
   isActive: boolean;
 
+  // Sequential driver number (001, 002, etc.)
+  @Prop({ type: String, unique: true, sparse: true })
+  driverNumber?: string;
+
+  // Online/offline status
+  @Prop({
+    default: 'offline',
+    enum: ['online', 'offline', 'busy'],
+  })
+  availability: string;
+
   @Prop({ type: Object })
   vehicleInfo?: any;
 
@@ -108,6 +119,8 @@ export const TaxiSchema: MongooseSchema<Taxi> =
 TaxiSchema.index({ user: 1 });
 TaxiSchema.index({ isActive: 1 });
 TaxiSchema.index({ status: 1 });
+TaxiSchema.index({ availability: 1 });
+TaxiSchema.index({ driverNumber: 1 });
 TaxiSchema.index({ 'motCheck.analysis.vehicleStatus': 1 });
 TaxiSchema.index({ 'motCheck.analysis.riskLevel': 1 });
 TaxiSchema.index({ 'motCheck.checkedAt': 1 });

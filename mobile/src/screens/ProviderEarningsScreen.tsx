@@ -63,7 +63,7 @@ export function ProviderEarningsScreen() {
 
       <Text style={[
         styles.transactionAmount,
-        { color: item.amount > 0 ? COLORS.success : COLORS.cloudWhite }
+        { color: item.amount > 0 ? COLORS.success : COLORS.textPrimary }
       ]}>
         {item.amount > 0 ? '+' : ''}£{Math.abs(item.amount).toFixed(2)}
       </Text>
@@ -144,65 +144,65 @@ export function ProviderEarningsScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: COLORS.deepNavy },
+  safeArea: { flex: 1, backgroundColor: COLORS.background },
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: SPACING.xl,
     paddingTop: Platform.OS === 'android' ? SPACING.xl : SPACING.sm,
     paddingBottom: SPACING.md,
   },
-  headerTitle: { color: COLORS.cloudWhite, fontSize: FONT_SIZES.hero, fontWeight: FONT_WEIGHTS.bold },
+  headerTitle: { color: COLORS.textPrimary, fontSize: FONT_SIZES.hero, fontWeight: FONT_WEIGHTS.bold },
   headerBtn: {
-    width: 44, height: 44, borderRadius: 22, backgroundColor: COLORS.steelBlue,
-    justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)'
+    width: 44, height: 44, borderRadius: 22, backgroundColor: COLORS.surface,
+    justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: COLORS.border
   },
   
   scrollContent: { paddingHorizontal: SPACING.xl, paddingBottom: 100 },
 
   // Balance Card
   balanceCard: {
-    backgroundColor: COLORS.steelBlue, borderRadius: BORDER_RADIUS.xl,
+    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.xl,
     padding: SPACING.xl, marginTop: SPACING.md, marginBottom: SPACING.xl,
-    borderWidth: 1, borderColor: 'rgba(0, 194, 168, 0.2)',
+    borderWidth: 1, borderColor: 'rgba(0, 180, 160, 0.4)',
     shadowColor: COLORS.electricTeal, shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15, shadowRadius: 12, elevation: 8,
+    shadowOpacity: 0.1, shadowRadius: 12, elevation: 5,
   },
-  balanceLabel: { color: COLORS.softSlate, fontSize: FONT_SIZES.body, marginBottom: 8, fontWeight: FONT_WEIGHTS.medium },
-  balanceValue: { color: COLORS.cloudWhite, fontSize: 42, fontWeight: FONT_WEIGHTS.bold, letterSpacing: -1, marginBottom: SPACING.xl },
+  balanceLabel: { color: COLORS.textSecondary, fontSize: FONT_SIZES.body, marginBottom: 8, fontWeight: FONT_WEIGHTS.medium },
+  balanceValue: { color: COLORS.textPrimary, fontSize: 42, fontWeight: FONT_WEIGHTS.bold, letterSpacing: -1, marginBottom: SPACING.xl },
   withdrawBtn: {
     backgroundColor: COLORS.electricTeal, borderRadius: BORDER_RADIUS.full,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     paddingVertical: SPACING.md, paddingHorizontal: SPACING.xl, gap: 8,
   },
-  withdrawText: { color: COLORS.deepNavy, fontSize: FONT_SIZES.body, fontWeight: FONT_WEIGHTS.bold },
+  withdrawText: { color: '#FFF', fontSize: FONT_SIZES.body, fontWeight: FONT_WEIGHTS.bold },
 
   // Stats
   statsRow: { flexDirection: 'row', gap: SPACING.md, marginBottom: SPACING.xl },
   statBox: {
-    flex: 1, backgroundColor: COLORS.steelBlue, borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.lg, borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)',
+    flex: 1, backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.lg, borderWidth: 1, borderColor: COLORS.border,
   },
   statHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: SPACING.md },
-  statLabel: { color: COLORS.softSlate, fontSize: FONT_SIZES.small, fontWeight: FONT_WEIGHTS.medium },
-  statValue: { color: COLORS.cloudWhite, fontSize: 24, fontWeight: FONT_WEIGHTS.bold },
+  statLabel: { color: COLORS.textSecondary, fontSize: FONT_SIZES.small, fontWeight: FONT_WEIGHTS.medium },
+  statValue: { color: COLORS.textPrimary, fontSize: 24, fontWeight: FONT_WEIGHTS.bold },
 
   // History
   historySection: { flex: 1 },
   historyHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: SPACING.md },
-  sectionTitle: { color: COLORS.cloudWhite, fontSize: 20, fontWeight: FONT_WEIGHTS.bold },
+  sectionTitle: { color: COLORS.textPrimary, fontSize: 20, fontWeight: FONT_WEIGHTS.bold },
   viewAllText: { color: COLORS.electricTeal, fontSize: FONT_SIZES.small, fontWeight: FONT_WEIGHTS.semibold },
   
-  transactionsWrapper: { backgroundColor: COLORS.steelBlue, borderRadius: BORDER_RADIUS.xl, paddingVertical: SPACING.sm, paddingHorizontal: SPACING.md },
+  transactionsWrapper: { backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.xl, paddingVertical: SPACING.sm, paddingHorizontal: SPACING.md, borderWidth: 1, borderColor: COLORS.border },
   
   transactionCard: {
     flexDirection: 'row', alignItems: 'center', paddingVertical: SPACING.md,
-    borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)',
+    borderBottomWidth: 1, borderBottomColor: COLORS.border,
   },
   iconBox: { width: 44, height: 44, borderRadius: BORDER_RADIUS.md, justifyContent: 'center', alignItems: 'center', marginRight: SPACING.md },
   transactionInfo: { flex: 1, marginRight: SPACING.sm },
-  transactionTitle: { color: COLORS.cloudWhite, fontSize: 15, fontWeight: FONT_WEIGHTS.semibold, marginBottom: 4 },
+  transactionTitle: { color: COLORS.textPrimary, fontSize: 15, fontWeight: FONT_WEIGHTS.semibold, marginBottom: 4 },
   dateRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  transactionDate: { color: COLORS.softSlate, fontSize: 13 },
+  transactionDate: { color: COLORS.textSecondary, fontSize: 13 },
   processingPill: { backgroundColor: `${COLORS.amber}20`, color: COLORS.amber, fontSize: 10, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, fontWeight: FONT_WEIGHTS.bold },
   transactionAmount: { fontSize: 16, fontWeight: FONT_WEIGHTS.bold },
 });

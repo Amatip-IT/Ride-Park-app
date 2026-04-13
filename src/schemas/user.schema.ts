@@ -58,6 +58,19 @@ export class User {
   @Prop({ type: Date })
   termsAcceptedAt?: Date;
 
+  // Identity Verification fields for providers/drivers
+  @Prop({ type: String, enum: ['driver_license', 'national_identity_card', 'passport'] })
+  idType?: string;
+
+  @Prop({ type: String })
+  identityDocumentUrl?: string;
+
+  @Prop({ type: String })
+  proofOfAddressUrl?: string;
+
+  @Prop({ type: String, enum: ['none', 'pending', 'verified', 'rejected'], default: 'none' })
+  identityStatus?: string;
+
   @Prop({ required: true, select: false })
   password: string;
 
@@ -67,6 +80,9 @@ export class User {
     enum: ['user', 'admin', 'parking_provider', 'driver', 'taxi_driver'],
   })
   role: string;
+
+  @Prop({ type: String, enum: ['Normal car', 'Mini Bus', 'Bus'] })
+  taxiType?: string;
 
   // Embedded small docs
   @Prop({ type: VerifiedStatusSchema, default: {} })
@@ -80,6 +96,12 @@ export class User {
 
   @Prop({ type: String, select: false, default: null })
   refreshToken?: string;
+
+  @Prop({ type: String, default: null })
+  pushToken?: string;
+
+  @Prop({ type: String, select: false, default: null })
+  stripeCustomerId?: string;
 }
 
 export const UserSchema: MongooseSchema<User> =

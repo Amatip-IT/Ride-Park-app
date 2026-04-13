@@ -17,6 +17,8 @@ import { AdminService } from './admin.service';
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
+  // ── Parking Space Verifications ──
+
   @Get('parking')
   async getPendingParkingVerifications() {
     const result = await this.adminService.getPendingParkingVerifications();
@@ -45,6 +47,42 @@ export class AdminController {
     }
 
     const result = await this.adminService.rejectParkingVerification(id, reason);
+    if (!result.success) {
+      throw new HttpException(result, HttpStatus.BAD_REQUEST);
+    }
+    return result;
+  }
+
+  // ── Provider Identity Verifications ──
+
+  @Get('identity')
+  async getPendingIdentityVerifications() {
+    const result = await this.adminService.getPendingIdentityVerifications();
+    if (!result.success) {
+      throw new HttpException(result, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+    return result;
+  }
+
+  @Post('identity/:id/approve')
+  async approveIdentityVerification(@Param('id') id: string) {
+    const result = await this.adminService.approveIdentityVerification(id);
+    if (!result.success) {
+      throw new HttpException(result, HttpStatus.BAD_REQUEST);
+    }
+    return result;
+  }
+
+  @Post('identity/:id/reject')
+  async rejectIdentityVerification(
+    @Param('id') id: string,
+    @Body('reason') reason: string,
+  ) {
+    if (!reason) {
+      throw new HttpException({ success: false, message: 'Rejection reason is required' }, HttpStatus.BAD_REQUEST);
+    }
+
+    const result = await this.adminService.rejectIdentityVerification(id, reason);
     if (!result.success) {
       throw new HttpException(result, HttpStatus.BAD_REQUEST);
     }

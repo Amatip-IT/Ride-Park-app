@@ -129,7 +129,7 @@ export function AdminVerificationQueueScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.deepNavy,
+    backgroundColor: COLORS.background,
   },
   header: {
     paddingHorizontal: SPACING.xl,
@@ -137,7 +137,7 @@ const styles = StyleSheet.create({
     paddingBottom: SPACING.md,
   },
   headerTitle: {
-    color: COLORS.cloudWhite,
+    color: COLORS.textPrimary,
     fontSize: FONT_SIZES.section,
     fontWeight: FONT_WEIGHTS.bold,
   },
@@ -145,10 +145,12 @@ const styles = StyleSheet.create({
     padding: SPACING.lg,
   },
   card: {
-    backgroundColor: COLORS.steelBlue,
+    backgroundColor: COLORS.surface,
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.lg,
     marginBottom: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -157,7 +159,7 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.sm,
   },
   title: {
-    color: COLORS.cloudWhite,
+    color: COLORS.textPrimary,
     fontSize: 16,
     fontWeight: FONT_WEIGHTS.semibold,
     flex: 1,
@@ -179,7 +181,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   detailText: {
-    color: COLORS.softSlate,
+    color: COLORS.textSecondary,
     fontSize: 13,
     marginLeft: 6,
   },
@@ -195,7 +197,7 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   approveBtnText: {
-    color: COLORS.cloudWhite,
+    color: '#FFF',
     fontWeight: FONT_WEIGHTS.bold,
     fontSize: 14,
   },
@@ -205,17 +207,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loadingText: {
-    color: COLORS.softSlate,
+    color: COLORS.textSecondary,
     marginTop: SPACING.md,
   },
   emptyTitle: {
-    color: COLORS.cloudWhite,
+    color: COLORS.textPrimary,
     fontSize: 20,
     fontWeight: FONT_WEIGHTS.bold,
     marginTop: SPACING.md,
   },
   emptySub: {
-    color: COLORS.softSlate,
+    color: COLORS.textSecondary,
     marginTop: 4,
   },
 });

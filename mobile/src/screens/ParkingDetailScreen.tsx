@@ -231,7 +231,7 @@ export function ParkingDetailScreen() {
           {/* Owner details */}
           <View style={styles.infoRow}>
             <Ionicons name="shield-checkmark" size={20} color={COLORS.electricTeal} />
-            <Text style={styles.infoText}>Verified by Ride & Park. Managed by {ownerName}</Text>
+            <Text style={styles.infoText}>Verified by Gleezip. Managed by {ownerName}</Text>
           </View>
         </View>
 
@@ -304,9 +304,9 @@ export function ParkingDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: COLORS.deepNavy },
+  safeArea: { flex: 1, backgroundColor: COLORS.background },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  errorText: { color: COLORS.softSlate, fontSize: 16, marginTop: SPACING.md },
+  errorText: { color: COLORS.textSecondary, fontSize: 16, marginTop: SPACING.md },
 
   // Top bar
   topBar: {
@@ -314,101 +314,102 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
     paddingTop: Platform.OS === 'android' ? SPACING.xl : SPACING.sm,
     paddingBottom: SPACING.md,
+    backgroundColor: COLORS.background,
   },
   backBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
-  topBarTitle: { color: COLORS.cloudWhite, fontSize: FONT_SIZES.body, fontWeight: FONT_WEIGHTS.semibold },
+  topBarTitle: { color: COLORS.textPrimary, fontSize: FONT_SIZES.body, fontWeight: FONT_WEIGHTS.bold },
 
   // Photos
   photoContainer: { paddingHorizontal: SPACING.lg, marginBottom: SPACING.lg },
   photo: {
     width: 280, height: 180, borderRadius: BORDER_RADIUS.lg,
-    marginRight: SPACING.md, backgroundColor: COLORS.steelBlue,
+    marginRight: SPACING.md, backgroundColor: COLORS.surfaceAlt,
   },
   noPhotoContainer: {
     height: 180, marginHorizontal: SPACING.lg, borderRadius: BORDER_RADIUS.lg,
-    backgroundColor: COLORS.steelBlue, justifyContent: 'center', alignItems: 'center',
-    marginBottom: SPACING.lg,
+    backgroundColor: COLORS.surface, justifyContent: 'center', alignItems: 'center',
+    marginBottom: SPACING.lg, borderWidth: 1, borderColor: COLORS.border,
   },
-  noPhotoText: { color: COLORS.softSlate, marginTop: SPACING.sm, fontSize: 14 },
+  noPhotoText: { color: COLORS.textSecondary, marginTop: SPACING.sm, fontSize: 14 },
 
   scrollContent: { paddingBottom: 100 },
 
   // Details
   detailSection: { paddingHorizontal: SPACING.lg, marginBottom: SPACING.xl },
   sectionHeader: {
-    color: COLORS.cloudWhite, fontSize: 24,
+    color: COLORS.textPrimary, fontSize: 24,
     fontWeight: FONT_WEIGHTS.bold, marginBottom: SPACING.xl,
   },
   metricsGrid: {
     flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.md, marginBottom: SPACING.xl,
   },
   metricItem: {
-    width: '47%', backgroundColor: COLORS.steelBlue, borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.md,
+    width: '47%', backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md, borderWidth: 1, borderColor: COLORS.border,
   },
   metricText: {
-    color: COLORS.cloudWhite, fontSize: FONT_SIZES.body, fontWeight: FONT_WEIGHTS.semibold,
+    color: COLORS.textPrimary, fontSize: FONT_SIZES.body, fontWeight: FONT_WEIGHTS.semibold,
     marginTop: 8,
   },
   
   blockContainer: { marginBottom: SPACING.xl },
   blockTitle: {
-    color: COLORS.cloudWhite, fontSize: 20, fontWeight: FONT_WEIGHTS.bold,
+    color: COLORS.textPrimary, fontSize: 20, fontWeight: FONT_WEIGHTS.bold,
     marginBottom: SPACING.sm,
   },
-  blockText: { color: COLORS.cloudWhite, fontSize: FONT_SIZES.body, lineHeight: 22 },
-  blockSubText: { color: COLORS.softSlate, fontSize: FONT_SIZES.small, marginTop: 4 },
+  blockText: { color: COLORS.textPrimary, fontSize: FONT_SIZES.body, lineHeight: 22 },
+  blockSubText: { color: COLORS.textSecondary, fontSize: FONT_SIZES.small, marginTop: 4 },
   
   linkButton: { flexDirection: 'row', alignItems: 'center', marginVertical: 8 },
-  linkText: { color: COLORS.electricTeal, fontSize: FONT_SIZES.body, textDecorationLine: 'underline' },
+  linkText: { color: COLORS.electricTeal, fontSize: FONT_SIZES.body, textDecorationLine: 'underline', fontWeight: FONT_WEIGHTS.medium },
 
   mapContainer: {
     width: '100%', height: 200, borderRadius: BORDER_RADIUS.lg, overflow: 'hidden',
-    marginTop: SPACING.md, borderWidth: 1, borderColor: COLORS.steelBlue,
+    marginTop: SPACING.md, borderWidth: 1, borderColor: COLORS.border,
   },
   map: { width: '100%', height: '100%' },
   mapPlaceholder: {
     width: '100%', height: 200, borderRadius: BORDER_RADIUS.lg,
-    backgroundColor: COLORS.steelBlue, justifyContent: 'center', alignItems: 'center',
-    marginTop: SPACING.md,
+    backgroundColor: COLORS.surface, justifyContent: 'center', alignItems: 'center',
+    marginTop: SPACING.md, borderWidth: 1, borderColor: COLORS.border,
   },
 
   chargesList: { marginTop: SPACING.sm },
-  chargeItem: { color: COLORS.cloudWhite, fontSize: FONT_SIZES.body, marginBottom: 4 },
+  chargeItem: { color: COLORS.textPrimary, fontSize: FONT_SIZES.body, marginBottom: 4 },
 
   openingTimeRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
-  dayText: { color: COLORS.softSlate, fontSize: FONT_SIZES.body, flex: 1 },
-  timeText: { color: COLORS.cloudWhite, fontSize: FONT_SIZES.body, fontWeight: FONT_WEIGHTS.medium },
+  dayText: { color: COLORS.textSecondary, fontSize: FONT_SIZES.body, flex: 1 },
+  timeText: { color: COLORS.textPrimary, fontSize: FONT_SIZES.body, fontWeight: FONT_WEIGHTS.medium },
 
-  vehicleType: { color: COLORS.cloudWhite, fontSize: FONT_SIZES.body, marginBottom: 4 },
+  vehicleType: { color: COLORS.textPrimary, fontSize: FONT_SIZES.body, marginBottom: 4 },
   
-  divider: { height: 1, backgroundColor: COLORS.steelBlue, marginVertical: SPACING.lg },
+  divider: { height: 1, backgroundColor: COLORS.border, marginVertical: SPACING.lg },
 
   infoRow: {
     flexDirection: 'row', alignItems: 'center',
     marginBottom: SPACING.sm, gap: SPACING.sm,
   },
-  infoText: { color: COLORS.cloudWhite, fontSize: FONT_SIZES.label, flex: 1 },
+  infoText: { color: COLORS.textPrimary, fontSize: FONT_SIZES.label, flex: 1 },
 
   // Pricing
   pricingSection: { paddingHorizontal: SPACING.lg, marginBottom: SPACING.xl },
   sectionTitle: {
-    color: COLORS.cloudWhite, fontSize: FONT_SIZES.body,
-    fontWeight: FONT_WEIGHTS.semibold, marginBottom: SPACING.md,
+    color: COLORS.textPrimary, fontSize: FONT_SIZES.body,
+    fontWeight: FONT_WEIGHTS.bold, marginBottom: SPACING.md,
   },
   priceRow: { flexDirection: 'row', gap: SPACING.md },
   priceCard: {
-    flex: 1, backgroundColor: COLORS.steelBlue, borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.lg, alignItems: 'center',
+    flex: 1, backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.lg, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border,
   },
-  priceLabel: { color: COLORS.softSlate, fontSize: FONT_SIZES.small, marginBottom: 4 },
+  priceLabel: { color: COLORS.textSecondary, fontSize: FONT_SIZES.small, marginBottom: 4 },
   priceValue: { color: COLORS.electricTeal, fontSize: FONT_SIZES.section, fontWeight: FONT_WEIGHTS.bold },
 
   // Message Input
   messageInput: {
-    backgroundColor: COLORS.steelBlue, borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.md, color: COLORS.cloudWhite, fontSize: FONT_SIZES.body,
-    minHeight: 80, textAlignVertical: 'top', borderWidth: 1, borderColor: 'transparent',
+    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md, color: COLORS.textPrimary, fontSize: FONT_SIZES.body,
+    minHeight: 80, textAlignVertical: 'top', borderWidth: 1, borderColor: COLORS.border,
   },
 
   // CTA
@@ -416,8 +417,8 @@ const styles = StyleSheet.create({
     position: 'absolute', bottom: 0, left: 0, right: 0,
     flexDirection: 'row', alignItems: 'center', gap: SPACING.md,
     paddingHorizontal: SPACING.lg, paddingVertical: SPACING.lg,
-    backgroundColor: COLORS.deepNavy,
-    borderTopWidth: 1, borderTopColor: COLORS.steelBlue,
+    backgroundColor: COLORS.background,
+    borderTopWidth: 1, borderTopColor: COLORS.border,
   },
   ctaButton: {
     flex: 1,
@@ -427,10 +428,10 @@ const styles = StyleSheet.create({
   },
   chatButton: {
     width: 56, height: 56, borderRadius: BORDER_RADIUS.md,
-    backgroundColor: COLORS.steelBlue,
+    backgroundColor: COLORS.surface,
     justifyContent: 'center', alignItems: 'center',
-    borderWidth: 1, borderColor: COLORS.electricTeal,
+    borderWidth: 1, borderColor: COLORS.border,
   },
   ctaDisabled: { opacity: 0.5 },
-  ctaText: { color: COLORS.deepNavy, fontSize: FONT_SIZES.body, fontWeight: FONT_WEIGHTS.bold },
+  ctaText: { color: '#FFF', fontSize: FONT_SIZES.body, fontWeight: FONT_WEIGHTS.bold },
 });

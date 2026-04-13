@@ -284,7 +284,7 @@ export function ProviderRequestsScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: COLORS.deepNavy },
+  safeArea: { flex: 1, backgroundColor: COLORS.background },
   container: { flex: 1 },
   header: {
     flexDirection: 'row', alignItems: 'center',
@@ -292,7 +292,7 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'android' ? SPACING.xl : SPACING.sm,
     paddingBottom: SPACING.lg, gap: SPACING.sm,
   },
-  headerTitle: { color: COLORS.cloudWhite, fontSize: FONT_SIZES.hero, fontWeight: FONT_WEIGHTS.bold },
+  headerTitle: { color: COLORS.textPrimary, fontSize: FONT_SIZES.hero, fontWeight: FONT_WEIGHTS.bold },
   pendingBadge: {
     backgroundColor: COLORS.coralRed, borderRadius: 12,
     minWidth: 24, height: 24, justifyContent: 'center', alignItems: 'center',
@@ -303,21 +303,21 @@ const styles = StyleSheet.create({
   // Tabs
   tabContainer: {
     flexDirection: 'row', paddingHorizontal: SPACING.xl,
-    marginBottom: SPACING.md, borderBottomWidth: 1, borderBottomColor: COLORS.steelBlue,
+    marginBottom: SPACING.md, borderBottomWidth: 1, borderBottomColor: COLORS.border,
   },
   tab: {
     paddingBottom: SPACING.md, marginRight: SPACING.xl,
     borderBottomWidth: 2, borderBottomColor: 'transparent',
   },
   activeTab: { borderBottomColor: COLORS.electricTeal },
-  tabText: { color: COLORS.softSlate, fontSize: 16, fontWeight: FONT_WEIGHTS.medium },
-  activeTabText: { color: COLORS.electricTeal, fontWeight: FONT_WEIGHTS.semibold },
+  tabText: { color: COLORS.textSecondary, fontSize: 16, fontWeight: FONT_WEIGHTS.medium },
+  activeTabText: { color: COLORS.electricTeal, fontWeight: FONT_WEIGHTS.bold },
   scrollContent: { padding: SPACING.lg, flexGrow: 1 },
 
   // Request Card
   requestCard: {
-    backgroundColor: COLORS.steelBlue, borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.lg, marginBottom: SPACING.md,
+    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.lg, marginBottom: SPACING.md, borderWidth: 1, borderColor: COLORS.border,
   },
   cardHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
@@ -325,15 +325,15 @@ const styles = StyleSheet.create({
   },
   serviceTag: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   serviceTagText: {
-    color: COLORS.electricTeal, fontSize: FONT_SIZES.small, fontWeight: FONT_WEIGHTS.semibold,
+    color: COLORS.electricTeal, fontSize: FONT_SIZES.small, fontWeight: FONT_WEIGHTS.bold,
     textTransform: 'uppercase',
   },
   statusBadge: {
     paddingHorizontal: SPACING.sm, paddingVertical: 3, borderRadius: BORDER_RADIUS.sm,
   },
-  statusText: { fontSize: 12, fontWeight: FONT_WEIGHTS.semibold },
+  statusText: { fontSize: 12, fontWeight: FONT_WEIGHTS.bold },
   serviceName: {
-    color: COLORS.cloudWhite, fontSize: 17, fontWeight: FONT_WEIGHTS.semibold,
+    color: COLORS.textPrimary, fontSize: 17, fontWeight: FONT_WEIGHTS.bold,
     marginBottom: SPACING.md,
   },
 
@@ -347,53 +347,53 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.electricTeal,
     justifyContent: 'center', alignItems: 'center',
   },
-  avatarLetter: { color: COLORS.deepNavy, fontSize: 16, fontWeight: FONT_WEIGHTS.bold },
+  avatarLetter: { color: '#FFF', fontSize: 16, fontWeight: FONT_WEIGHTS.bold },
   requesterDetails: { flex: 1 },
-  requesterName: { color: COLORS.cloudWhite, fontSize: FONT_SIZES.body, fontWeight: FONT_WEIGHTS.semibold },
-  requesterContact: { color: COLORS.softSlate, fontSize: FONT_SIZES.small },
+  requesterName: { color: COLORS.textPrimary, fontSize: FONT_SIZES.body, fontWeight: FONT_WEIGHTS.bold },
+  requesterContact: { color: COLORS.textSecondary, fontSize: FONT_SIZES.small },
 
   // Details
   detailRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
-  detailText: { color: COLORS.softSlate, fontSize: FONT_SIZES.label },
+  detailText: { color: COLORS.textSecondary, fontSize: FONT_SIZES.label },
 
   // Message
   messageBox: {
-    backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: BORDER_RADIUS.sm,
+    backgroundColor: COLORS.surfaceAlt, borderRadius: BORDER_RADIUS.sm,
     padding: SPACING.sm, marginTop: SPACING.sm,
   },
-  messageLabel: { color: COLORS.softSlate, fontSize: 11, marginBottom: 2 },
-  messageText: { color: COLORS.cloudWhite, fontSize: FONT_SIZES.label },
+  messageLabel: { color: COLORS.textSecondary, fontSize: 11, marginBottom: 2 },
+  messageText: { color: COLORS.textPrimary, fontSize: FONT_SIZES.label },
 
   // Actions
   actionsContainer: { marginTop: SPACING.md },
   rejectInputWrapper: { marginBottom: SPACING.sm },
   rejectInput: {
-    backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.md, color: COLORS.cloudWhite, fontSize: FONT_SIZES.label,
-    borderWidth: 1, borderColor: COLORS.softSlate, minHeight: 60,
+    backgroundColor: COLORS.background, borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md, color: COLORS.textPrimary, fontSize: FONT_SIZES.label,
+    borderWidth: 1, borderColor: COLORS.border, minHeight: 60,
   },
   buttonRow: { flexDirection: 'row', gap: SPACING.sm },
   rejectBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     paddingVertical: SPACING.md, borderWidth: 1, borderColor: COLORS.coralRed,
-    borderRadius: BORDER_RADIUS.md,
+    borderRadius: BORDER_RADIUS.md, backgroundColor: COLORS.background,
   },
-  rejectBtnText: { color: COLORS.coralRed, fontSize: FONT_SIZES.label, fontWeight: FONT_WEIGHTS.semibold },
+  rejectBtnText: { color: COLORS.coralRed, fontSize: FONT_SIZES.label, fontWeight: FONT_WEIGHTS.bold },
   acceptBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     paddingVertical: SPACING.md, backgroundColor: COLORS.electricTeal,
     borderRadius: BORDER_RADIUS.md,
   },
-  acceptBtnText: { color: COLORS.deepNavy, fontSize: FONT_SIZES.label, fontWeight: FONT_WEIGHTS.bold },
+  acceptBtnText: { color: '#FFF', fontSize: FONT_SIZES.label, fontWeight: FONT_WEIGHTS.bold },
   btnDisabled: { opacity: 0.5 },
 
   // Empty
   emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 60 },
   emptyTitle: {
-    color: COLORS.cloudWhite, fontSize: 20, fontWeight: FONT_WEIGHTS.semibold,
+    color: COLORS.textPrimary, fontSize: 20, fontWeight: FONT_WEIGHTS.bold,
     marginTop: SPACING.lg, marginBottom: SPACING.sm,
   },
   emptySubtext: {
-    color: COLORS.softSlate, fontSize: 14, textAlign: 'center', maxWidth: '80%', lineHeight: 20,
+    color: COLORS.textSecondary, fontSize: 14, textAlign: 'center', maxWidth: '80%', lineHeight: 20,
   },
 });
