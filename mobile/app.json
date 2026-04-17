@@ -7,11 +7,13 @@
     "icon": "./assets/images/icon.png",
     "scheme": "rideandpark",
     "userInterfaceStyle": "dark",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.gleezip.app"
     },
     "android": {
+      "package": "com.gleezip.app",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

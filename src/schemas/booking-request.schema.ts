@@ -9,9 +9,9 @@ export class BookingRequest {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true })
   requester: string;
 
-  // Who receives the request (provider)
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true })
-  provider: string;
+  // Who receives the request (provider) - Optional for broadcast
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User' })
+  provider?: string;
 
   // Type of service being requested
   @Prop({
@@ -20,9 +20,9 @@ export class BookingRequest {
   })
   serviceType: string;
 
-  // Reference to the specific service (ParkingSpace, Chauffeur, or Taxi)
-  @Prop({ type: MongooseSchema.Types.ObjectId, required: true })
-  serviceId: string;
+  // Reference to the specific service (ParkingSpace, Chauffeur, or Taxi) - Optional for broadcast
+  @Prop({ type: MongooseSchema.Types.ObjectId })
+  serviceId?: string;
 
   // Human-readable service name (for display)
   @Prop({ type: String })

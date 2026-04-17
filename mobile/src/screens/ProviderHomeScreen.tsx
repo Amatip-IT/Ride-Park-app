@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Platform, SafeAreaView, RefreshControl, Alert, ActivityIndicator,
+  Platform, SafeAreaView, RefreshControl, Alert, ActivityIndicator, Image,
 } from 'react-native';
 import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
@@ -120,7 +120,11 @@ export function ProviderHomeScreen() {
             </TouchableOpacity>
             <TouchableOpacity onPress={() => navigation.navigate('ProviderProfile')} style={styles.profileBtn}>
               <View style={styles.avatarCircle}>
-                <Text style={styles.avatarText}>{user?.firstName?.charAt(0) || 'P'}</Text>
+                {user?.profileImageUrl ? (
+                  <Image source={{ uri: user.profileImageUrl }} style={{ width: 40, height: 40, borderRadius: 20 }} />
+                ) : (
+                  <Text style={styles.avatarText}>{user?.firstName?.charAt(0) || 'P'}</Text>
+                )}
               </View>
             </TouchableOpacity>
           </View>

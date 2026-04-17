@@ -25,6 +25,7 @@ export interface User {
   };
   taxiType?: string;
   termsAccepted?: boolean;
+  profileImageUrl?: string;
   isVerified: VerificationStatus;
   createdAt: string;
   updatedAt: string;

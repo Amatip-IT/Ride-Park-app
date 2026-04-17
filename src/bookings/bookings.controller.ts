@@ -34,9 +34,17 @@ export class BookingsController {
       endDate?: string;
     },
   ) {
-    if (!body.serviceType || !body.serviceId) {
+    if (!body.serviceType) {
       throw new HttpException(
-        { message: 'serviceType and serviceId are required' },
+        { message: 'serviceType is required' },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    
+    // Broadcast requests might omit serviceId
+    if (body.serviceType === 'parking' && !body.serviceId) {
+      throw new HttpException(
+        { message: 'serviceId is required for parking bookings' },
         HttpStatus.BAD_REQUEST,
       );
     }

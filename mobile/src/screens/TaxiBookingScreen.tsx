@@ -5,15 +5,22 @@ import {
 } from 'react-native';
 import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation, NavigationProp } from '@react-navigation/native';
+import { useNavigation, NavigationProp, useRoute, RouteProp } from '@react-navigation/native';
 import { taxiBookingsApi } from '@/api';
 import * as Location from 'expo-location';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 type TimingType = 'now' | 'leave_at' | 'arrive_by';
 
+type RouteParams = {
+  TaxiBooking: { serviceId?: string; prefilledName?: string };
+};
+
 export function TaxiBookingScreen() {
   const navigation = useNavigation<NavigationProp<any>>();
+  const route = useRoute<RouteProp<RouteParams, 'TaxiBooking'>>();
+  const targetServiceId = route.params?.serviceId;
+  const targetName = route.params?.prefilledName;
 
   // Pickup
   const [pickupMethod, setPickupMethod] = useState<'gps' | 'manual'>('manual');
@@ -117,7 +124,8 @@ export function TaxiBookingScreen() {
         setActiveRequest(res.data.data);
         Alert.alert(
           '🚖 Ride Request Sent!',
-          'All nearby drivers have been notified. You will be matched with a driver shortly.',
+          'All nearby drivers have been notified. Your request is now actively searching for a taxi.',
+          [{ text: 'View Bookings', onPress: () => navigation.navigate('ConsumerTabs', { screen: 'Bookings' }) }],
         );
       } else {
         Alert.alert('Error', res.data?.message || 'Failed to create request');
@@ -226,6 +234,28 @@ export function TaxiBookingScreen() {
                 </View>
               )}
             </View>
+
+            {/* Track driver on map when accepted */}
+            {isAccepted && (
+              <TouchableOpacity
+                style={{
+                  backgroundColor: COLORS.electricTeal,
+                  paddingVertical: SPACING.lg,
+                  borderRadius: BORDER_RADIUS.lg,
+                  alignItems: 'center',
+                  marginBottom: SPACING.md,
+                  shadowColor: COLORS.electricTeal,
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.3,
+                  shadowRadius: 8,
+                  elevation: 4,
+                }}
+                onPress={() => navigation.navigate('PassengerTracking', { requestId: activeRequest._id })}
+                activeOpacity={0.8}
+              >
+                <Text style={{ color: '#FFF', fontSize: 16, fontWeight: 'bold' as any }}>📍 Track Driver on Map</Text>
+              </TouchableOpacity>
+            )}
 
             {/* Cancel button */}
             <TouchableOpacity style={styles.cancelBtn} onPress={handleCancel} activeOpacity={0.7}>

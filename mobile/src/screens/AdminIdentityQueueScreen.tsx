@@ -6,8 +6,10 @@ import {
 import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
 import { adminApi } from '@/api';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 
 export function AdminIdentityQueueScreen() {
+  const navigation = useNavigation<any>();
   const [records, setRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
@@ -118,8 +120,11 @@ export function AdminIdentityQueueScreen() {
       item.role || 'Provider';
 
     return (
-      <View style={styles.card}>
-        {/* Name & Role */}
+      <TouchableOpacity 
+        style={styles.card}
+        onPress={() => navigation.navigate('AdminProviderDetail', { provider: item })}
+        activeOpacity={0.7}
+      >
         <View style={styles.cardHeader}>
           <View style={styles.avatarCircle}>
             <Text style={styles.avatarText}>
@@ -214,7 +219,7 @@ export function AdminIdentityQueueScreen() {
             )}
           </TouchableOpacity>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 

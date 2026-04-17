@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, SafeAreaView, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, SafeAreaView, Alert, Image } from 'react-native';
 import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/store/authStore';
@@ -16,12 +16,11 @@ export function ProfileScreen() {
     ]);
   };
 
-  const menuItems = [
-    { id: '1', title: 'Edit Profile', icon: 'person-outline', color: COLORS.info },
-    { id: '2', title: 'Notifications', icon: 'notifications-outline', color: COLORS.amber },
-    { id: '3', title: 'Switch to Provider', icon: 'car-sport-outline', color: COLORS.success }, // Good for demo transition
-    { id: '4', title: 'Help & Support', icon: 'help-circle-outline', color: COLORS.softSlate },
-  ];
+  const roleLabel =
+    user?.role === 'parking_provider' ? 'Park Owner' :
+    user?.role === 'driver' ? 'Private Driver' :
+    user?.role === 'taxi_driver' ? 'Taxi Driver' :
+    user?.role === 'admin' ? 'Admin' : 'Consumer';
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -35,10 +34,14 @@ export function ProfileScreen() {
           {/* Avatar and Info */}
           <View style={styles.profileHeader}>
             <View style={styles.avatarContainer}>
-              <Text style={styles.avatarText}>
-                {user?.firstName?.charAt(0).toUpperCase() || 'E'}
-                {user?.lastName?.charAt(0).toUpperCase() || ''}
-              </Text>
+              {user?.profileImageUrl ? (
+                <Image source={{ uri: user.profileImageUrl }} style={{ width: 80, height: 80, borderRadius: 40 }} />
+              ) : (
+                <Text style={styles.avatarText}>
+                  {user?.firstName?.charAt(0).toUpperCase() || 'E'}
+                  {user?.lastName?.charAt(0).toUpperCase() || ''}
+                </Text>
+              )}
             </View>
             <View style={styles.infoWrapper}>
               <Text style={styles.userName}>
@@ -46,7 +49,7 @@ export function ProfileScreen() {
               </Text>
               <Text style={styles.userPhone}>{user?.phoneNumber || '+44 0000 000 000'}</Text>
               <View style={styles.roleBadge}>
-                <Text style={styles.roleBadgeText}>Consumer</Text>
+                <Text style={styles.roleBadgeText}>{roleLabel}</Text>
               </View>
             </View>
           </View>
@@ -92,18 +95,40 @@ export function ProfileScreen() {
           {/* Menu Items */}
           <Text style={styles.sectionTitle}>Account</Text>
           <View style={styles.menuContainer}>
-            {menuItems.map((item, index) => (
-              <React.Fragment key={item.id}>
-                <TouchableOpacity style={styles.menuItem} activeOpacity={0.7}>
-                  <View style={[styles.menuIconWrapper, { backgroundColor: `${item.color}20` }]}>
-                    <Ionicons name={item.icon as any} size={22} color={item.color} />
-                  </View>
-                  <Text style={styles.menuTitle}>{item.title}</Text>
-                  <Ionicons name="chevron-forward" size={20} color={COLORS.softSlate} />
-                </TouchableOpacity>
-                {index < menuItems.length - 1 && <View style={styles.menuDivider} />}
-              </React.Fragment>
-            ))}
+            <TouchableOpacity style={styles.menuItem} activeOpacity={0.7} onPress={() => navigation.navigate('EditProfile')}>
+              <View style={[styles.menuIconWrapper, { backgroundColor: `${COLORS.info}20` }]}>
+                <Ionicons name="person-outline" size={22} color={COLORS.info} />
+              </View>
+              <Text style={styles.menuTitle}>Edit Profile</Text>
+              <Ionicons name="chevron-forward" size={20} color={COLORS.softSlate} />
+            </TouchableOpacity>
+            <View style={styles.menuDivider} />
+
+            <TouchableOpacity style={styles.menuItem} activeOpacity={0.7} onPress={() => navigation.navigate('Notifications')}>
+              <View style={[styles.menuIconWrapper, { backgroundColor: `${COLORS.amber}20` }]}>
+                <Ionicons name="notifications-outline" size={22} color={COLORS.amber} />
+              </View>
+              <Text style={styles.menuTitle}>Notifications</Text>
+              <Ionicons name="chevron-forward" size={20} color={COLORS.softSlate} />
+            </TouchableOpacity>
+            <View style={styles.menuDivider} />
+
+            <TouchableOpacity style={styles.menuItem} activeOpacity={0.7}>
+              <View style={[styles.menuIconWrapper, { backgroundColor: `${COLORS.success}20` }]}>
+                <Ionicons name="shield-checkmark-outline" size={22} color={COLORS.success} />
+              </View>
+              <Text style={styles.menuTitle}>Privacy & Security</Text>
+              <Ionicons name="chevron-forward" size={20} color={COLORS.softSlate} />
+            </TouchableOpacity>
+            <View style={styles.menuDivider} />
+
+            <TouchableOpacity style={styles.menuItem} activeOpacity={0.7}>
+              <View style={[styles.menuIconWrapper, { backgroundColor: `${COLORS.softSlate}20` }]}>
+                <Ionicons name="help-circle-outline" size={22} color={COLORS.softSlate} />
+              </View>
+              <Text style={styles.menuTitle}>Help & Support</Text>
+              <Ionicons name="chevron-forward" size={20} color={COLORS.softSlate} />
+            </TouchableOpacity>
           </View>
 
           {/* Logout App Button */}

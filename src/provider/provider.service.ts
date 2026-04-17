@@ -26,9 +26,21 @@ export class ProviderService {
       let record: any = null;
 
       switch (role) {
-        case 'parking_provider':
-          record = await this.parkingVerifModel.findOne({ user: userId });
-          break;
+        case 'parking_provider': {
+          const records = await this.parkingVerifModel.find({ user: userId }).sort({ createdAt: -1 });
+          record = records.length > 0 ? records[0] : null;
+          return {
+            success: true,
+            data: {
+              status: record?.status || 'not_applied',
+              isVerified: record?.isVerified || false,
+              documents: record?.documents || {},
+              rejectionReason: record?.rejectionReason || null,
+              verifications: records,
+            },
+            message: records.length ? `Found ${records.length} parking applications` : 'No verification application found',
+          };
+        }
         case 'driver':
           record = await this.chauffeurModel.findOne({ user: userId });
           break;
@@ -118,7 +130,11 @@ export class ProviderService {
    */
   async submitParkingVerification(userId: string, data: Record<string, any>): Promise<Response> {
     try {
-      let record = await this.parkingVerifModel.findOne({ user: userId });
+      let record;
+      
+      if (data._id) {
+        record = await this.parkingVerifModel.findOne({ _id: data._id, user: userId });
+      }
 
       if (!record) {
         record = new this.parkingVerifModel({

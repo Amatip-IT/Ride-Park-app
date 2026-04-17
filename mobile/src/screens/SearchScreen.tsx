@@ -237,8 +237,23 @@ export function SearchScreen() {
   const renderDriverCard = (item: any) => {
     const user = item.user || {};
     const driverNum = item.driverNumber;
+
+    const handleSelectDriver = () => {
+      Alert.alert(
+        'Driver Details',
+        `Name: ${user.firstName} ${user.lastName}\nDriver #: ${driverNum || 'N/A'}\nRate: £1.10/mile\nFrom: ${user.address?.town || user.postCode || 'N/A'}\n\nDo you want to request this specific driver?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Hire Driver', 
+            onPress: () => navigation.navigate('DriverRequest', { serviceId: item._id, prefilledName: `${user.firstName} ${user.lastName}` })
+          }
+        ]
+      );
+    };
+
     return (
-      <TouchableOpacity key={item._id} style={styles.resultCard} activeOpacity={0.7}>
+      <TouchableOpacity key={item._id} style={styles.resultCard} activeOpacity={0.7} onPress={handleSelectDriver}>
         <View style={styles.cardHeader}>
           <View style={{ flex: 1 }}>
             <Text style={styles.cardTitle}>{user.firstName} {user.lastName}</Text>
@@ -266,8 +281,23 @@ export function SearchScreen() {
   const renderTaxiCard = (item: any) => {
     const user = item.user || {};
     const driverNum = item.driverNumber;
+
+    const handleSelectTaxi = () => {
+      Alert.alert(
+        'Taxi Details',
+        `Name: ${user.firstName} ${user.lastName}\nTaxi #: ${driverNum || 'N/A'}\nVehicle: ${item.vehicleInfo?.make || 'Standard'} ${item.vehicleInfo?.model || 'Vehicle'}\nRate: £1.10/mi + £0.20/min\n\nWould you like to broadcast a ride request for a taxi?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Request Taxi', 
+            onPress: () => navigation.navigate('TaxiBooking', { serviceId: item._id, prefilledName: `${user.firstName} ${user.lastName}` })
+          }
+        ]
+      );
+    };
+
     return (
-      <TouchableOpacity key={item._id} style={styles.resultCard} activeOpacity={0.7}>
+      <TouchableOpacity key={item._id} style={styles.resultCard} activeOpacity={0.7} onPress={handleSelectTaxi}>
         <View style={styles.cardHeader}>
           <View style={{ flex: 1 }}>
             <Text style={styles.cardTitle}>{user.firstName} {user.lastName}</Text>

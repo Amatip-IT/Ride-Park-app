@@ -69,17 +69,17 @@ export function DriverVerificationScreen() {
   }, []);
 
   const getStatusColor = (status: string | undefined, optional: boolean) => {
-    if (status === 'Uploaded' || status === 'Completed') return COLORS.success;
-    if (status === 'Pending') return COLORS.amber;
-    if (status === 'Expired') return COLORS.error;
+    if (status === 'Approved' || status === 'Completed') return COLORS.success;
+    if (status === 'Pending Review' || status === 'Uploaded') return COLORS.amber;
+    if (status === 'Rejected' || status === 'Expired') return COLORS.error;
     if (optional) return COLORS.textSecondary;
-    return COLORS.error;
+    return COLORS.textTertiary; // Not submitted — neutral grey
   };
 
   const getStatusText = (status: string | undefined, optional: boolean) => {
     if (status) return status;
     if (optional) return 'Optional';
-    return 'Pending';
+    return 'Not Submitted'; // Changed from 'Pending' to 'Not Submitted'
   };
 
   const renderDocItem = (item: typeof DRIVER_DOCS[0]) => {

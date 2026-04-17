@@ -102,6 +102,9 @@ export class User {
 
   @Prop({ type: String, select: false, default: null })
   stripeCustomerId?: string;
+
+  @Prop({ type: String, default: null })
+  profileImageUrl?: string;
 }
 
 export const UserSchema: MongooseSchema<User> =

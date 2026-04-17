@@ -33,6 +33,10 @@ import { DocumentUploadScreen } from '@/screens/DocumentUploadScreen';
 import { ServiceChoiceScreen } from '@/screens/ServiceChoiceScreen';
 import { DriverRequestScreen } from '@/screens/DriverRequestScreen';
 import { ProviderActiveJourneyScreen } from '@/screens/ProviderActiveJourneyScreen';
+import { AdminProviderDetailScreen } from '@/screens/AdminProviderDetailScreen';
+import { PassengerTrackingScreen } from '@/screens/PassengerTrackingScreen';
+import { EditProfileScreen } from '@/screens/EditProfileScreen';
+import { NotificationsScreen } from '@/screens/NotificationsScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -112,6 +116,7 @@ const ConsumerNavigator = () => (
     <Stack.Screen name="TaxiBooking" component={TaxiBookingScreen} />
     <Stack.Screen name="ServiceChoice" component={ServiceChoiceScreen} />
     <Stack.Screen name="DriverRequest" component={DriverRequestScreen} />
+    <Stack.Screen name="PassengerTracking" component={PassengerTrackingScreen} />
     <Stack.Screen name="ChatList" component={ChatListScreen} />
     <Stack.Screen name="Chat" component={ChatScreen} />
   </Stack.Navigator>
@@ -177,11 +182,13 @@ const ProviderNavigator = () => (
     <Stack.Screen name="ProviderActiveJourney" component={ProviderActiveJourneyScreen} />
     <Stack.Screen name="ChatList" component={ChatListScreen} />
     <Stack.Screen name="Chat" component={ChatScreen} />
+    <Stack.Screen name="EditProfile" component={EditProfileScreen} />
+    <Stack.Screen name="Notifications" component={NotificationsScreen} />
   </Stack.Navigator>
 );
 
 // Admin Navigation
-const AdminNavigator = () => (
+const AdminTabs = () => (
   <Tab.Navigator
     screenOptions={{
       headerShown: false,
@@ -227,6 +234,14 @@ const AdminNavigator = () => (
       }}
     />
   </Tab.Navigator>
+);
+
+// Admin Stack - wraps tabs and detail screens
+const AdminNavigator = () => (
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Screen name="AdminTabs" component={AdminTabs} />
+    <Stack.Screen name="AdminProviderDetail" component={AdminProviderDetailScreen} />
+  </Stack.Navigator>
 );
 
 // Root Navigator with authentication flow

@@ -5,13 +5,20 @@ import {
 } from 'react-native';
 import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation, NavigationProp } from '@react-navigation/native';
+import { useNavigation, NavigationProp, useRoute, RouteProp } from '@react-navigation/native';
 import { bookingsApi } from '@/api';
 import * as Location from 'expo-location';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
+type RouteParams = {
+  DriverRequest: { serviceId?: string; prefilledName?: string };
+};
+
 export function DriverRequestScreen() {
   const navigation = useNavigation<NavigationProp<any>>();
+  const route = useRoute<RouteProp<RouteParams, 'DriverRequest'>>();
+  const targetServiceId = route.params?.serviceId;
+  const targetName = route.params?.prefilledName;
 
   // Location
   const [pickupAddress, setPickupAddress] = useState('');
@@ -85,6 +92,7 @@ export function DriverRequestScreen() {
     try {
       const res = await bookingsApi.createRequest({
         serviceType: 'driver',
+        serviceId: targetServiceId || undefined, // Include if targeted
         pickupAddress: pickupAddress || undefined,
         pickupPostcode: pickupPostcode || undefined,
         pickupLat: pickupCoords?.lat,
@@ -97,7 +105,9 @@ export function DriverRequestScreen() {
       if (res.data?.success) {
         Alert.alert(
           '✅ Request Submitted!',
-          'Your driver request has been sent. It will appear in your Bookings as "Pending" until a driver accepts.',
+          targetServiceId 
+            ? `Your request to ${targetName || 'the driver'} has been sent. It will appear in Bookings as "Pending".` 
+            : 'Your broadcast request has been sent to nearby drivers. It will appear in Bookings as "Pending" until a driver accepts.',
           [{ text: 'View Bookings', onPress: () => navigation.navigate('ConsumerTabs', { screen: 'Bookings' }) }],
         );
       } else {
