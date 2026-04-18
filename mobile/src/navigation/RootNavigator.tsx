@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 // Screen imports
 import { AuthScreen } from '@/screens/AuthScreen';
 import { OnboardingScreen } from '@/screens/OnboardingScreen';
+import { ForgotPasswordScreen } from '@/screens/ForgotPasswordScreen';
 import { SplashScreen } from '@/screens/SplashScreen';
 import { ConsumerHomeScreen } from '@/screens/ConsumerHomeScreen';
 import { SearchScreen } from '@/screens/SearchScreen';
@@ -280,6 +281,7 @@ export const RootNavigator = () => {
           >
             <Stack.Screen name="Onboarding" component={OnboardingScreen} />
             <Stack.Screen name="Auth" component={AuthScreen} />
+            <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
           </Stack.Group>
         ) : (
           // App Stack - Role-based
@@ -304,6 +306,7 @@ export const RootNavigator = () => {
 
 export type RootStackParamList = {
   Auth: { isLogin?: boolean; role?: string } | undefined;
+  ForgotPassword: { email?: string } | undefined;
   Onboarding: undefined;
   ConsumerApp: undefined;
   ProviderApp: undefined;

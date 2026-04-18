@@ -16,7 +16,7 @@ import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS, FONT_WEIGHTS } from '@/cons
 import { useEmailOtp } from '@/api/useOtpHooks';
 import { useAuthStore } from '@/store/authStore';
 import { authService } from '@/api/authService';
-import { RouteProp, useRoute } from '@react-navigation/native';
+import { RouteProp, useRoute, useNavigation, NavigationProp } from '@react-navigation/native';
 import { RootStackParamList } from '@/navigation/RootNavigator';
 import { Ionicons } from '@expo/vector-icons';
 import PhoneInput from 'react-native-phone-number-input';
@@ -36,6 +36,7 @@ const PROOF_OF_ADDRESS_INFO = 'Upload a utility bill, bank statement, or council
 
 export function AuthScreen() {
   const route = useRoute<RouteProp<RootStackParamList, 'Auth'>>();
+  const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const initialIsLogin = route.params?.isLogin ?? false;
   const initialRole = route.params?.role ?? 'user';
 
@@ -79,6 +80,10 @@ export function AuthScreen() {
     email: '',
     password: '',
   });
+
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
 
   const { sendOtp, verifyOtp, formatTime, error, loading, otpAttempts, clearError } =
     useEmailOtp();
@@ -479,26 +484,38 @@ export function AuthScreen() {
               />
             </View>
 
-            <View style={styles.inputWrapper}>
+            <View style={[styles.inputWrapper, { position: 'relative' }]}>
               <TextInput
                 style={styles.input}
                 placeholder="Password (min 6 chars)"
                 placeholderTextColor={COLORS.textTertiary}
                 value={formData.password}
                 onChangeText={(text) => setFormData({ ...formData, password: text })}
-                secureTextEntry
+                secureTextEntry={!showPassword}
               />
+              <TouchableOpacity 
+                style={{ position: 'absolute', right: 15, top: 15 }} 
+                onPress={() => setShowPassword(!showPassword)}
+              >
+                <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color={COLORS.textTertiary} />
+              </TouchableOpacity>
             </View>
 
-            <View style={styles.inputWrapper}>
+            <View style={[styles.inputWrapper, { position: 'relative' }]}>
               <TextInput
                 style={styles.input}
                 placeholder="Confirm Password"
                 placeholderTextColor={COLORS.textTertiary}
                 value={formData.confirmPassword}
                 onChangeText={(text) => setFormData({ ...formData, confirmPassword: text })}
-                secureTextEntry
+                secureTextEntry={!showConfirmPassword}
               />
+              <TouchableOpacity 
+                style={{ position: 'absolute', right: 15, top: 15 }} 
+                onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+              >
+                <Ionicons name={showConfirmPassword ? "eye-off-outline" : "eye-outline"} size={20} color={COLORS.textTertiary} />
+              </TouchableOpacity>
             </View>
 
             {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -831,16 +848,31 @@ export function AuthScreen() {
               />
             </View>
 
-            <View style={styles.inputWrapper}>
+            <View style={[styles.inputWrapper, { position: 'relative' }]}>
               <TextInput
                 style={styles.input}
                 placeholder="Password"
                 placeholderTextColor={COLORS.textTertiary}
                 value={loginData.password}
                 onChangeText={(text) => setLoginData({ ...loginData, password: text })}
-                secureTextEntry
+                secureTextEntry={!showLoginPassword}
               />
+              <TouchableOpacity 
+                style={{ position: 'absolute', right: 15, top: 15 }} 
+                onPress={() => setShowLoginPassword(!showLoginPassword)}
+              >
+                <Ionicons name={showLoginPassword ? "eye-off-outline" : "eye-outline"} size={20} color={COLORS.textTertiary} />
+              </TouchableOpacity>
             </View>
+
+            <TouchableOpacity 
+              style={{ alignSelf: 'flex-end', marginBottom: SPACING.md }}
+              onPress={() => navigation.navigate('ForgotPassword')}
+            >
+              <Text style={{ color: COLORS.electricTeal, fontSize: FONT_SIZES.small, fontWeight: FONT_WEIGHTS.medium }}>
+                Forgot Password?
+              </Text>
+            </TouchableOpacity>
             
             {error ? <Text style={styles.error}>{error}</Text> : null}
 

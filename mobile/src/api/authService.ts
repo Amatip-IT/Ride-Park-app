@@ -148,6 +148,36 @@ class AuthService {
       };
     }
   }
+
+  /**
+   * Request a password reset OTP to email
+   */
+  async forgotPassword(email: string): Promise<ApiResponse<any>> {
+    try {
+      const response = await this.api.post('/users/forgot-password', { email });
+      return response.data;
+    } catch (error) {
+      return {
+        success: false,
+        message: this.extractErrorMessage(error, 'Failed to request password reset'),
+      };
+    }
+  }
+
+  /**
+   * Submit OTP and new password to reset password
+   */
+  async resetPassword(email: string, otp: string, newPassword: string): Promise<ApiResponse<any>> {
+    try {
+      const response = await this.api.post('/users/reset-password', { email, otp, newPassword });
+      return response.data;
+    } catch (error) {
+      return {
+        success: false,
+        message: this.extractErrorMessage(error, 'Failed to reset password'),
+      };
+    }
+  }
 }
 
 export const authService = new AuthService();

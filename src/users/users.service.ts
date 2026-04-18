@@ -297,6 +297,49 @@ export class UsersService {
     }
   }
 
+  /* METHOD TO HANDLE FORGOT PASSWORD */
+  async forgotPassword(email: string): Promise<Response> {
+    try {
+      const user = await this.userModel.findOne({ email });
+      if (!user) {
+        return { success: false, message: 'No account found with this email' };
+      }
+      return await this.emailVerificationService.sendEmailOtp(email, 'password_reset');
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Failed to send password reset code',
+      };
+    }
+  }
+
+  /* METHOD TO RESET PASSWORD */
+  async resetPassword(email: string, otp: string, newPassword: string): Promise<Response> {
+    try {
+      const user = await this.userModel.findOne({ email });
+      if (!user) {
+        return { success: false, message: 'User not found' };
+      }
+
+      const verifyResponse = await this.emailVerificationService.verifyEmailOtp(email, otp, 'password_reset');
+      if (!verifyResponse.success) {
+        return verifyResponse;
+      }
+
+      const salt = await bcrypt.genSalt();
+      const hashedPassword = await bcrypt.hash(newPassword, salt);
+      user.password = hashedPassword;
+      await user.save();
+
+      return { success: true, message: 'Password reset successfully. You can now login.' };
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Failed to reset password',
+      };
+    }
+  }
+
   /* METHOD TO REFRESH ACCESS TOKEN */
   async refreshUserToken(refreshToken: string): Promise<Response> {
     try {
