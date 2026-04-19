@@ -1,0 +1,19 @@
+version: "3.9"
+
+services:
+  ridepark-backend:
+    build: .
+    container_name: ridepark-backend
+    restart: unless-stopped
+
+    ports:
+      - "5005:5005"
+
+    env_file:
+      - .env
+
+    networks:
+      - ridepark-network
+
+networks:
+  ridepark-network:
