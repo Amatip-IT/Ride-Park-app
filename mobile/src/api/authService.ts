@@ -178,6 +178,21 @@ class AuthService {
       };
     }
   }
+
+  /**
+   * Update User Profile
+   */
+  async updateProfile(data: any): Promise<ApiResponse<any>> {
+    try {
+      const response = await this.api.patch('/users/profile', data);
+      return response.data;
+    } catch (error) {
+      return {
+        success: false,
+        message: this.extractErrorMessage(error, 'Failed to update profile'),
+      };
+    }
+  }
 }
 
 export const authService = new AuthService();

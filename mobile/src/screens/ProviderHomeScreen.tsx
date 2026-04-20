@@ -283,24 +283,26 @@ export function ProviderHomeScreen() {
             <Ionicons name="chevron-forward" size={20} color={COLORS.textTertiary} />
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.actionCard}
-            onPress={() => navigation.navigate('ProviderVerification')}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.actionIcon, { backgroundColor: `${COLORS.amber}12` }]}>
-              <Ionicons name="shield-checkmark" size={24} color={COLORS.amber} />
-            </View>
-            <View style={styles.actionContent}>
-              <Text style={styles.actionTitle}>
-                {user?.role === 'parking_provider' ? 'Create a Park' : 'Verification'}
-              </Text>
-              <Text style={styles.actionSubtext}>
-                {user?.role === 'parking_provider' ? 'Submit your parking space for approval' : 'Manage your documents and verification'}
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={COLORS.textTertiary} />
-          </TouchableOpacity>
+          {user?.role !== 'taxi_driver' && (
+            <TouchableOpacity
+              style={styles.actionCard}
+              onPress={() => navigation.navigate('ProviderVerification')}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.actionIcon, { backgroundColor: `${COLORS.amber}12` }]}>
+                <Ionicons name="shield-checkmark" size={24} color={COLORS.amber} />
+              </View>
+              <View style={styles.actionContent}>
+                <Text style={styles.actionTitle}>
+                  {user?.role === 'parking_provider' ? 'Create a Park' : 'Verification'}
+                </Text>
+                <Text style={styles.actionSubtext}>
+                  {user?.role === 'parking_provider' ? 'Submit your parking space for approval' : 'Manage your documents and verification'}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={COLORS.textTertiary} />
+            </TouchableOpacity>
+          )}
         </ScrollView>
       </View>
     </SafeAreaView>

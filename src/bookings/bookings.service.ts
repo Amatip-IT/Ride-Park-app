@@ -190,7 +190,7 @@ export class BookingsService {
         return { success: false, message: 'Booking request not found' };
       }
 
-      if (booking.provider.toString() !== providerId.toString()) {
+      if (booking.provider && booking.provider.toString() !== providerId.toString()) {
         return { success: false, message: 'You are not authorized to respond to this request' };
       }
 

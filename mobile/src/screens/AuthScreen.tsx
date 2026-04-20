@@ -663,21 +663,33 @@ export function AuthScreen() {
             )}
 
             {/* ── Terms & Conditions checkbox ── */}
-            <TouchableOpacity
-              style={styles.termsRow}
-              onPress={() => setTermsAccepted(!termsAccepted)}
-              activeOpacity={0.7}
-            >
-              <View style={[styles.checkbox, termsAccepted && styles.checkboxChecked]}>
-                {termsAccepted && <Ionicons name="checkmark" size={16} color="#FFF" />}
-              </View>
+            <View style={styles.termsRow}>
+              <TouchableOpacity
+                onPress={() => setTermsAccepted(!termsAccepted)}
+                activeOpacity={0.7}
+                style={{ flexDirection: 'row', alignItems: 'center' }}
+              >
+                <View style={[styles.checkbox, termsAccepted && styles.checkboxChecked]}>
+                  {termsAccepted && <Ionicons name="checkmark" size={16} color="#FFF" />}
+                </View>
+              </TouchableOpacity>
               <Text style={styles.termsText}>
                 I agree to the{' '}
-                <Text style={styles.termsLink}>Terms & Conditions</Text>
+                <Text 
+                  style={styles.termsLink} 
+                  onPress={() => navigation.navigate('LegalDocument', { documentType: 'terms' })}
+                >
+                  Terms & Conditions
+                </Text>
                 {' '}and{' '}
-                <Text style={styles.termsLink}>Privacy Policy</Text>
+                <Text 
+                  style={styles.termsLink} 
+                  onPress={() => navigation.navigate('LegalDocument', { documentType: 'privacy' })}
+                >
+                  Privacy Policy
+                </Text>
               </Text>
-            </TouchableOpacity>
+            </View>
 
             {error ? <Text style={styles.error}>{error}</Text> : null}
 

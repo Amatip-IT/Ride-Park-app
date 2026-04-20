@@ -20,7 +20,7 @@ const { width, height } = Dimensions.get('window');
 
 export function AnimatedSplashScreen({ onAnimationComplete }: AnimatedSplashScreenProps) {
   const opacity = useSharedValue(1);
-  const scale = useSharedValue(0.8);
+  const scale = useSharedValue(0.6);
 
   useEffect(() => {
     // Hide the native splash screen as soon as this component mounts
@@ -29,7 +29,7 @@ export function AnimatedSplashScreen({ onAnimationComplete }: AnimatedSplashScre
     });
 
     // Start the animation sequence
-    scale.value = withTiming(1, { duration: 1000, easing: Easing.out(Easing.exp) });
+    scale.value = withTiming(0.8, { duration: 1000, easing: Easing.out(Easing.exp) });
     
     opacity.value = withDelay(
       4000, // keep the image visible for 4 seconds
@@ -53,7 +53,7 @@ export function AnimatedSplashScreen({ onAnimationComplete }: AnimatedSplashScre
       <Animated.Image
         source={require('../../assets/images/anime.png')}
         style={[styles.image, animatedStyle]}
-        resizeMode="cover"
+        resizeMode="contain"
       />
     </Animated.View>
   );

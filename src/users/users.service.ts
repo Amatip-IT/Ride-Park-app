@@ -316,7 +316,7 @@ export class UsersService {
   /* METHOD TO RESET PASSWORD */
   async resetPassword(email: string, otp: string, newPassword: string): Promise<Response> {
     try {
-      const user = await this.userModel.findOne({ email });
+      const user = await this.userModel.findOne({ email }).select('+password');
       if (!user) {
         return { success: false, message: 'User not found' };
       }
@@ -326,9 +326,8 @@ export class UsersService {
         return verifyResponse;
       }
 
-      const salt = await bcrypt.genSalt();
-      const hashedPassword = await bcrypt.hash(newPassword, salt);
-      user.password = hashedPassword;
+      // Set the plain-text password — the Mongoose pre-save hook will hash it once
+      user.password = newPassword;
       await user.save();
 
       return { success: true, message: 'Password reset successfully. You can now login.' };

@@ -10,6 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { AuthScreen } from '@/screens/AuthScreen';
 import { OnboardingScreen } from '@/screens/OnboardingScreen';
 import { ForgotPasswordScreen } from '@/screens/ForgotPasswordScreen';
+import { LegalDocumentScreen } from '@/screens/LegalDocumentScreen';
 import { SplashScreen } from '@/screens/SplashScreen';
 import { ConsumerHomeScreen } from '@/screens/ConsumerHomeScreen';
 import { SearchScreen } from '@/screens/SearchScreen';
@@ -120,6 +121,9 @@ const ConsumerNavigator = () => (
     <Stack.Screen name="PassengerTracking" component={PassengerTrackingScreen} />
     <Stack.Screen name="ChatList" component={ChatListScreen} />
     <Stack.Screen name="Chat" component={ChatScreen} />
+    <Stack.Screen name="EditProfile" component={EditProfileScreen} />
+    <Stack.Screen name="Notifications" component={NotificationsScreen} />
+    <Stack.Screen name="LegalDocument" component={LegalDocumentScreen} />
   </Stack.Navigator>
 );
 
@@ -185,6 +189,7 @@ const ProviderNavigator = () => (
     <Stack.Screen name="Chat" component={ChatScreen} />
     <Stack.Screen name="EditProfile" component={EditProfileScreen} />
     <Stack.Screen name="Notifications" component={NotificationsScreen} />
+    <Stack.Screen name="LegalDocument" component={LegalDocumentScreen} />
   </Stack.Navigator>
 );
 
@@ -282,6 +287,7 @@ export const RootNavigator = () => {
             <Stack.Screen name="Onboarding" component={OnboardingScreen} />
             <Stack.Screen name="Auth" component={AuthScreen} />
             <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+            <Stack.Screen name="LegalDocument" component={LegalDocumentScreen} />
           </Stack.Group>
         ) : (
           // App Stack - Role-based
@@ -307,6 +313,7 @@ export const RootNavigator = () => {
 export type RootStackParamList = {
   Auth: { isLogin?: boolean; role?: string } | undefined;
   ForgotPassword: { email?: string } | undefined;
+  LegalDocument: { documentType: 'privacy' | 'terms' | 'help' };
   Onboarding: undefined;
   ConsumerApp: undefined;
   ProviderApp: undefined;

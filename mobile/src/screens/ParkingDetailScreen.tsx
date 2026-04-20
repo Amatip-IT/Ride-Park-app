@@ -120,6 +120,28 @@ export function ParkingDetailScreen() {
           </View>
         )}
 
+        {/* CCTV / Security Photos */}
+        {space.cctvPhotos && space.cctvPhotos.length > 0 && (
+          <View style={{ paddingHorizontal: SPACING.lg, marginTop: SPACING.md }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: SPACING.sm }}>
+              <Ionicons name="videocam-outline" size={18} color={COLORS.electricTeal} />
+              <Text style={{ color: COLORS.textPrimary, fontSize: 15, fontWeight: FONT_WEIGHTS.bold, marginLeft: SPACING.xs }}>
+                CCTV & Security
+              </Text>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {space.cctvPhotos.map((photo: string, index: number) => (
+                <Image
+                  key={`cctv-${index}`}
+                  source={{ uri: photo }}
+                  style={{ width: 140, height: 100, borderRadius: BORDER_RADIUS.md, marginRight: SPACING.sm, borderWidth: 1, borderColor: COLORS.border }}
+                  resizeMode="cover"
+                />
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
         {/* About this car park */}
         <View style={styles.detailSection}>
           <Text style={styles.sectionHeader}>About this car park</Text>
