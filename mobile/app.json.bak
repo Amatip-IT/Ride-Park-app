@@ -5,14 +5,13 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "gleezip",
+    "scheme": "rideandpark",
     "userInterfaceStyle": "dark",
-
+    "newArchEnabled": false,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.gleezip.app"
     },
-
     "android": {
       "package": "com.gleezip.app",
       "adaptiveIcon": {
@@ -24,13 +23,11 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
-
     "web": {
       "output": "single",
       "favicon": "./assets/images/favicon.png",
       "bundler": "metro"
     },
-
     "plugins": [
       [
         "expo-splash-screen",
@@ -45,9 +42,9 @@
         }
       ],
       "@react-native-community/datetimepicker",
+      "@stripe/stripe-react-native",
       "expo-secure-store"
     ],
-
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
