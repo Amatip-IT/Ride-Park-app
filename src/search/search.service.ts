@@ -279,6 +279,8 @@ export class SearchService {
             { postCode: { $regex: new RegExp(`^${cleanQuery}`, 'i') } },
             { 'address.town': { $regex: new RegExp(cleanQuery, 'i') } },
             { 'address.county': { $regex: new RegExp(cleanQuery, 'i') } },
+            { firstName: { $regex: new RegExp(cleanQuery, 'i') } },
+            { lastName: { $regex: new RegExp(cleanQuery, 'i') } },
           ],
         })
         .select('_id firstName lastName postCode address')
@@ -379,6 +381,8 @@ export class SearchService {
             { postCode: { $regex: new RegExp(`^${cleanQuery}`, 'i') } },
             { 'address.town': { $regex: new RegExp(cleanQuery, 'i') } },
             { 'address.county': { $regex: new RegExp(cleanQuery, 'i') } },
+            { firstName: { $regex: new RegExp(cleanQuery, 'i') } },
+            { lastName: { $regex: new RegExp(cleanQuery, 'i') } },
           ],
         })
         .select('_id firstName lastName postCode address')

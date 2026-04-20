@@ -8,7 +8,7 @@ import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/cons
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useAuthStore } from '@/store/authStore';
-import { usersApi } from '@/api';
+import { authService } from '@/api/authService';
 
 export function EditProfileScreen() {
   const navigation = useNavigation<any>();
@@ -83,8 +83,8 @@ export function EditProfileScreen() {
       if (phoneNumber.trim()) updateData.phoneNumber = phoneNumber.trim();
       if (profileImage) updateData.profileImageUrl = profileImage;
 
-      const res = await usersApi.updateProfile(updateData);
-      if (res.data?.success) {
+      const res = await authService.updateProfile(updateData);
+      if (res.success || res.data?.success) {
         // Update the local auth store with the new user data
         if (user) {
           setUser({

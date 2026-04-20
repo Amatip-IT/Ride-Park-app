@@ -51,9 +51,9 @@ const PARKING_FIELDS: DocItem[] = [
   { key: 'maxStayDetails', label: 'Max Stay Rules', type: 'text', required: true, section: 'Availability & Rules', placeholder: 'e.g. Maximum stay 4 hours' },
   { key: 'openingTimes', label: 'Opening Times', type: 'text', required: true, section: 'Availability & Rules', placeholder: 'e.g. Mon-Sun 24 Hours' },
 
-  // Media
-  { key: 'parkPhotoUrl', label: 'Photos of the Parking Space', type: 'image', required: true, section: 'Photos & Security' },
-  { key: 'cctvPhotoUrl', label: 'CCTV / Security Camera Photo', type: 'image', required: true, section: 'Photos & Security' },
+  // Media (multi-image)
+  { key: 'parkPhotos', label: 'Photos of the Parking Space (up to 6)', type: 'image', required: true, section: 'Photos & Security' },
+  { key: 'cctvPhotos', label: 'CCTV / Security Camera Photos (up to 3)', type: 'image', required: true, section: 'Photos & Security' },
 ];
 
 export function ProviderVerificationScreen() {
@@ -72,7 +72,7 @@ export function ProviderVerificationScreen() {
   const [status, setStatus] = useState<VerificationStatus>('not_applied');
   const [documents, setDocuments] = useState<Record<string, any>>({});
   const [formData, setFormData] = useState<Record<string, string>>({});
-  const [selectedImages, setSelectedImages] = useState<Record<string, string>>({});
+  const [selectedImages, setSelectedImages] = useState<Record<string, string[]>>({});
   const [rejectionReason, setRejectionReason] = useState<string | null>(null);
 
   const fetchStatus = async () => {
@@ -120,7 +120,19 @@ export function ProviderVerificationScreen() {
     setViewState('create_edit');
   };
 
+  const getMaxImages = (key: string) => key === 'cctvPhotos' ? 3 : 6;
+
   const pickImage = async (key: string) => {
+    const maxImages = getMaxImages(key);
+    const existing = selectedImages[key] || [];
+    const docExisting: string[] = Array.isArray(documents[key]) ? documents[key] : documents[key] ? [documents[key]] : [];
+    const totalExisting = existing.length + docExisting.length;
+
+    if (totalExisting >= maxImages) {
+      Alert.alert('Limit Reached', `You can upload a maximum of ${maxImages} photos for this field.`);
+      return;
+    }
+
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
       Alert.alert('Permission Required', 'Please allow access to your photo library');
@@ -129,17 +141,34 @@ export function ProviderVerificationScreen() {
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
+      allowsEditing: false,
+      allowsMultipleSelection: true,
+      selectionLimit: maxImages - totalExisting,
       quality: 0.8,
     });
 
     if (!result.canceled && result.assets.length > 0) {
-      setSelectedImages(prev => ({ ...prev, [key]: result.assets[0].uri }));
+      const newUris = result.assets.map(a => a.uri);
+      setSelectedImages(prev => ({
+        ...prev,
+        [key]: [...(prev[key] || []), ...newUris].slice(0, maxImages),
+      }));
     }
   };
 
+  const removeImage = (key: string, index: number) => {
+    setSelectedImages(prev => {
+      const arr = [...(prev[key] || [])];
+      arr.splice(index, 1);
+      return { ...prev, [key]: arr };
+    });
+  };
+
   const isDocumentProvided = (key: string): boolean => {
-    return !!(documents[key] || formData[key] || selectedImages[key]);
+    const imgs = selectedImages[key] || [];
+    const docVal = documents[key];
+    const formVal = formData[key];
+    return imgs.length > 0 || (Array.isArray(docVal) ? docVal.length > 0 : !!docVal) || !!formVal;
   };
 
   const handleSubmit = async () => {
@@ -157,9 +186,9 @@ export function ProviderVerificationScreen() {
         submitData._id = currentId;
       }
 
-      // Add selected images
-      Object.entries(selectedImages).forEach(([key, uri]) => {
-        submitData[key] = uri;
+      // Add selected images (arrays)
+      Object.entries(selectedImages).forEach(([key, uris]) => {
+        if (uris && uris.length > 0) submitData[key] = uris;
       });
 
       const response = await providerApi.submitParkingVerification(submitData);
@@ -318,27 +347,43 @@ export function ProviderVerificationScreen() {
                     const selectedImage = selectedImages[field.key];
 
                     if (field.type === 'image') {
+                      const existingPhotos: string[] = Array.isArray(value) ? value : value ? [value] : [];
+                      const newPhotos: string[] = selectedImages[field.key] || [];
+                      const allPhotos = [...existingPhotos, ...newPhotos];
+                      const maxImg = getMaxImages(field.key);
                       return (
                         <View key={field.key} style={styles.fieldContainer}>
                           <Text style={styles.label}>
                             {field.label} {field.required && <Text style={styles.requiredAsterisk}>*</Text>}
                           </Text>
-                          <TouchableOpacity
-                            style={styles.imagePicker}
-                            onPress={() => pickImage(field.key)}
-                            activeOpacity={0.7}
-                          >
-                            {selectedImage ? (
-                              <Image source={{ uri: selectedImage }} style={styles.selectedImage} />
-                            ) : value ? (
-                              <Image source={{ uri: value }} style={styles.selectedImage} />
-                            ) : (
-                              <View style={styles.imagePickerContent}>
-                                <Ionicons name="camera-outline" size={32} color={COLORS.electricTeal} />
-                                <Text style={styles.imagePickerText}>Tap to add photo</Text>
+                          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: SPACING.sm }}>
+                            {allPhotos.map((uri, idx) => (
+                              <View key={`${field.key}-${idx}`} style={{ position: 'relative', marginRight: SPACING.sm }}>
+                                <Image source={{ uri }} style={styles.multiImage} />
+                                {idx >= existingPhotos.length && (
+                                  <TouchableOpacity
+                                    style={styles.removeImageBtn}
+                                    onPress={() => removeImage(field.key, idx - existingPhotos.length)}
+                                  >
+                                    <Ionicons name="close-circle" size={22} color={COLORS.coralRed} />
+                                  </TouchableOpacity>
+                                )}
                               </View>
+                            ))}
+                            {allPhotos.length < maxImg && (
+                              <TouchableOpacity
+                                style={styles.addImageBtn}
+                                onPress={() => pickImage(field.key)}
+                                activeOpacity={0.7}
+                              >
+                                <Ionicons name="add-circle-outline" size={36} color={COLORS.electricTeal} />
+                                <Text style={styles.addImageText}>{allPhotos.length === 0 ? 'Add photos' : 'Add more'}</Text>
+                              </TouchableOpacity>
                             )}
-                          </TouchableOpacity>
+                          </ScrollView>
+                          <Text style={{ color: COLORS.textTertiary, fontSize: 12, marginBottom: SPACING.sm }}>
+                            {allPhotos.length} / {maxImg} photos
+                          </Text>
                         </View>
                       );
                     }
@@ -531,4 +576,24 @@ const styles = StyleSheet.create({
   rejectionText: { color: COLORS.textSecondary, fontSize: 13 },
 
   readOnlyContainer: { marginTop: SPACING.xl },
+
+  // Multi-image gallery
+  multiImage: {
+    width: 110, height: 110, borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1, borderColor: COLORS.border,
+  },
+  removeImageBtn: {
+    position: 'absolute', top: -6, right: -6,
+    backgroundColor: '#FFF', borderRadius: 12,
+  },
+  addImageBtn: {
+    width: 110, height: 110, borderRadius: BORDER_RADIUS.md,
+    borderWidth: 2, borderColor: COLORS.border, borderStyle: 'dashed',
+    justifyContent: 'center', alignItems: 'center',
+    backgroundColor: COLORS.surfaceAlt,
+  },
+  addImageText: {
+    color: COLORS.textSecondary, fontSize: 12, marginTop: 4,
+    fontWeight: FONT_WEIGHTS.medium,
+  },
 });

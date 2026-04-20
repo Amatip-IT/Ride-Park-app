@@ -159,6 +159,13 @@ export class EmailVerificationService {
       };
     }
 
+    if (reason === 'password_reset') {
+      return {
+        success: true,
+        message: 'OTP verified successfully',
+      };
+    }
+
     if (reason === 'Login') {
       if (user && typeof user === 'object') {
         // Generate JWT token

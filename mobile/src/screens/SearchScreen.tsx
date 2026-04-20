@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, TextInput, ScrollView, TouchableOpacity,
   Platform, SafeAreaView, ActivityIndicator, Alert,
 } from 'react-native';
+import { useEffect } from 'react';
 import * as Location from 'expo-location';
 import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
@@ -50,6 +51,13 @@ export function SearchScreen() {
   const [results, setResults] = useState<any[]>([]);
   const [hasSearched, setHasSearched] = useState(false);
   const [resultMessage, setResultMessage] = useState('');
+
+  // Update service type if navigating from another tab with a param
+  useEffect(() => {
+    if (route.params?.serviceType) {
+      setServiceType(route.params.serviceType);
+    }
+  }, [route.params?.serviceType]);
 
   // Autocomplete suggestions
   const [suggestions, setSuggestions] = useState<any[]>([]);

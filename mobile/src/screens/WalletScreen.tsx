@@ -8,11 +8,18 @@ import { paymentsApi } from '@/api';
 export function WalletScreenContent() {
   const [paymentMethods, setPaymentMethods] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
+  const [platformPayAvailable, setPlatformPayAvailable] = React.useState(false);
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
 
   React.useEffect(() => {
     fetchPaymentMethods();
+    checkPlatformPay();
   }, []);
+
+  const checkPlatformPay = async () => {
+    // Apple Pay on iOS, Google Pay on Android — show button if platform supports it
+    setPlatformPayAvailable(Platform.OS === 'ios' || Platform.OS === 'android');
+  };
 
   const fetchPaymentMethods = async () => {
     try {
@@ -36,13 +43,20 @@ export function WalletScreenContent() {
       
       const { setupIntent, ephemeralKey, customer } = res.data.data;
 
-      // 2. Initialize Payment Sheet
+      // 2. Initialize Payment Sheet (with Apple Pay / Google Pay)
       const initRes = await initPaymentSheet({
-        merchantDisplayName: 'Ride and Park',
+        merchantDisplayName: 'Gleezip',
         customerId: customer,
         customerEphemeralKeySecret: ephemeralKey,
         setupIntentClientSecret: setupIntent,
         allowsDelayedPaymentMethods: false,
+        applePay: Platform.OS === 'ios' ? {
+          merchantCountryCode: 'GB',
+        } : undefined,
+        googlePay: Platform.OS === 'android' ? {
+          merchantCountryCode: 'GB',
+          testEnv: true,
+        } : undefined,
       });
 
       if (initRes.error) {
@@ -127,6 +141,27 @@ export function WalletScreenContent() {
             <Ionicons name="add-circle-outline" size={24} color={COLORS.electricTeal} />
             <Text style={styles.addCardText}>Add Payment Method</Text>
           </TouchableOpacity>
+
+          {platformPayAvailable && (
+            <TouchableOpacity style={styles.platformPayBtn} onPress={handleAddCard} activeOpacity={0.8}>
+              <Ionicons 
+                name={Platform.OS === 'ios' ? 'logo-apple' : 'logo-google'} 
+                size={22} 
+                color="#FFF" 
+              />
+              <Text style={styles.platformPayText}>
+                {Platform.OS === 'ios' ? 'Apple Pay' : 'Google Pay'}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Info */}
+          <View style={styles.infoRow}>
+            <Ionicons name="lock-closed-outline" size={16} color={COLORS.textTertiary} />
+            <Text style={styles.infoText}>
+              Your payment information is securely processed by Stripe. We never store your full card details.
+            </Text>
+          </View>
 
         </ScrollView>
       </View>
@@ -269,5 +304,33 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: FONT_WEIGHTS.bold,
     marginLeft: SPACING.sm,
+  },
+  platformPayBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: SPACING.lg,
+    marginTop: SPACING.md,
+    borderRadius: BORDER_RADIUS.lg,
+    backgroundColor: '#000',
+  },
+  platformPayText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: FONT_WEIGHTS.bold,
+    marginLeft: SPACING.sm,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingVertical: SPACING.lg,
+    marginTop: SPACING.lg,
+    gap: SPACING.sm,
+  },
+  infoText: {
+    flex: 1,
+    color: COLORS.textTertiary,
+    fontSize: 12,
+    lineHeight: 18,
   },
 });

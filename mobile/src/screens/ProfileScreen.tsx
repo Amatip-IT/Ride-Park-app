@@ -113,7 +113,11 @@ export function ProfileScreen() {
             </TouchableOpacity>
             <View style={styles.menuDivider} />
 
-            <TouchableOpacity style={styles.menuItem} activeOpacity={0.7}>
+            <TouchableOpacity 
+              style={styles.menuItem} 
+              activeOpacity={0.7} 
+              onPress={() => navigation.navigate('LegalDocument', { documentType: 'privacy' })}
+            >
               <View style={[styles.menuIconWrapper, { backgroundColor: `${COLORS.success}20` }]}>
                 <Ionicons name="shield-checkmark-outline" size={22} color={COLORS.success} />
               </View>
@@ -122,7 +126,11 @@ export function ProfileScreen() {
             </TouchableOpacity>
             <View style={styles.menuDivider} />
 
-            <TouchableOpacity style={styles.menuItem} activeOpacity={0.7}>
+            <TouchableOpacity 
+              style={styles.menuItem} 
+              activeOpacity={0.7} 
+              onPress={() => navigation.navigate('LegalDocument', { documentType: 'help' })}
+            >
               <View style={[styles.menuIconWrapper, { backgroundColor: `${COLORS.softSlate}20` }]}>
                 <Ionicons name="help-circle-outline" size={22} color={COLORS.softSlate} />
               </View>

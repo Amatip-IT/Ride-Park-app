@@ -47,10 +47,6 @@ export class BookingsService {
         if (!space.isAvailable) {
           return { success: false, message: 'This parking space is not available' };
         }
-        // Ensure owner exists before converting
-        if (!space.owner) {
-          return { success: false, message: 'Parking space has no owner' };
-        }
         providerId = space.owner.toString();
         serviceName = space.name;
         quotedPrice = space.hourlyRate;
@@ -79,6 +75,7 @@ export class BookingsService {
           serviceId: data.serviceId,
           status: 'pending',
         });
+
         if (existingRequest) {
           return { success: false, message: 'You already have a pending request for this space' };
         }
@@ -188,15 +185,15 @@ export class BookingsService {
   ): Promise<Response> {
     try {
       const booking = await this.bookingModel.findById(requestId);
+
       if (!booking) {
         return { success: false, message: 'Booking request not found' };
       }
-      if (!booking.provider) {
-        return { success: false, message: 'Booking has no provider assigned' };
-      }
-      if (booking.provider.toString() !== providerId.toString()) {
+
+      if (booking.provider && booking.provider.toString() !== providerId.toString()) {
         return { success: false, message: 'You are not authorized to respond to this request' };
       }
+
       if (booking.status !== 'pending') {
         return { success: false, message: `This request has already been ${booking.status}` };
       }
@@ -231,12 +228,15 @@ export class BookingsService {
   async cancelBooking(requestId: string, requesterId: string): Promise<Response> {
     try {
       const booking = await this.bookingModel.findById(requestId);
+
       if (!booking) {
         return { success: false, message: 'Booking not found' };
       }
+
       if (booking.requester.toString() !== requesterId) {
         return { success: false, message: 'You can only cancel your own bookings' };
       }
+
       if (!['pending', 'accepted'].includes(booking.status)) {
         return { success: false, message: `Cannot cancel a ${booking.status} booking` };
       }

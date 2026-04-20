@@ -52,6 +52,24 @@ export class UsersController {
     return result;
   }
 
+  @Post('forgot-password')
+  async forgotPassword(@Body() body: { email: string }) {
+    const result = await this.usersService.forgotPassword(body.email);
+    if (!result.success) {
+      throw new HttpException({ message: result.message }, HttpStatus.BAD_REQUEST);
+    }
+    return result;
+  }
+
+  @Post('reset-password')
+  async resetPassword(@Body() body: { email: string; otp: string; newPassword: string }) {
+    const result = await this.usersService.resetPassword(body.email, body.otp, body.newPassword);
+    if (!result.success) {
+      throw new HttpException({ message: result.message }, HttpStatus.BAD_REQUEST);
+    }
+    return result;
+  }
+
   // route to refresh access token
   @Post('refresh-token')
   async refreshToken(@Body() body: { refreshToken: string }) {
