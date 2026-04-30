@@ -43,6 +43,7 @@ export interface VerificationStatus {
 export interface LoginRequest {
   email: string;
   password: string;
+  otp?: string;
 }
 
 export interface RegisterRequest {

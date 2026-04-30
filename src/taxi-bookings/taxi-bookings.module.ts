@@ -9,6 +9,7 @@ import {
 import { Taxi, TaxiSchema } from 'src/schemas/taxi.schema';
 import { Chauffeur, ChauffeurSchema } from 'src/schemas/chauffeur.schema';
 import { User, UserSchema } from 'src/schemas/user.schema';
+import { NotificationsModule } from 'src/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { User, UserSchema } from 'src/schemas/user.schema';
       { name: Chauffeur.name, schema: ChauffeurSchema },
       { name: User.name, schema: UserSchema },
     ]),
+    NotificationsModule,
   ],
   controllers: [TaxiBookingsController],
   providers: [TaxiBookingsService],

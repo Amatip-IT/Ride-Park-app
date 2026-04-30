@@ -5,6 +5,9 @@ import { Ride, RideDocument } from 'src/schemas/ride.schema';
 import { Chauffeur, ChauffeurDocument } from 'src/schemas/chauffeur.schema';
 import { Taxi, TaxiDocument } from 'src/schemas/taxi.schema';
 import { Response } from 'src/common/interfaces/response.interface';
+import { NotificationsService } from 'src/notifications/notifications.service';
+import { WalletService } from 'src/wallet/wallet.service';
+import { PaymentsService } from 'src/payments/payments.service';
 
 // Pricing constants
 const RATE_PER_MILE = 1.10; // £1.10 per mile (both driver and taxi)
@@ -16,6 +19,9 @@ export class RidesService {
     @InjectModel(Ride.name) private rideModel: Model<RideDocument>,
     @InjectModel(Chauffeur.name) private chauffeurModel: Model<ChauffeurDocument>,
     @InjectModel(Taxi.name) private taxiModel: Model<TaxiDocument>,
+    private readonly notificationsService: NotificationsService,
+    private readonly walletService: WalletService,
+    private readonly paymentsService: PaymentsService,
   ) {}
 
   /**
@@ -99,6 +105,15 @@ export class RidesService {
         );
       }
 
+      // Notify Passenger
+      await this.notificationsService.sendNotification(
+        data.passengerId,
+        'Ride Started',
+        'Your ride has started! Have a safe journey.',
+        'ride',
+        { rideId: ride._id }
+      );
+
       return {
         success: true,
         data: ride,
@@ -158,6 +173,38 @@ export class RidesService {
           { $set: { availability: 'online' } },
         );
       }
+
+      // ACTUALLY CHARGE THE PASSENGER!
+      await this.paymentsService.chargeCustomer(
+        ride.passenger.toString(),
+        pricing.totalCost,
+        `Payment for Ride ${ride._id.toString()}`
+      );
+
+      // Process payment / Add earning to driver's wallet
+      await this.walletService.addEarning(
+        ride.driver.toString(),
+        pricing.totalCost,
+        ride._id.toString()
+      );
+
+      // Notify Passenger
+      await this.notificationsService.sendNotification(
+        ride.passenger.toString(),
+        'Payment Completed',
+        `Your ride has been completed and £${pricing.totalCost.toFixed(2)} has been charged successfully.`,
+        'payment',
+        { rideId: ride._id }
+      );
+
+      // Notify Driver
+      await this.notificationsService.sendNotification(
+        ride.driver.toString(),
+        'Payment Received',
+        `Ride completed. £${pricing.totalCost.toFixed(2)} (gross) has been added to your earnings.`,
+        'payment',
+        { rideId: ride._id }
+      );
 
       return {
         success: true,

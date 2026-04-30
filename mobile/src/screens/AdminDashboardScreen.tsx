@@ -146,6 +146,38 @@ export function AdminDashboardScreen() {
           </View>
           <Ionicons name="chevron-forward" size={22} color={COLORS.textTertiary} />
         </TouchableOpacity>
+
+        {/* Payouts Queue */}
+        <TouchableOpacity
+          style={styles.card}
+          onPress={() => navigation.navigate('AdminPayoutsQueue')}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.iconContainer, { backgroundColor: `${COLORS.success}12` }]}>
+            <Ionicons name="cash-outline" size={28} color={COLORS.success} />
+          </View>
+          <View style={styles.cardContent}>
+            <Text style={styles.cardTitle}>Payouts Queue</Text>
+            <Text style={styles.cardDesc}>Review and approve provider withdrawal requests.</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={22} color={COLORS.textTertiary} />
+        </TouchableOpacity>
+
+        {/* Platform Settings */}
+        <TouchableOpacity
+          style={styles.card}
+          onPress={() => navigation.navigate('AdminPlatformSettings')}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.iconContainer, { backgroundColor: `${COLORS.coralRed}12` }]}>
+            <Ionicons name="settings-outline" size={28} color={COLORS.coralRed} />
+          </View>
+          <View style={styles.cardContent}>
+            <Text style={styles.cardTitle}>Platform Settings</Text>
+            <Text style={styles.cardDesc}>Manage service fee percentage and platform configuration.</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={22} color={COLORS.textTertiary} />
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );

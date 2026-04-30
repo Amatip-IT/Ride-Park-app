@@ -63,7 +63,9 @@ export function AmazonMap({
               container: "map",
               style: \`https://maps.geo.\${region}.amazonaws.com/v2/styles/\${style}/descriptor?key=\${apiKey}&color-scheme=\${colorScheme}\`,
               center: [${centerLng}, ${centerLat}],
-              zoom: 12,
+              zoom: 15.5,
+              pitch: 60,
+              bearing: -20,
               attributionControl: false
             });
 
@@ -71,6 +73,30 @@ export function AmazonMap({
             map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
 
             map.on('load', () => {
+              // Add 3D Buildings
+              try {
+                // Get the primary vector tile source provided by AWS
+                const sources = map.getStyle().sources;
+                const sourceId = Object.keys(sources).find(key => sources[key].type === 'vector') || 'esri';
+
+                map.addLayer({
+                  'id': '3d-buildings',
+                  'source': sourceId,
+                  'source-layer': 'Building',
+                  'filter': ['==', 'extrude', 'true'],
+                  'type': 'fill-extrusion',
+                  'minzoom': 14,
+                  'paint': {
+                    'fill-extrusion-color': '#e5e7eb',
+                    'fill-extrusion-height': ['get', 'height'],
+                    'fill-extrusion-base': ['get', 'min_height'],
+                    'fill-extrusion-opacity': 0.8
+                  }
+                });
+              } catch (err) {
+                console.warn('Could not load 3D buildings layer', err);
+              }
+
               const bounds = new maplibregl.LngLatBounds();
               let hasBounds = false;
 
@@ -100,7 +126,12 @@ export function AmazonMap({
 
               // Fit bounds securely if we have two points
               if (hasBounds) {
-                map.fitBounds(bounds, { padding: 40, maxZoom: 15 });
+                map.fitBounds(bounds, { 
+                  padding: 60, 
+                  maxZoom: 16,
+                  pitch: 60,
+                  bearing: -20
+                });
               }
             });
           } catch (e) {

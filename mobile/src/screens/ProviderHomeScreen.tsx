@@ -283,7 +283,7 @@ export function ProviderHomeScreen() {
             <Ionicons name="chevron-forward" size={20} color={COLORS.textTertiary} />
           </TouchableOpacity>
 
-          {user?.role !== 'taxi_driver' && (
+          {user?.role === 'parking_provider' && (
             <TouchableOpacity
               style={styles.actionCard}
               onPress={() => navigation.navigate('ProviderVerification')}
@@ -293,12 +293,8 @@ export function ProviderHomeScreen() {
                 <Ionicons name="shield-checkmark" size={24} color={COLORS.amber} />
               </View>
               <View style={styles.actionContent}>
-                <Text style={styles.actionTitle}>
-                  {user?.role === 'parking_provider' ? 'Create a Park' : 'Verification'}
-                </Text>
-                <Text style={styles.actionSubtext}>
-                  {user?.role === 'parking_provider' ? 'Submit your parking space for approval' : 'Manage your documents and verification'}
-                </Text>
+                <Text style={styles.actionTitle}>Create a Park</Text>
+                <Text style={styles.actionSubtext}>Submit your parking space for approval</Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color={COLORS.textTertiary} />
             </TouchableOpacity>

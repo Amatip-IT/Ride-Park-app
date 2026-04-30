@@ -39,8 +39,10 @@ export class BookingsService {
       let quotedPrice: number | undefined;
       let pricingUnit: string | undefined;
 
+      let space: any = null;
+
       if (data.serviceType === 'parking') {
-        const space = await this.parkingSpaceModel.findById(data.serviceId);
+        space = await this.parkingSpaceModel.findById(data.serviceId);
         if (!space) {
           return { success: false, message: 'Parking space not found' };
         }
@@ -69,7 +71,7 @@ export class BookingsService {
       }
 
       // Check for existing pending request for the same service (only for parking)
-      if (data.serviceType === 'parking' && data.serviceId) {
+      if (data.serviceType === 'parking' && data.serviceId && space) {
         const existingRequest = await this.bookingModel.findOne({
           requester: data.requesterId,
           serviceId: data.serviceId,
@@ -78,6 +80,29 @@ export class BookingsService {
 
         if (existingRequest) {
           return { success: false, message: 'You already have a pending request for this space' };
+        }
+
+        // --- CAPACITY CHECK ---
+        const requestedStart = data.startDate ? new Date(data.startDate) : (data.startTime ? new Date(data.startTime) : undefined);
+        const requestedEnd = data.endDate ? new Date(data.endDate) : (data.endTime ? new Date(data.endTime) : undefined);
+
+        if (requestedStart && requestedEnd) {
+          // Find accepted or active bookings that overlap with requested time
+          const overlappingBookings = await this.bookingModel.countDocuments({
+            serviceId: data.serviceId,
+            status: { $in: ['accepted', 'active'] },
+            startDate: { $lt: requestedEnd }, 
+            endDate: { $gt: requestedStart }
+          });
+
+          if (overlappingBookings >= space.totalSpots) {
+            return { success: false, message: `Sorry, all ${space.totalSpots} spots are fully booked for the selected time period.` };
+          }
+        } else {
+          // Fallback to checking real-time occupied spots
+          if (space.occupiedSpots >= space.totalSpots) {
+            return { success: false, message: `Sorry, all ${space.totalSpots} spots are currently occupied.` };
+          }
         }
       }
 

@@ -42,6 +42,15 @@ export class UsersService {
         };
       }
 
+      // Validate password strength
+      const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+      if (!passwordRegex.test(createUserDTO.password || '')) {
+        return {
+          success: false,
+          message: 'Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character.',
+        };
+      }
+
       // Validate terms acceptance
       if (!createUserDTO.termsAccepted) {
         return {
@@ -127,6 +136,7 @@ export class UsersService {
   async loginUser(loginDto: {
     email: string;
     password: string;
+    otp?: string;
   }): Promise<Response> {
     try {
       const user: UserDocument | null = await this.userModel
@@ -155,40 +165,40 @@ export class UsersService {
         };
       }
 
-      // For user that that sets require_OTP_for_login to true and lastLoggedInAt is less than 5 minutes ago, respond with OTP required message response, send OTP
-      const currentTime = new Date();
-      const fiveMinutesAgo = new Date(currentTime.getTime() - 5 * 60000);
-      const previousLoginTime = user.lastLoggedInAt;
-
       // Update lastLoggedInAt to current time
+      const currentTime = new Date();
       user.lastLoggedInAt = currentTime;
-      await user.save();
 
-      //check user settings for require_OTP_for_login using the user_settings subdocument
-      //find user_settings with userID equal to user._id
-      const user_settings = await this.userSettingsModel.findOne({
-        userID: user._id.toString(),
-      });
-
-      if (
-        user_settings &&
-        user_settings.require_OTP_for_login &&
-        previousLoginTime &&
-        previousLoginTime > fiveMinutesAgo
-      ) {
-        // send OTP to user's email
-        await this.emailVerificationService.sendEmailOtp(
+      // Always require OTP for every login to enforce security
+      if (!loginDto.otp) {
+        // Send OTP to user's email (non-blocking to avoid SMTP timeout)
+        this.emailVerificationService.sendEmailOtp(
           loginDto.email,
           'Login',
-        );
-        // Respond with OTP required message
+        ).catch(err => console.error('Failed to send login OTP email:', err));
+
+        // Respond immediately — don't wait for email delivery
         return {
           success: true,
           requiresOTP: true,
-          message: 'OTP verification required for login',
+          message: 'OTP has been sent to your email',
           data: { _id: user._id.toString() } as UserWithId,
         };
       }
+
+      // If OTP is provided, verify it
+      const verifyResponse = await this.emailVerificationService.verifyEmailOtp(
+        loginDto.email,
+        loginDto.otp,
+        'Login',
+      );
+
+      if (!verifyResponse.success) {
+        return verifyResponse;
+      }
+
+      // OTP verified successfully, save user (which updates lastLoggedInAt)
+      await user.save();
 
       if (user && typeof user === 'object') {
         // Generate JWT token
@@ -316,6 +326,15 @@ export class UsersService {
   /* METHOD TO RESET PASSWORD */
   async resetPassword(email: string, otp: string, newPassword: string): Promise<Response> {
     try {
+      // Validate password strength
+      const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+      if (!passwordRegex.test(newPassword)) {
+        return {
+          success: false,
+          message: 'Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character.',
+        };
+      }
+
       const user = await this.userModel.findOne({ email }).select('+password');
       if (!user) {
         return { success: false, message: 'User not found' };

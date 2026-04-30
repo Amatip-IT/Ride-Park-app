@@ -7,14 +7,15 @@ import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/cons
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 
-// Placeholder notification model — connect to real push notification history later
+import { notificationsApi } from '@/api';
+
 interface Notification {
-  id: string;
+  _id: string;
   title: string;
   body: string;
   type: 'ride' | 'booking' | 'payment' | 'system' | 'promo';
   read: boolean;
-  createdAt: Date;
+  createdAt: string;
 }
 
 const ICON_MAP: Record<string, { icon: keyof typeof Ionicons.glyphMap; color: string }> = {
@@ -30,34 +31,40 @@ export function NotificationsScreen() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
-  // In real implementation, fetch from backend API
+  const fetchNotifications = async () => {
+    try {
+      const res = await notificationsApi.getMyNotifications();
+      if (res.data?.success) {
+        setNotifications(res.data.data);
+      }
+    } catch (err) {
+      console.log('Error fetching notifications:', err);
+    }
+  };
+
   useFocusEffect(
     useCallback(() => {
-      // Placeholder: simulate some notifications
-      setNotifications([
-        {
-          id: '1',
-          title: 'Welcome to GleeZip!',
-          body: 'Your account has been successfully created. Start exploring parking, drivers, and taxis near you.',
-          type: 'system',
-          read: true,
-          createdAt: new Date(Date.now() - 86400000),
-        },
-      ]);
+      fetchNotifications();
     }, [])
   );
 
-  const onRefresh = () => {
+  const onRefresh = async () => {
     setRefreshing(true);
-    // Simulate refresh
-    setTimeout(() => setRefreshing(false), 1000);
+    await fetchNotifications();
+    setRefreshing(false);
   };
 
-  const markAllRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  const markAllRead = async () => {
+    try {
+      await notificationsApi.markAllAsRead();
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    } catch (err) {
+      console.log('Error marking all as read:', err);
+    }
   };
 
-  const timeAgo = (date: Date) => {
+  const timeAgo = (dateStr: string) => {
+    const date = new Date(dateStr);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / 60000);
@@ -77,10 +84,15 @@ export function NotificationsScreen() {
       <TouchableOpacity
         style={[styles.card, !item.read && styles.cardUnread]}
         activeOpacity={0.7}
-        onPress={() => {
-          setNotifications(prev =>
-            prev.map(n => n.id === item.id ? { ...n, read: true } : n)
-          );
+        onPress={async () => {
+          if (!item.read) {
+            setNotifications(prev => prev.map(n => n._id === item._id ? { ...n, read: true } : n));
+            try {
+              await notificationsApi.markAsRead(item._id);
+            } catch (err) {
+              console.log('Error marking as read:', err);
+            }
+          }
         }}
       >
         <View style={[styles.iconCircle, { backgroundColor: `${color}15` }]}>
@@ -125,7 +137,7 @@ export function NotificationsScreen() {
       ) : (
         <FlatList
           data={notifications}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item) => item._id}
           renderItem={renderItem}
           contentContainerStyle={styles.listContainer}
           showsVerticalScrollIndicator={false}
