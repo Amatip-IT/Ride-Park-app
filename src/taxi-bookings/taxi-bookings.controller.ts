@@ -164,8 +164,17 @@ export class TaxiBookingsController {
   }
 
   /**
+   * GET /taxi-bookings/admin/active
+   * Admin: get all active ride requests for the dashboard
+   */
+  @Get('admin/active')
+  async getAdminActiveRequests() {
+    return this.taxiBookingsService.getAllActiveRequests();
+  }
+
+  /**
    * GET /taxi-bookings/:id
-   * Get ride request details
+   * Get ride request details (must be LAST — catches all unmatched paths)
    */
   @Get(':id')
   async getRequest(@Param('id') id: string) {
@@ -174,14 +183,5 @@ export class TaxiBookingsController {
       throw new HttpException(result, HttpStatus.NOT_FOUND);
     }
     return result;
-  }
-
-  /**
-   * GET /taxi-bookings/admin/active
-   * Admin: get all active ride requests for the dashboard
-   */
-  @Get('admin/active')
-  async getAdminActiveRequests() {
-    return this.taxiBookingsService.getAllActiveRequests();
   }
 }

@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
-import { bookingsApi } from '@/api';
+import { bookingsApi, taxiBookingsApi } from '@/api';
 import { useFocusEffect } from '@react-navigation/native';
 
 const STATUS_CONFIG: Record<string, { color: string; label: string; icon: keyof typeof Ionicons.glyphMap }> = {
@@ -19,6 +19,7 @@ const STATUS_CONFIG: Record<string, { color: string; label: string; icon: keyof 
 export function BookingsScreen() {
   const [activeTab, setActiveTab] = useState<'active' | 'past'>('active');
   const [bookings, setBookings] = useState<any[]>([]);
+  const [rideRequests, setRideRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -27,9 +28,15 @@ export function BookingsScreen() {
     else setLoading(true);
 
     try {
-      const response = await bookingsApi.getMyBookings();
-      if (response.data?.success) {
-        setBookings(response.data.data || []);
+      const [bookingsRes, ridesRes] = await Promise.all([
+        bookingsApi.getMyBookings(),
+        taxiBookingsApi.getMyRequests(),
+      ]);
+      if (bookingsRes.data?.success) {
+        setBookings(bookingsRes.data.data || []);
+      }
+      if (ridesRes.data?.success) {
+        setRideRequests(ridesRes.data.data || []);
       }
     } catch (err) {
       console.log('Failed to fetch bookings:', err);
@@ -73,9 +80,40 @@ export function BookingsScreen() {
     );
   };
 
+  const handleCancelRide = (rideId: string) => {
+    Alert.alert(
+      'Cancel Ride',
+      'Are you sure you want to cancel this ride request?',
+      [
+        { text: 'No', style: 'cancel' },
+        {
+          text: 'Yes, Cancel',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const res = await taxiBookingsApi.cancelRequest(rideId);
+              if (res.data?.success) {
+                Alert.alert('Cancelled', 'Your ride request has been cancelled');
+                fetchBookings();
+              } else {
+                Alert.alert('Error', res.data?.message || 'Failed to cancel');
+              }
+            } catch (err: any) {
+              Alert.alert('Error', err?.response?.data?.message || 'Failed to cancel ride');
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  // Combine bookings + ride requests for display
   const activeBookings = bookings.filter(b => ['pending', 'accepted'].includes(b.status));
+  const activeRides = rideRequests.filter(r => ['searching', 'accepted'].includes(r.status));
   const pastBookings = bookings.filter(b => ['rejected', 'cancelled', 'completed'].includes(b.status));
+  const pastRides = rideRequests.filter(r => ['cancelled', 'completed', 'expired'].includes(r.status));
   const displayBookings = activeTab === 'active' ? activeBookings : pastBookings;
+  const displayRides = activeTab === 'active' ? activeRides : pastRides;
 
   const renderBookingCard = (booking: any) => {
     const statusCfg = STATUS_CONFIG[booking.status] || STATUS_CONFIG.pending;
@@ -147,6 +185,71 @@ export function BookingsScreen() {
     );
   };
 
+  const renderRideCard = (ride: any) => {
+    const rideStatusConfig: Record<string, { color: string; label: string; icon: keyof typeof Ionicons.glyphMap }> = {
+      searching: { color: COLORS.amber, label: 'Searching', icon: 'search-outline' },
+      accepted: { color: COLORS.success, label: 'Driver Found', icon: 'checkmark-circle-outline' },
+      in_progress: { color: COLORS.info, label: 'In Progress', icon: 'car-outline' },
+      completed: { color: COLORS.success, label: 'Completed', icon: 'trophy-outline' },
+      cancelled: { color: COLORS.softSlate, label: 'Cancelled', icon: 'ban-outline' },
+      expired: { color: COLORS.softSlate, label: 'Expired', icon: 'time-outline' },
+    };
+    const rStatusCfg = rideStatusConfig[ride.status] || rideStatusConfig.searching;
+    const date = ride.createdAt ? new Date(ride.createdAt).toLocaleDateString('en-GB', {
+      day: 'numeric', month: 'short', year: 'numeric',
+    }) : '';
+
+    return (
+      <View key={ride._id} style={styles.bookingCard}>
+        <View style={styles.cardHeader}>
+          <View style={styles.serviceTag}>
+            <Ionicons name="car" size={16} color={COLORS.electricTeal} />
+            <Text style={styles.serviceTagText}>Taxi Ride</Text>
+          </View>
+          <View style={[styles.statusBadge, { backgroundColor: `${rStatusCfg.color}20` }]}>
+            <Ionicons name={rStatusCfg.icon} size={14} color={rStatusCfg.color} />
+            <Text style={[styles.statusText, { color: rStatusCfg.color }]}>{rStatusCfg.label}</Text>
+          </View>
+        </View>
+
+        <Text style={styles.serviceName}>
+          {ride.pickupAddress || ride.pickupPostcode || 'GPS Location'} → {ride.destinationAddress}
+        </Text>
+
+        <View style={styles.detailRow}>
+          <Ionicons name="calendar-outline" size={14} color={COLORS.softSlate} />
+          <Text style={styles.detailText}>Requested {date}</Text>
+        </View>
+        {ride.estimatedCost != null && (
+          <View style={styles.detailRow}>
+            <Ionicons name="pricetag-outline" size={14} color={COLORS.softSlate} />
+            <Text style={styles.detailText}>Est. £{ride.estimatedCost.toFixed(2)}</Text>
+          </View>
+        )}
+        {ride.driverVehicle && (
+          <View style={styles.detailRow}>
+            <Ionicons name="car-sport-outline" size={14} color={COLORS.softSlate} />
+            <Text style={styles.detailText}>
+              {ride.driverVehicle.color} {ride.driverVehicle.make} {ride.driverVehicle.model}
+              {ride.driverVehicle.plateNumber ? ` (${ride.driverVehicle.plateNumber})` : ''}
+            </Text>
+          </View>
+        )}
+
+        {/* Cancel button for active rides */}
+        {['searching', 'accepted'].includes(ride.status) && (
+          <TouchableOpacity
+            style={styles.cancelBtn}
+            onPress={() => handleCancelRide(ride._id)}
+          >
+            <Ionicons name="close" size={16} color={COLORS.coralRed} />
+            <Text style={styles.cancelBtnText}>Cancel Ride</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
@@ -162,7 +265,7 @@ export function BookingsScreen() {
             activeOpacity={0.8}
           >
             <Text style={[styles.tabText, activeTab === 'active' && styles.activeTabText]}>
-              Active ({activeBookings.length})
+              Active ({activeBookings.length + activeRides.length})
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -171,7 +274,7 @@ export function BookingsScreen() {
             activeOpacity={0.8}
           >
             <Text style={[styles.tabText, activeTab === 'past' && styles.activeTabText]}>
-              Past ({pastBookings.length})
+              Past ({pastBookings.length + pastRides.length})
             </Text>
           </TouchableOpacity>
         </View>
@@ -187,7 +290,7 @@ export function BookingsScreen() {
             <View style={styles.emptyState}>
               <ActivityIndicator size="large" color={COLORS.electricTeal} />
             </View>
-          ) : displayBookings.length === 0 ? (
+          ) : (displayBookings.length === 0 && displayRides.length === 0) ? (
             <View style={styles.emptyState}>
               <View style={styles.iconCircle}>
                 <Ionicons name="calendar-outline" size={48} color={COLORS.electricTeal} />
@@ -202,7 +305,10 @@ export function BookingsScreen() {
               </Text>
             </View>
           ) : (
-            displayBookings.map(renderBookingCard)
+            <>
+              {displayRides.map(renderRideCard)}
+              {displayBookings.map(renderBookingCard)}
+            </>
           )}
         </ScrollView>
       </View>

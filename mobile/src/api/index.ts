@@ -59,9 +59,17 @@ export const searchApi = {
   searchDrivers: (query: string, page = 1, limit = 20) =>
     api.get<ApiResponse>(`/search/drivers?q=${encodeURIComponent(query)}&page=${page}&limit=${limit}`),
 
+  // Search drivers nearby
+  searchDriversNearby: (lat: number, lng: number, page = 1, limit = 20) =>
+    api.get<ApiResponse>(`/search/drivers/nearby?lat=${lat}&lng=${lng}&page=${page}&limit=${limit}`),
+
   // Search taxis by location
   searchTaxis: (query: string, page = 1, limit = 20) =>
     api.get<ApiResponse>(`/search/taxis?q=${encodeURIComponent(query)}&page=${page}&limit=${limit}`),
+
+  // Search taxis nearby
+  searchTaxisNearby: (lat: number, lng: number, page = 1, limit = 20) =>
+    api.get<ApiResponse>(`/search/taxis/nearby?lat=${lat}&lng=${lng}&page=${page}&limit=${limit}`),
 
   // Get parking space details
   getParkingDetail: (id: string) =>
@@ -167,6 +175,10 @@ export const chatApi = {
 };
 
 export const adminApi = {
+  // ── Users Management ──
+  getUsers: () =>
+    api.get<ApiResponse>('/users'),
+
   // ── Parking Space Verifications ──
   getPendingParkingVerifications: () =>
     api.get<ApiResponse>('/admin/verifications/parking'),

@@ -82,6 +82,17 @@ export function ConsumerHomeScreen() {
           <Text style={styles.bookingsText}>View My Bookings</Text>
           <Ionicons name="chevron-forward" size={18} color={COLORS.textTertiary} />
         </TouchableOpacity>
+
+        {/* Map Preview Demo Button */}
+        <TouchableOpacity
+          style={[styles.bookingsCard, { marginTop: SPACING.sm, borderColor: '#7C3AED', backgroundColor: '#F5F3FF' }]}
+          onPress={() => navigation.navigate('MapPreview' as any)}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="map-outline" size={20} color="#7C3AED" />
+          <Text style={[styles.bookingsText, { color: '#7C3AED' }]}>🗺️  Live Map Preview</Text>
+          <Ionicons name="chevron-forward" size={18} color="#7C3AED" />
+        </TouchableOpacity>
       </ScrollView>
     </View>
   );

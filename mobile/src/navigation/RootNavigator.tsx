@@ -41,6 +41,7 @@ import { AdminPlatformSettingsScreen } from '@/screens/AdminPlatformSettingsScre
 import { PassengerTrackingScreen } from '@/screens/PassengerTrackingScreen';
 import { EditProfileScreen } from '@/screens/EditProfileScreen';
 import { NotificationsScreen } from '@/screens/NotificationsScreen';
+import { MapPreviewScreen } from '@/screens/MapPreviewScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -126,6 +127,7 @@ const ConsumerNavigator = () => (
     <Stack.Screen name="EditProfile" component={EditProfileScreen} />
     <Stack.Screen name="Notifications" component={NotificationsScreen} />
     <Stack.Screen name="LegalDocument" component={LegalDocumentScreen} />
+    <Stack.Screen name="MapPreview" component={MapPreviewScreen} />
   </Stack.Navigator>
 );
 

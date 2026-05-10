@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, SafeAreaView
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, SafeAreaView,
+  ActivityIndicator
 } from 'react-native';
 import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useAuthStore } from '@/store/authStore';
 
 const DRIVER_DOCS = [
@@ -30,47 +31,63 @@ export function DriverVerificationScreen() {
   
   const [docStatuses, setDocStatuses] = useState<Record<string, { status: string; expiry?: Date }>>({});
   const [loading, setLoading] = useState(true);
+  const [overallStatus, setOverallStatus] = useState<string>('not_applied');
 
-  React.useEffect(() => {
-    const fetchStatus = async () => {
-      try {
-        const { providerApi } = await import('@/api');
-        const res = await providerApi.getVerificationStatus();
-        if (res.data?.success && res.data.data?.documents) {
-          const docs = res.data.data.documents;
-          
-          // Map backend documents to the local UI ids
-          const mapping: Record<string, string> = {
-            driverLicenseUrl: 'dvla_licence',
-            nationalIdUrl: 'nat_insurance',
-            proofOfAddressUrl: 'dvla_check_code', // Just as an example mapping
-          };
+  useFocusEffect(
+    useCallback(() => {
+      const fetchStatus = async () => {
+        setLoading(true);
+        try {
+          const { providerApi } = await import('@/api');
+          const res = await providerApi.getVerificationStatus();
+          if (res.data?.success) {
+            const data = res.data.data;
+            const backendStatus = data?.status || 'not_applied';
+            setOverallStatus(backendStatus);
+            
+            const docs = data?.documents || {};
+            
+            // Map backend documents to the local UI ids
+            const mapping: Record<string, string> = {
+              driverLicenseUrl: 'dvla_licence',
+              nationalIdUrl: 'nat_insurance',
+              proofOfAddressUrl: 'bank_statement',
+            };
 
-          const newStatuses: Record<string, { status: string }> = {};
-          
-          // Any document present in the DB is marked as 'Uploaded'
-          Object.keys(docs).forEach(key => {
-            if (docs[key]) {
-              const mappedId = mapping[key] || key;
-              newStatuses[mappedId] = { status: 'Uploaded' };
-            }
-          });
+            const newStatuses: Record<string, { status: string }> = {};
+            
+            // Determine per-document status based on overall verification status
+            Object.keys(docs).forEach(key => {
+              if (docs[key]) {
+                const mappedId = mapping[key] || key;
+                if (backendStatus === 'approved') {
+                  newStatuses[mappedId] = { status: 'Verified' };
+                } else if (backendStatus === 'pending_admin_review' || backendStatus === 'pending_auto_check') {
+                  newStatuses[mappedId] = { status: 'Uploaded, Await Review' };
+                } else if (backendStatus === 'rejected') {
+                  newStatuses[mappedId] = { status: 'Rejected' };
+                } else {
+                  newStatuses[mappedId] = { status: 'Uploaded' };
+                }
+              }
+            });
 
-          setDocStatuses(newStatuses);
+            setDocStatuses(newStatuses);
+          }
+        } catch (err) {
+          console.warn('Failed to fetch verification status', err);
+        } finally {
+          setLoading(false);
         }
-      } catch (err) {
-        console.warn('Failed to fetch verification status', err);
-      } finally {
-        setLoading(false);
-      }
-    };
+      };
 
-    fetchStatus();
-  }, []);
+      fetchStatus();
+    }, [])
+  );
 
   const getStatusColor = (status: string | undefined, optional: boolean) => {
-    if (status === 'Approved' || status === 'Completed') return COLORS.success;
-    if (status === 'Pending Review' || status === 'Uploaded') return COLORS.amber;
+    if (status === 'Verified') return COLORS.success;
+    if (status === 'Uploaded, Await Review' || status === 'Uploaded') return COLORS.amber;
     if (status === 'Rejected' || status === 'Expired') return COLORS.error;
     if (optional) return COLORS.textSecondary;
     return COLORS.textTertiary; // Not submitted — neutral grey
@@ -120,12 +137,39 @@ export function DriverVerificationScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.alertBox}>
-          <Ionicons name="information-circle" size={24} color={COLORS.info} />
-          <Text style={styles.alertText}>
-            Documents expire every 6 months. You will be notified 1 month before expiry to upload new ones.
-          </Text>
-        </View>
+        {/* Overall status banner */}
+        {overallStatus === 'approved' && (
+          <View style={[styles.alertBox, { backgroundColor: '#F0FFF4', borderColor: COLORS.success }]}>
+            <Ionicons name="checkmark-circle" size={24} color={COLORS.success} />
+            <Text style={[styles.alertText, { color: COLORS.success }]}>
+              Your documents have been verified! You are approved to accept rides.
+            </Text>
+          </View>
+        )}
+        {(overallStatus === 'pending_admin_review' || overallStatus === 'pending_auto_check') && (
+          <View style={[styles.alertBox, { backgroundColor: '#FFFBEB', borderColor: COLORS.amber }]}>
+            <Ionicons name="time" size={24} color={COLORS.amber} />
+            <Text style={[styles.alertText, { color: '#92400E' }]}>
+              Your documents have been submitted and are under review. You will be notified once approved.
+            </Text>
+          </View>
+        )}
+        {overallStatus === 'rejected' && (
+          <View style={[styles.alertBox, { backgroundColor: '#FEF2F2', borderColor: COLORS.error }]}>
+            <Ionicons name="warning" size={24} color={COLORS.error} />
+            <Text style={[styles.alertText, { color: COLORS.error }]}>
+              Your documents were rejected. Please review and resubmit.
+            </Text>
+          </View>
+        )}
+        {overallStatus === 'not_applied' && (
+          <View style={styles.alertBox}>
+            <Ionicons name="information-circle" size={24} color={COLORS.info} />
+            <Text style={styles.alertText}>
+              Documents expire every 6 months. You will be notified 1 month before expiry to upload new ones.
+            </Text>
+          </View>
+        )}
 
         <Text style={styles.sectionTitle}>Driver requirements</Text>
         <View style={styles.listContainer}>

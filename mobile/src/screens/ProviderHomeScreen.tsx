@@ -22,6 +22,10 @@ export function ProviderHomeScreen() {
   const [driverNumber, setDriverNumber] = useState<string | null>(null);
   const [togglingStatus, setTogglingStatus] = useState(false);
 
+  // Verification gate state
+  const [verificationStatus, setVerificationStatus] = useState<string | null>(null);
+  const [verificationLoading, setVerificationLoading] = useState(true);
+
   const fetchStats = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     try {
@@ -68,6 +72,28 @@ export function ProviderHomeScreen() {
   useFocusEffect(
     useCallback(() => {
       fetchStats();
+
+      // Check verification status for drivers/taxi drivers
+      if (isDriverOrTaxi) {
+        const checkVerification = async () => {
+          setVerificationLoading(true);
+          try {
+            const res = await providerApi.getVerificationStatus();
+            if (res.data?.success) {
+              setVerificationStatus(res.data.data?.status || 'not_applied');
+            } else {
+              setVerificationStatus('not_applied');
+            }
+          } catch (err) {
+            setVerificationStatus('not_applied');
+          } finally {
+            setVerificationLoading(false);
+          }
+        };
+        checkVerification();
+      } else {
+        setVerificationLoading(false);
+      }
     }, [])
   );
 
@@ -101,6 +127,103 @@ export function ProviderHomeScreen() {
       : user?.role === 'taxi_driver'
         ? 'Taxi Driver'
         : 'Provider';
+
+  // ── Verification Gate ──
+  // Show loading while checking
+  if (isDriverOrTaxi && verificationLoading) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={COLORS.electricTeal} />
+          <Text style={{ color: COLORS.textSecondary, marginTop: SPACING.md }}>Checking verification...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Show verification gate if not approved
+  if (isDriverOrTaxi && verificationStatus !== 'approved') {
+    const getGateMessage = () => {
+      switch (verificationStatus) {
+        case 'pending_admin_review':
+        case 'pending_auto_check':
+          return {
+            icon: 'time-outline' as const,
+            title: 'Verification Under Review',
+            description: 'Your documents have been submitted and are currently being reviewed. You will be notified once your account is approved.',
+            iconColor: COLORS.amber,
+            showButton: false,
+          };
+        case 'rejected':
+          return {
+            icon: 'close-circle-outline' as const,
+            title: 'Verification Rejected',
+            description: 'Your documents were rejected. Please review the feedback and resubmit your documents.',
+            iconColor: COLORS.error,
+            showButton: true,
+          };
+        default:
+          return {
+            icon: 'shield-checkmark-outline' as const,
+            title: 'Complete Your Verification',
+            description: 'You need to submit your documents for verification before you can access your dashboard and start accepting rides.',
+            iconColor: COLORS.electricTeal,
+            showButton: true,
+          };
+      }
+    };
+
+    const gate = getGateMessage();
+
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.container}>
+          {/* Header */}
+          <View style={styles.header}>
+            <View>
+              <Text style={styles.greeting}>Welcome, {user?.firstName || 'Provider'}</Text>
+              <Text style={styles.roleTag}>{roleLabel} Dashboard</Text>
+            </View>
+            <TouchableOpacity onPress={() => navigation.navigate('ProviderProfile')} style={styles.profileBtn}>
+              <View style={styles.avatarCircle}>
+                {user?.profileImageUrl ? (
+                  <Image source={{ uri: user.profileImageUrl }} style={{ width: 40, height: 40, borderRadius: 20 }} />
+                ) : (
+                  <Text style={styles.avatarText}>{user?.firstName?.charAt(0) || 'P'}</Text>
+                )}
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.verificationGate}>
+            <View style={[styles.gateIconCircle, { backgroundColor: `${gate.iconColor}15` }]}>
+              <Ionicons name={gate.icon} size={64} color={gate.iconColor} />
+            </View>
+            <Text style={styles.gateTitle}>{gate.title}</Text>
+            <Text style={styles.gateDescription}>{gate.description}</Text>
+
+            {gate.showButton && (
+              <TouchableOpacity
+                style={styles.gateButton}
+                onPress={() => navigation.navigate('DriverVerification')}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="document-text-outline" size={20} color="#FFF" style={{ marginRight: 8 }} />
+                <Text style={styles.gateButtonText}>Go to Verification</Text>
+              </TouchableOpacity>
+            )}
+
+            {verificationStatus === 'pending_admin_review' || verificationStatus === 'pending_auto_check' ? (
+              <View style={styles.gatePendingBadge}>
+                <ActivityIndicator size="small" color={COLORS.amber} style={{ marginRight: 8 }} />
+                <Text style={styles.gatePendingText}>Waiting for admin approval...</Text>
+              </View>
+            ) : null}
+          </View>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -414,4 +537,70 @@ const styles = StyleSheet.create({
   actionContent: { flex: 1 },
   actionTitle: { color: COLORS.textPrimary, fontSize: 16, fontWeight: FONT_WEIGHTS.semibold },
   actionSubtext: { color: COLORS.textSecondary, fontSize: 13, marginTop: 2 },
+
+  // Verification Gate
+  verificationGate: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.xl,
+  },
+  gateIconCircle: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: SPACING.xl,
+  },
+  gateTitle: {
+    color: COLORS.textPrimary,
+    fontSize: 24,
+    fontWeight: FONT_WEIGHTS.bold,
+    textAlign: 'center',
+    marginBottom: SPACING.md,
+  },
+  gateDescription: {
+    color: COLORS.textSecondary,
+    fontSize: 16,
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: SPACING.xl,
+    maxWidth: '90%',
+  },
+  gateButton: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.electricTeal,
+    paddingVertical: SPACING.lg,
+    paddingHorizontal: SPACING['2xl'],
+    borderRadius: BORDER_RADIUS.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: COLORS.electricTeal,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+    marginBottom: SPACING.lg,
+  },
+  gateButtonText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: FONT_WEIGHTS.bold,
+  },
+  gatePendingBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: `${COLORS.amber}10`,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    borderColor: `${COLORS.amber}30`,
+  },
+  gatePendingText: {
+    color: COLORS.amber,
+    fontSize: 14,
+    fontWeight: FONT_WEIGHTS.medium,
+  },
 });
