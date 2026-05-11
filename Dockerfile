@@ -28,6 +28,15 @@ RUN npm ci --omit=dev
 
 COPY --from=builder /app/dist ./dist
 
+# ✅ COPY EMAIL TEMPLATES (THIS IS WHAT YOU MISSED)
+#COPY --from=builder /app/src/email/templates ./src/email/templates
+# ✅ Copy required runtime source folders (your fix)
+#COPY --from=builder /app/src/email ./src/email
+#COPY --from=builder /app/src/verification ./src/verification
+#COPY --from=builder /app/src/common ./src/common
+COPY --from=builder /app/src ./src
+
+
 # Set permissions
 RUN chown -R appuser:appgroup /app
 
