@@ -85,21 +85,65 @@ export function DocumentUploadScreen() {
     setIsUploading(true);
 
     try {
-      // TODO: Actually upload via API here to backend storage
-      // const formData = new FormData();
-      // formData.append('file', { uri: documentUri, name: documentName, type: 'image/jpeg' });
-      // await providerApi.uploadDocument(docId, formData);
+      const { providerApi } = await import('@/api');
+      const { useAuthStore } = await import('@/store/authStore');
+      const user = useAuthStore.getState().user;
+      const role = user?.role;
 
-      // Simulate network request
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Map the document ID to the correct field name for the backend
+      const docFieldMapping: Record<string, string> = {
+        dvla_licence: 'driverLicenseUrl',
+        nat_insurance: 'nationalIdUrl',
+        bank_statement: 'proofOfAddressUrl',
+        dvla_check_code: 'proofOfAddressUrl',
+        phv_driver_licence: 'driverLicenseUrl',
+        profile_photo: 'nationalIdUrl',
+        vat_cert: 'nationalIdUrl',
+        // Vehicle docs
+        phvl: 'driverLicenseUrl',
+        v5c: 'nationalIdUrl',
+        insurance: 'proofOfAddressUrl',
+        vehicle_inspection: 'proofOfAddressUrl',
+      };
 
-      Alert.alert('Success', 'Document uploaded successfully! It is now pending verification.');
-      navigation.goBack();
-    } catch (error) {
-      Alert.alert('Error', 'Failed to upload document. Try again.');
+      const fieldName = docFieldMapping[docId] || 'driverLicenseUrl';
+
+      // Submit the document URI to the verification endpoint
+      // This updates the backend status to 'pending_admin_review'
+      const submitData: Record<string, string> = {};
+      submitData[fieldName] = documentUri;
+
+      let res;
+      if (role === 'taxi_driver') {
+        res = await providerApi.submitTaxiVerification(submitData as any);
+      } else {
+        res = await providerApi.submitDriverVerification(submitData as any);
+      }
+
+      if (res.data?.success) {
+        Alert.alert(
+          'Document Uploaded! ✅', 
+          'Your document has been submitted and is now pending review. Status: Uploaded, Await Review.',
+          [{ text: 'OK', onPress: () => navigation.goBack() }]
+        );
+      } else {
+        Alert.alert('Error', res.data?.message || 'Failed to upload document.');
+      }
+    } catch (error: any) {
+      const message = error?.response?.data?.message || error?.message || 'Failed to upload document. Try again.';
+      Alert.alert('Error', message);
     } finally {
       setIsUploading(false);
     }
+  };
+
+  // Check if the file is an image for preview purposes
+  const isImageFile = () => {
+    if (!documentName) return false;
+    const name = documentName.toLowerCase();
+    return name.match(/\.(jpg|jpeg|png|gif|webp)$/) || 
+           name === 'camera_photo.jpg' || 
+           name === 'uploaded_image.jpg';
   };
 
   return (
@@ -119,6 +163,27 @@ export function DocumentUploadScreen() {
             Please upload a clear, legible copy of your {docTitle}. Ensure all corners are visible and the text is readable. Supported formats: JPEG, PNG, PDF.
           </Text>
         </View>
+
+        {docStatus === 'Verified' && (
+          <View style={[styles.statusBox, { backgroundColor: '#F0FFF4', borderColor: COLORS.success }]}>
+            <Ionicons name="checkmark-circle" size={20} color={COLORS.success} style={{ marginRight: 8 }} />
+            <Text style={[styles.statusText, { color: COLORS.success }]}>This document has been verified. You can upload a new one to replace it.</Text>
+          </View>
+        )}
+
+        {docStatus === 'Uploaded, Await Review' && (
+          <View style={[styles.statusBox, { backgroundColor: '#FFFBEB', borderColor: COLORS.amber }]}>
+            <Ionicons name="time" size={20} color={COLORS.amber} style={{ marginRight: 8 }} />
+            <Text style={[styles.statusText, { color: '#92400E' }]}>Document uploaded and awaiting admin review. You can upload a new one to replace it.</Text>
+          </View>
+        )}
+
+        {docStatus === 'Rejected' && (
+          <View style={[styles.statusBox, { backgroundColor: '#FEF2F2', borderColor: COLORS.error }]}>
+            <Ionicons name="warning" size={20} color={COLORS.error} style={{ marginRight: 8 }} />
+            <Text style={[styles.statusText, { color: COLORS.error }]}>This document was rejected. Please upload a new, valid document.</Text>
+          </View>
+        )}
 
         {docStatus === 'Completed' && (
           <View style={styles.statusBox}>
@@ -147,11 +212,11 @@ export function DocumentUploadScreen() {
             <View style={styles.previewHeader}>
               <Ionicons name="document-attach" size={20} color={COLORS.textPrimary} />
               <Text style={styles.previewName} numberOfLines={1}>{documentName}</Text>
-              <TouchableOpacity onPress={() => setDocumentUri(null)}>
+              <TouchableOpacity onPress={() => { setDocumentUri(null); setDocumentName(null); }}>
                 <Ionicons name="close-circle" size={22} color={COLORS.error} />
               </TouchableOpacity>
             </View>
-            {documentName?.toLowerCase().match(/\.(jpg|jpeg|png)$/) ? (
+            {isImageFile() ? (
               <Image source={{ uri: documentUri }} style={styles.imagePreview} />
             ) : (
               <View style={styles.docPreview}>
@@ -171,7 +236,10 @@ export function DocumentUploadScreen() {
           disabled={!documentUri || isUploading}
         >
           {isUploading ? (
-            <ActivityIndicator color="#FFF" />
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <ActivityIndicator color="#FFF" style={{ marginRight: 8 }} />
+              <Text style={styles.submitBtnText}>Uploading...</Text>
+            </View>
           ) : (
             <Text style={styles.submitBtnText}>Upload Document</Text>
           )}

@@ -16,8 +16,8 @@ Notifications.setNotificationHandler({
 
 export function usePushNotifications(isAuthenticated: boolean) {
   const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
-  const notificationListener = useRef<Notifications.EventSubscription>();
-  const responseListener = useRef<Notifications.EventSubscription>();
+  const notificationListener = useRef<any>(null);
+  const responseListener = useRef<any>(null);
 
   useEffect(() => {
     if (!isAuthenticated) return;

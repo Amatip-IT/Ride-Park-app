@@ -121,8 +121,8 @@ export function SearchScreen() {
 
   const handleSearch = useCallback(async () => {
     const query = searchQuery.trim();
-    if (!query) {
-      Alert.alert('Search', 'Please enter a location, postcode, or driver number');
+    if (!query && serviceType === 'parking') {
+      Alert.alert('Search', 'Please enter a location or postcode');
       return;
     }
 
@@ -160,11 +160,6 @@ export function SearchScreen() {
   }, [searchQuery, serviceType]);
 
   const handleLocationSearch = useCallback(async () => {
-    if (serviceType !== 'parking') {
-      Alert.alert('Info', 'Location search currently only supports parking spaces.');
-      return;
-    }
-
     setIsSearching(true);
     setHasSearched(true);
     setSearchQuery('');
@@ -181,10 +176,18 @@ export function SearchScreen() {
         accuracy: Location.Accuracy.Balanced,
       });
 
-      const response = await searchApi.searchParkingNearby(
-        location.coords.latitude,
-        location.coords.longitude
-      );
+      let response;
+      switch (serviceType) {
+        case 'parking':
+          response = await searchApi.searchParkingNearby(location.coords.latitude, location.coords.longitude);
+          break;
+        case 'driver':
+          response = await searchApi.searchDriversNearby(location.coords.latitude, location.coords.longitude);
+          break;
+        case 'taxi':
+          response = await searchApi.searchTaxisNearby(location.coords.latitude, location.coords.longitude);
+          break;
+      }
 
       const data = response.data;
       if (data.success) {
@@ -204,12 +207,20 @@ export function SearchScreen() {
 
   const handleServiceChange = (type: ServiceType) => {
     setServiceType(type);
+    setSearchQuery('');
     setResults([]);
     setHasSearched(false);
     setResultMessage('');
     setSuggestions([]);
     setShowSuggestions(false);
   };
+
+  // Automatically load all drivers/taxis when tab changes to them
+  useEffect(() => {
+    if (serviceType === 'driver' || serviceType === 'taxi') {
+      handleSearch();
+    }
+  }, [serviceType]);
 
   const handleParkingTap = (space: any) => {
     navigation.navigate('ParkingDetail', { spaceId: space._id, space });
@@ -246,7 +257,13 @@ export function SearchScreen() {
     const user = item.user || {};
     const driverNum = item.driverNumber;
 
+    const isOnline = item.availability === 'online';
+
     const handleSelectDriver = () => {
+      if (!isOnline) {
+        Alert.alert('Driver Offline', 'This driver is currently offline and cannot accept requests.');
+        return;
+      }
       Alert.alert(
         'Driver Details',
         `Name: ${user.firstName} ${user.lastName}\nDriver #: ${driverNum || 'N/A'}\nRate: £1.10/mile\nFrom: ${user.address?.town || user.postCode || 'N/A'}\n\nDo you want to request this specific driver?`,
@@ -267,9 +284,9 @@ export function SearchScreen() {
             <Text style={styles.cardTitle}>{user.firstName} {user.lastName}</Text>
             {driverNum && <Text style={styles.driverNumber}>Driver #{driverNum}</Text>}
           </View>
-          <View style={styles.statusOnline}>
-            <View style={styles.statusDot} />
-            <Text style={styles.statusOnlineText}>Online</Text>
+          <View style={[styles.statusOnline, !isOnline && { backgroundColor: '#F1F5F9' }]}>
+            <View style={[styles.statusDot, !isOnline && { backgroundColor: COLORS.textTertiary }]} />
+            <Text style={[styles.statusOnlineText, !isOnline && { color: COLORS.textTertiary }]}>{isOnline ? 'Online' : 'Offline'}</Text>
           </View>
         </View>
         <View style={styles.cardFooter}>
@@ -290,7 +307,13 @@ export function SearchScreen() {
     const user = item.user || {};
     const driverNum = item.driverNumber;
 
+    const isOnline = item.availability === 'online';
+
     const handleSelectTaxi = () => {
+      if (!isOnline) {
+        Alert.alert('Taxi Offline', 'This taxi is currently offline and cannot accept requests.');
+        return;
+      }
       Alert.alert(
         'Taxi Details',
         `Name: ${user.firstName} ${user.lastName}\nTaxi #: ${driverNum || 'N/A'}\nVehicle: ${item.vehicleInfo?.make || 'Standard'} ${item.vehicleInfo?.model || 'Vehicle'}\nRate: £1.10/mi + £0.20/min\n\nWould you like to broadcast a ride request for a taxi?`,
@@ -311,9 +334,9 @@ export function SearchScreen() {
             <Text style={styles.cardTitle}>{user.firstName} {user.lastName}</Text>
             {driverNum && <Text style={styles.driverNumber}>Taxi #{driverNum}</Text>}
           </View>
-          <View style={styles.statusOnline}>
-            <View style={styles.statusDot} />
-            <Text style={styles.statusOnlineText}>Online</Text>
+          <View style={[styles.statusOnline, !isOnline && { backgroundColor: '#F1F5F9' }]}>
+            <View style={[styles.statusDot, !isOnline && { backgroundColor: COLORS.textTertiary }]} />
+            <Text style={[styles.statusOnlineText, !isOnline && { color: COLORS.textTertiary }]}>{isOnline ? 'Online' : 'Offline'}</Text>
           </View>
         </View>
         {item.vehicleInfo?.make && (

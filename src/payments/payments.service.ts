@@ -79,4 +79,36 @@ export class PaymentsService {
       throw new HttpException(e.message, HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
+
+  async chargeCustomer(userId: string, amount: number, description: string) {
+    try {
+      const customerId = await this.getOrCreateCustomer(userId);
+      
+      const paymentMethods = await this.stripe.paymentMethods.list({
+        customer: customerId,
+        type: 'card',
+      });
+
+      if (paymentMethods.data.length === 0) {
+        throw new HttpException('No payment method found for user. Please add a card before requesting a ride.', HttpStatus.BAD_REQUEST);
+      }
+
+      const paymentIntent = await this.stripe.paymentIntents.create({
+        amount: Math.round(amount * 100), // Stripe expects amounts in pence/cents
+        currency: 'gbp',
+        customer: customerId,
+        payment_method: paymentMethods.data[0].id,
+        off_session: true,
+        confirm: true,
+        description,
+      });
+
+      return paymentIntent;
+    } catch (e: any) {
+      throw new HttpException(
+        e.type === 'StripeCardError' ? 'Payment declined: ' + e.message : 'Payment failed: ' + e.message, 
+        HttpStatus.BAD_REQUEST
+      );
+    }
+  }
 }

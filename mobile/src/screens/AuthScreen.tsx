@@ -85,7 +85,7 @@ export function AuthScreen() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [showLoginPassword, setShowLoginPassword] = useState(false);
 
-  const { sendOtp, verifyOtp, formatTime, error, loading, otpAttempts, clearError } =
+  const { sendOtp, sendLoginOtp, verifyOtp, formatTime, error, loading, otpAttempts, clearError } =
     useEmailOtp();
   const { login: storeLogin, setIsLoading, setError: setStoreError } = useAuthStore();
 
@@ -105,8 +105,9 @@ export function AuthScreen() {
     if (!formData.phoneNumber.trim() || formData.phoneNumber.length < 10) {
       Alert.alert('Error', 'Please enter a valid phone number'); return;
     }
-    if (!formData.password.trim() || formData.password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters'); return;
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+    if (!passwordRegex.test(formData.password)) {
+      Alert.alert('Error', 'Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character'); return;
     }
     if (formData.password !== formData.confirmPassword) {
       Alert.alert('Error', 'Passwords do not match'); return;
@@ -254,28 +255,38 @@ export function AuthScreen() {
       return;
     }
 
-    const emailToVerify = formData.email;
-    const success = await verifyOtp(emailToVerify, otp);
-    
-    if (success) {
+    if (isLogin) {
       setIsLoading(true);
       try {
         const loginRes = await authService.login({
-          email: formData.email,
-          password: formData.password,
+          email: loginData.email,
+          password: loginData.password,
+          otp: otp
         });
 
         const res: any = loginRes;
         if (res.success && res.token && res.data) {
           await storeLogin(res.data as any, res.token);
         } else {
-          Alert.alert('Notice', 'Verified! Please sign in.');
-          setCurrentStep('login');
+          setStoreError(res.message || 'OTP verification failed');
+          Alert.alert('Error', res.message || 'OTP verification failed');
         }
       } catch (err) {
-        setCurrentStep('login');
+        const errorMsg = err instanceof Error ? err.message : 'OTP verification failed';
+        setStoreError(errorMsg);
+        Alert.alert('Error', errorMsg);
       } finally {
         setIsLoading(false);
+      }
+    } else {
+      const emailToVerify = formData.email;
+      const success = await verifyOtp(emailToVerify, otp);
+      
+      if (success) {
+        Alert.alert('Success', 'Email verified! Please sign in.');
+        setLoginData({ email: formData.email, password: formData.password });
+        setIsLogin(true);
+        setCurrentStep('login');
       }
     }
   };
@@ -290,13 +301,20 @@ export function AuthScreen() {
     try {
       const response = await authService.login(loginData);
 
-      if (!response.success) {
-        setStoreError(response.message || 'Login failed');
-        Alert.alert('Error', response.message || 'Failed to login');
+      const res: any = response;
+      if (!res.success) {
+        setStoreError(res.message || 'Login failed');
+        Alert.alert('Error', res.message || 'Failed to login');
         return;
       }
 
-      const res: any = response;
+      if (res.requiresOTP) {
+        Alert.alert('Notice', res.message || 'OTP verification required');
+        setOtp('');
+        setCurrentStep('otp');
+        return;
+      }
+
       if (res.token && res.data) {
         await storeLogin(res.data as any, res.token);
       } else {
@@ -312,7 +330,11 @@ export function AuthScreen() {
   };
 
   const handleResendOtp = async () => {
-    await sendOtp(formData.email);
+    if (isLogin) {
+      await sendLoginOtp(loginData.email);
+    } else {
+      await sendOtp(formData.email);
+    }
   };
 
   const toggleAuthMode = () => {
@@ -487,7 +509,7 @@ export function AuthScreen() {
             <View style={[styles.inputWrapper, { position: 'relative' }]}>
               <TextInput
                 style={styles.input}
-                placeholder="Password (min 6 chars)"
+                placeholder="Password (min 8 chars)"
                 placeholderTextColor={COLORS.textTertiary}
                 value={formData.password}
                 onChangeText={(text) => setFormData({ ...formData, password: text })}
@@ -800,7 +822,7 @@ export function AuthScreen() {
           <View style={styles.formContainer}>
             <Text style={styles.label}>Verify Email</Text>
             <Text style={styles.subtitle}>
-              Enter the 6-digit code sent to {formData.email}
+              Enter the 6-digit code sent to {isLogin ? loginData.email : formData.email}
             </Text>
 
             <View style={styles.inputWrapper}>

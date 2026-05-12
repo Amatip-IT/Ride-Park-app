@@ -36,9 +36,12 @@ import { ServiceChoiceScreen } from '@/screens/ServiceChoiceScreen';
 import { DriverRequestScreen } from '@/screens/DriverRequestScreen';
 import { ProviderActiveJourneyScreen } from '@/screens/ProviderActiveJourneyScreen';
 import { AdminProviderDetailScreen } from '@/screens/AdminProviderDetailScreen';
+import { AdminPayoutsQueueScreen } from '@/screens/AdminPayoutsQueueScreen';
+import { AdminPlatformSettingsScreen } from '@/screens/AdminPlatformSettingsScreen';
 import { PassengerTrackingScreen } from '@/screens/PassengerTrackingScreen';
 import { EditProfileScreen } from '@/screens/EditProfileScreen';
 import { NotificationsScreen } from '@/screens/NotificationsScreen';
+import { MapPreviewScreen } from '@/screens/MapPreviewScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -124,6 +127,7 @@ const ConsumerNavigator = () => (
     <Stack.Screen name="EditProfile" component={EditProfileScreen} />
     <Stack.Screen name="Notifications" component={NotificationsScreen} />
     <Stack.Screen name="LegalDocument" component={LegalDocumentScreen} />
+    <Stack.Screen name="MapPreview" component={MapPreviewScreen} />
   </Stack.Navigator>
 );
 
@@ -247,6 +251,8 @@ const AdminNavigator = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="AdminTabs" component={AdminTabs} />
     <Stack.Screen name="AdminProviderDetail" component={AdminProviderDetailScreen} />
+    <Stack.Screen name="AdminPayoutsQueue" component={AdminPayoutsQueueScreen} />
+    <Stack.Screen name="AdminPlatformSettings" component={AdminPlatformSettingsScreen} />
   </Stack.Navigator>
 );
 

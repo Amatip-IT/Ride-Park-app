@@ -1,11 +1,11 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Platform, SafeAreaView, ActivityIndicator, Alert, TextInput,
 } from 'react-native';
 import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation, NavigationProp, useRoute, RouteProp } from '@react-navigation/native';
+import { useNavigation, NavigationProp, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
 import { taxiBookingsApi } from '@/api';
 import * as Location from 'expo-location';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -47,6 +47,33 @@ export function TaxiBookingScreen() {
   // Submission
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeRequest, setActiveRequest] = useState<any>(null);
+  const [loadingActiveRequest, setLoadingActiveRequest] = useState(true);
+  const [isCancelling, setIsCancelling] = useState(false);
+
+  // On screen focus, check if there's already an active ride request
+  useFocusEffect(
+    useCallback(() => {
+      const checkExistingRequest = async () => {
+        setLoadingActiveRequest(true);
+        try {
+          const res = await taxiBookingsApi.getMyRequests();
+          if (res.data?.success && res.data.data) {
+            const active = res.data.data.find(
+              (r: any) => ['searching', 'accepted'].includes(r.status)
+            );
+            if (active) {
+              setActiveRequest(active);
+            }
+          }
+        } catch (err) {
+          // Silently fail — the user can still create a new request
+        } finally {
+          setLoadingActiveRequest(false);
+        }
+      };
+      checkExistingRequest();
+    }, [])
+  );
 
   const handleUseMyLocation = useCallback(async () => {
     setFetchingLocation(true);
@@ -146,12 +173,22 @@ export function TaxiBookingScreen() {
         text: 'Yes, Cancel',
         style: 'destructive',
         onPress: async () => {
+          setIsCancelling(true);
           try {
-            await taxiBookingsApi.cancelRequest(activeRequest._id);
-            setActiveRequest(null);
-            Alert.alert('Cancelled', 'Your ride request has been cancelled.');
-          } catch (error) {
-            Alert.alert('Error', 'Failed to cancel. Try again.');
+            const res = await taxiBookingsApi.cancelRequest(activeRequest._id);
+            if (res.data?.success) {
+              setActiveRequest(null);
+              Alert.alert('Cancelled', 'Your ride request has been cancelled.');
+            } else {
+              Alert.alert('Error', res.data?.message || 'Failed to cancel ride request.');
+            }
+          } catch (error: any) {
+            const message = error?.response?.data?.message 
+              || error?.message 
+              || 'Failed to cancel. Try again.';
+            Alert.alert('Error', message);
+          } finally {
+            setIsCancelling(false);
           }
         },
       },
@@ -164,6 +201,18 @@ export function TaxiBookingScreen() {
       setScheduledTime(selected);
     }
   };
+
+  // Show loading state while checking for existing request
+  if (loadingActiveRequest) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+          <ActivityIndicator size="large" color={COLORS.electricTeal} />
+          <Text style={{ color: COLORS.textSecondary, marginTop: SPACING.md }}>Checking active requests...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   // If we have an active request, show the waiting/matched view
   if (activeRequest) {
@@ -258,8 +307,17 @@ export function TaxiBookingScreen() {
             )}
 
             {/* Cancel button */}
-            <TouchableOpacity style={styles.cancelBtn} onPress={handleCancel} activeOpacity={0.7}>
-              <Text style={styles.cancelBtnText}>Cancel Ride</Text>
+            <TouchableOpacity 
+              style={[styles.cancelBtn, isCancelling && { opacity: 0.6 }]} 
+              onPress={handleCancel} 
+              activeOpacity={0.7}
+              disabled={isCancelling}
+            >
+              {isCancelling ? (
+                <ActivityIndicator size="small" color={COLORS.error} />
+              ) : (
+                <Text style={styles.cancelBtnText}>Cancel Ride</Text>
+              )}
             </TouchableOpacity>
           </ScrollView>
         </View>

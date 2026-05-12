@@ -88,4 +88,47 @@ export class AdminController {
     }
     return result;
   }
+
+  // ── Platform Settings ──
+
+  @Get('settings')
+  async getPlatformSettings() {
+    const result = await this.adminService.getPlatformSettings();
+    if (!result.success) throw new HttpException(result, HttpStatus.INTERNAL_SERVER_ERROR);
+    return result;
+  }
+
+  @Post('settings/fee')
+  async updatePlatformFee(@Body('percentage') percentage: number) {
+    if (percentage === undefined || percentage < 0 || percentage > 100) {
+      throw new HttpException('Invalid percentage', HttpStatus.BAD_REQUEST);
+    }
+    const result = await this.adminService.updatePlatformFee(percentage);
+    if (!result.success) throw new HttpException(result, HttpStatus.INTERNAL_SERVER_ERROR);
+    return result;
+  }
+
+  // ── Payouts (Withdrawals) ──
+
+  @Get('withdrawals')
+  async getPendingWithdrawals() {
+    const result = await this.adminService.getPendingWithdrawals();
+    if (!result.success) throw new HttpException(result, HttpStatus.INTERNAL_SERVER_ERROR);
+    return result;
+  }
+
+  @Post('withdrawals/:id/approve')
+  async approveWithdrawal(@Param('id') id: string) {
+    const result = await this.adminService.approveWithdrawal(id);
+    if (!result.success) throw new HttpException(result, HttpStatus.BAD_REQUEST);
+    return result;
+  }
+
+  @Post('withdrawals/:id/reject')
+  async rejectWithdrawal(@Param('id') id: string, @Body('reason') reason: string) {
+    if (!reason) throw new HttpException('Rejection reason required', HttpStatus.BAD_REQUEST);
+    const result = await this.adminService.rejectWithdrawal(id, reason);
+    if (!result.success) throw new HttpException(result, HttpStatus.BAD_REQUEST);
+    return result;
+  }
 }

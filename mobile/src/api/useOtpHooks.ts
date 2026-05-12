@@ -217,6 +217,46 @@ export const useEmailOtp = () => {
   };
 
   /**
+   * Send Login OTP to email
+   */
+  const sendLoginOtp = async (email: string): Promise<boolean> => {
+    try {
+      setState({ loading: true, error: null, expiresIn: null, remainingTime: 0 });
+
+      const response = await authService.resendLoginOtp(email);
+
+      if (!response.success) {
+        setState({
+          loading: false,
+          error: response.message || 'Failed to send login OTP',
+          expiresIn: null,
+          remainingTime: 0,
+        });
+        return false;
+      }
+
+      setState({
+        loading: false,
+        error: null,
+        expiresIn: response.data?.expiresIn || '10 minutes',
+        remainingTime: 600,
+      });
+
+      startCountdown();
+      return true;
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Unknown error occurred';
+      setState({
+        loading: false,
+        error: errorMsg,
+        expiresIn: null,
+        remainingTime: 0,
+      });
+      return false;
+    }
+  };
+
+  /**
    * Verify email OTP
    */
   const verifyOtp = async (email: string, otp: string): Promise<boolean> => {
@@ -311,6 +351,7 @@ export const useEmailOtp = () => {
   return {
     ...state,
     sendOtp,
+    sendLoginOtp,
     verifyOtp,
     resendOtp,
     formatTime,

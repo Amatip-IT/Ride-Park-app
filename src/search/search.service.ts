@@ -243,86 +243,58 @@ export class SearchService {
       const skip = (page - 1) * limit;
       const cleanQuery = query.trim();
 
-      if (!cleanQuery) {
-        return { success: false, message: 'Please enter a location or driver number to search' };
+      let filter: any = {
+        isVerified: true,
+        isActive: true,
+      };
+
+      if (cleanQuery) {
+        const isDriverNumber = /^\d+$/.test(cleanQuery);
+        
+        if (isDriverNumber) {
+          filter.driverNumber = cleanQuery.padStart(3, '0');
+        } else {
+          const driverUsers = await this.userModel
+            .find({
+              role: 'driver',
+              $or: [
+                { postCode: { $regex: new RegExp(`^${cleanQuery}`, 'i') } },
+                { 'address.town': { $regex: new RegExp(cleanQuery, 'i') } },
+                { 'address.county': { $regex: new RegExp(cleanQuery, 'i') } },
+                { firstName: { $regex: new RegExp(cleanQuery, 'i') } },
+                { lastName: { $regex: new RegExp(cleanQuery, 'i') } },
+              ],
+            })
+            .select('_id')
+            .exec();
+
+          if (driverUsers.length === 0) {
+            return {
+              success: true,
+              data: [],
+              message: `No drivers found matching "${cleanQuery}"`,
+            };
+          }
+          filter.user = { $in: driverUsers.map(u => u._id) };
+        }
       }
 
-      // Check if query is a driver number (all digits)
-      const isDriverNumber = /^\d+$/.test(cleanQuery);
-
-      if (isDriverNumber) {
-        // Search by driver number directly
-        const paddedNumber = cleanQuery.padStart(3, '0');
-        const drivers = await this.chauffeurModel
-          .find({
-            driverNumber: paddedNumber,
-            isVerified: true,
-            isActive: true,
-          })
-          .populate('user', 'firstName lastName postCode address phoneNumber')
-          .exec();
-
-        return {
-          success: true,
-          data: drivers,
-          message: drivers.length
-            ? `Found driver #${paddedNumber}`
-            : `No driver found with number #${paddedNumber}`,
-        };
-      }
-
-      // Find users who are drivers and match the location query
-      const driverUsers = await this.userModel
-        .find({
-          role: 'driver',
-          $or: [
-            { postCode: { $regex: new RegExp(`^${cleanQuery}`, 'i') } },
-            { 'address.town': { $regex: new RegExp(cleanQuery, 'i') } },
-            { 'address.county': { $regex: new RegExp(cleanQuery, 'i') } },
-            { firstName: { $regex: new RegExp(cleanQuery, 'i') } },
-            { lastName: { $regex: new RegExp(cleanQuery, 'i') } },
-          ],
-        })
-        .select('_id firstName lastName postCode address')
-        .exec();
-
-      if (driverUsers.length === 0) {
-        return {
-          success: true,
-          data: [],
-          message: `No drivers found near "${cleanQuery}"`,
-        };
-      }
-
-      const driverUserIds = driverUsers.map((u: any) => u._id);
-
-      // Find verified chauffeur records for those users
       const [drivers, total] = await Promise.all([
         this.chauffeurModel
-          .find({
-            user: { $in: driverUserIds },
-            isVerified: true,
-            isActive: true,
-            availability: 'online',
-          })
+          .find(filter)
           .populate('user', 'firstName lastName postCode address phoneNumber')
           .skip(skip)
           .limit(limit)
           .exec(),
-        this.chauffeurModel.countDocuments({
-          user: { $in: driverUserIds },
-          isVerified: true,
-          isActive: true,
-          availability: 'online',
-        }).exec(),
+        this.chauffeurModel.countDocuments(filter).exec(),
       ]);
 
       return {
         success: true,
         data: drivers,
         message: drivers.length
-          ? `Found ${total} driver(s) near "${cleanQuery}"`
-          : `No available drivers near "${cleanQuery}"`,
+          ? (cleanQuery ? `Found ${total} driver(s)` : `Loaded all ${total} driver(s)`)
+          : (cleanQuery ? `No drivers found` : `No drivers available`),
         meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
       };
     } catch (error) {
@@ -330,6 +302,62 @@ export class SearchService {
         success: false,
         message: `Search failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
       };
+    }
+  }
+
+  async searchDriversByLocation(
+    lat: number,
+    lng: number,
+    page = 1,
+    limit = 20,
+  ): Promise<Response> {
+    try {
+      const w3wResult = await this.what3wordsService.convertToThreeWordAddress(lat, lng);
+      if (!w3wResult || !w3wResult.nearestPlace) {
+        return { success: false, message: 'Could not determine your location area.' };
+      }
+
+      const nearestPlace = w3wResult.nearestPlace;
+      const townMatch = nearestPlace.split(',')[0].trim();
+
+      const driverUsers = await this.userModel
+        .find({
+          role: 'driver',
+          'address.town': { $regex: new RegExp(townMatch, 'i') },
+        })
+        .select('_id')
+        .exec();
+
+      if (driverUsers.length === 0) {
+        return { success: true, data: [], message: `No drivers found near ${townMatch}` };
+      }
+
+      const skip = (page - 1) * limit;
+      const [drivers, total] = await Promise.all([
+        this.chauffeurModel
+          .find({
+            user: { $in: driverUsers.map(u => u._id) },
+            isVerified: true,
+            isActive: true,
+          })
+          .populate('user', 'firstName lastName postCode address phoneNumber')
+          .skip(skip)
+          .limit(limit)
+          .exec(),
+        this.chauffeurModel.countDocuments({
+          user: { $in: driverUsers.map(u => u._id) },
+          isVerified: true,
+          isActive: true,
+        }).exec(),
+      ]);
+
+      return {
+        success: true,
+        data: drivers,
+        message: `Found ${total} driver(s) near ${townMatch}`,
+      };
+    } catch (error) {
+      return { success: false, message: 'Location search failed' };
     }
   }
 
@@ -345,85 +373,58 @@ export class SearchService {
       const skip = (page - 1) * limit;
       const cleanQuery = query.trim();
 
-      if (!cleanQuery) {
-        return { success: false, message: 'Please enter a location or driver number to search' };
+      let filter: any = {
+        isVerified: true,
+        isActive: true,
+      };
+
+      if (cleanQuery) {
+        const isDriverNumber = /^\d+$/.test(cleanQuery);
+        
+        if (isDriverNumber) {
+          filter.driverNumber = cleanQuery.padStart(3, '0');
+        } else {
+          const taxiUsers = await this.userModel
+            .find({
+              role: 'taxi_driver',
+              $or: [
+                { postCode: { $regex: new RegExp(`^${cleanQuery}`, 'i') } },
+                { 'address.town': { $regex: new RegExp(cleanQuery, 'i') } },
+                { 'address.county': { $regex: new RegExp(cleanQuery, 'i') } },
+                { firstName: { $regex: new RegExp(cleanQuery, 'i') } },
+                { lastName: { $regex: new RegExp(cleanQuery, 'i') } },
+              ],
+            })
+            .select('_id')
+            .exec();
+
+          if (taxiUsers.length === 0) {
+            return {
+              success: true,
+              data: [],
+              message: `No taxis found matching "${cleanQuery}"`,
+            };
+          }
+          filter.user = { $in: taxiUsers.map(u => u._id) };
+        }
       }
-
-      // Check if query is a driver number (all digits)
-      const isDriverNumber = /^\d+$/.test(cleanQuery);
-
-      if (isDriverNumber) {
-        // Search by driver number directly
-        const paddedNumber = cleanQuery.padStart(3, '0');
-        const taxis = await this.taxiModel
-          .find({
-            driverNumber: paddedNumber,
-            isVerified: true,
-            isActive: true,
-          })
-          .populate('user', 'firstName lastName postCode address phoneNumber')
-          .exec();
-
-        return {
-          success: true,
-          data: taxis,
-          message: taxis.length
-            ? `Found taxi #${paddedNumber}`
-            : `No taxi found with number #${paddedNumber}`,
-        };
-      }
-
-      // Find users who are taxi drivers and match the location query
-      const taxiUsers = await this.userModel
-        .find({
-          role: 'taxi_driver',
-          $or: [
-            { postCode: { $regex: new RegExp(`^${cleanQuery}`, 'i') } },
-            { 'address.town': { $regex: new RegExp(cleanQuery, 'i') } },
-            { 'address.county': { $regex: new RegExp(cleanQuery, 'i') } },
-            { firstName: { $regex: new RegExp(cleanQuery, 'i') } },
-            { lastName: { $regex: new RegExp(cleanQuery, 'i') } },
-          ],
-        })
-        .select('_id firstName lastName postCode address')
-        .exec();
-
-      if (taxiUsers.length === 0) {
-        return {
-          success: true,
-          data: [],
-          message: `No taxis found near "${cleanQuery}"`,
-        };
-      }
-
-      const taxiUserIds = taxiUsers.map((u: any) => u._id);
 
       const [taxis, total] = await Promise.all([
         this.taxiModel
-          .find({
-            user: { $in: taxiUserIds },
-            isVerified: true,
-            isActive: true,
-            availability: 'online',
-          })
+          .find(filter)
           .populate('user', 'firstName lastName postCode address phoneNumber')
           .skip(skip)
           .limit(limit)
           .exec(),
-        this.taxiModel.countDocuments({
-          user: { $in: taxiUserIds },
-          isVerified: true,
-          isActive: true,
-          availability: 'online',
-        }).exec(),
+        this.taxiModel.countDocuments(filter).exec(),
       ]);
 
       return {
         success: true,
         data: taxis,
         message: taxis.length
-          ? `Found ${total} taxi(s) near "${cleanQuery}"`
-          : `No available taxis near "${cleanQuery}"`,
+          ? (cleanQuery ? `Found ${total} taxi(s)` : `Loaded all ${total} taxi(s)`)
+          : (cleanQuery ? `No taxis found` : `No taxis available`),
         meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
       };
     } catch (error) {
@@ -431,6 +432,62 @@ export class SearchService {
         success: false,
         message: `Search failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
       };
+    }
+  }
+
+  async searchTaxisByLocation(
+    lat: number,
+    lng: number,
+    page = 1,
+    limit = 20,
+  ): Promise<Response> {
+    try {
+      const w3wResult = await this.what3wordsService.convertToThreeWordAddress(lat, lng);
+      if (!w3wResult || !w3wResult.nearestPlace) {
+        return { success: false, message: 'Could not determine your location area.' };
+      }
+
+      const nearestPlace = w3wResult.nearestPlace;
+      const townMatch = nearestPlace.split(',')[0].trim();
+
+      const taxiUsers = await this.userModel
+        .find({
+          role: 'taxi_driver',
+          'address.town': { $regex: new RegExp(townMatch, 'i') },
+        })
+        .select('_id')
+        .exec();
+
+      if (taxiUsers.length === 0) {
+        return { success: true, data: [], message: `No taxis found near ${townMatch}` };
+      }
+
+      const skip = (page - 1) * limit;
+      const [taxis, total] = await Promise.all([
+        this.taxiModel
+          .find({
+            user: { $in: taxiUsers.map(u => u._id) },
+            isVerified: true,
+            isActive: true,
+          })
+          .populate('user', 'firstName lastName postCode address phoneNumber')
+          .skip(skip)
+          .limit(limit)
+          .exec(),
+        this.taxiModel.countDocuments({
+          user: { $in: taxiUsers.map(u => u._id) },
+          isVerified: true,
+          isActive: true,
+        }).exec(),
+      ]);
+
+      return {
+        success: true,
+        data: taxis,
+        message: `Found ${total} taxi(s) near ${townMatch}`,
+      };
+    } catch (error) {
+      return { success: false, message: 'Location search failed' };
     }
   }
 

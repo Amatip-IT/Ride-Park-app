@@ -78,19 +78,37 @@ export class SearchController {
    */
   @Get('drivers')
   async searchDrivers(
-    @Query('q') query: string,
+    @Query('q') query?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
-    if (!query) {
-      throw new HttpException(
-        { message: 'Search query (q) is required' },
-        HttpStatus.BAD_REQUEST,
-      );
-    }
+    const q = query || '';
 
     return this.searchService.searchDrivers(
-      query,
+      q,
+      parseInt(page || '1', 10),
+      parseInt(limit || '20', 10),
+    );
+  }
+
+  @Get('drivers/nearby')
+  async searchDriversNearby(
+    @Query('lat') lat: string,
+    @Query('lng') lng: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    if (!lat || !lng) {
+      throw new HttpException({ message: 'Both lat and lng query parameters are required' }, HttpStatus.BAD_REQUEST);
+    }
+    const parsedLat = parseFloat(lat);
+    const parsedLng = parseFloat(lng);
+    if (isNaN(parsedLat) || isNaN(parsedLng)) {
+      throw new HttpException({ message: 'lat and lng must be valid numbers' }, HttpStatus.BAD_REQUEST);
+    }
+    return this.searchService.searchDriversByLocation(
+      parsedLat,
+      parsedLng,
       parseInt(page || '1', 10),
       parseInt(limit || '20', 10),
     );
@@ -102,19 +120,37 @@ export class SearchController {
    */
   @Get('taxis')
   async searchTaxis(
-    @Query('q') query: string,
+    @Query('q') query?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
-    if (!query) {
-      throw new HttpException(
-        { message: 'Search query (q) is required' },
-        HttpStatus.BAD_REQUEST,
-      );
-    }
+    const q = query || '';
 
     return this.searchService.searchTaxis(
-      query,
+      q,
+      parseInt(page || '1', 10),
+      parseInt(limit || '20', 10),
+    );
+  }
+
+  @Get('taxis/nearby')
+  async searchTaxisNearby(
+    @Query('lat') lat: string,
+    @Query('lng') lng: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    if (!lat || !lng) {
+      throw new HttpException({ message: 'Both lat and lng query parameters are required' }, HttpStatus.BAD_REQUEST);
+    }
+    const parsedLat = parseFloat(lat);
+    const parsedLng = parseFloat(lng);
+    if (isNaN(parsedLat) || isNaN(parsedLng)) {
+      throw new HttpException({ message: 'lat and lng must be valid numbers' }, HttpStatus.BAD_REQUEST);
+    }
+    return this.searchService.searchTaxisByLocation(
+      parsedLat,
+      parsedLng,
       parseInt(page || '1', 10),
       parseInt(limit || '20', 10),
     );

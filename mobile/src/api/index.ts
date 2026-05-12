@@ -41,6 +41,11 @@ export const authApi = {
     api.post<ApiResponse>('/users/logout'),
 };
 
+export const usersApi = {
+  updatePushToken: (pushToken: string) =>
+    api.patch<ApiResponse>('/users/profile', { pushToken }),
+};
+
 export const searchApi = {
   // Search parking spaces by location query (postcode, town name, etc.)
   searchParking: (query: string, page = 1, limit = 20) =>
@@ -54,9 +59,17 @@ export const searchApi = {
   searchDrivers: (query: string, page = 1, limit = 20) =>
     api.get<ApiResponse>(`/search/drivers?q=${encodeURIComponent(query)}&page=${page}&limit=${limit}`),
 
+  // Search drivers nearby
+  searchDriversNearby: (lat: number, lng: number, page = 1, limit = 20) =>
+    api.get<ApiResponse>(`/search/drivers/nearby?lat=${lat}&lng=${lng}&page=${page}&limit=${limit}`),
+
   // Search taxis by location
   searchTaxis: (query: string, page = 1, limit = 20) =>
     api.get<ApiResponse>(`/search/taxis?q=${encodeURIComponent(query)}&page=${page}&limit=${limit}`),
+
+  // Search taxis nearby
+  searchTaxisNearby: (lat: number, lng: number, page = 1, limit = 20) =>
+    api.get<ApiResponse>(`/search/taxis/nearby?lat=${lat}&lng=${lng}&page=${page}&limit=${limit}`),
 
   // Get parking space details
   getParkingDetail: (id: string) =>
@@ -162,6 +175,10 @@ export const chatApi = {
 };
 
 export const adminApi = {
+  // ── Users Management ──
+  getUsers: () =>
+    api.get<ApiResponse>('/users'),
+
   // ── Parking Space Verifications ──
   getPendingParkingVerifications: () =>
     api.get<ApiResponse>('/admin/verifications/parking'),
@@ -181,6 +198,23 @@ export const adminApi = {
 
   rejectIdentityVerification: (userId: string, reason: string) =>
     api.post<ApiResponse>(`/admin/verifications/identity/${userId}/reject`, { reason }),
+
+  // ── Platform Settings ──
+  getPlatformSettings: () =>
+    api.get<ApiResponse>('/admin/verifications/settings'),
+
+  updatePlatformFee: (percentage: number) =>
+    api.post<ApiResponse>('/admin/verifications/settings/fee', { percentage }),
+
+  // ── Payouts (Withdrawals) ──
+  getPendingWithdrawals: () =>
+    api.get<ApiResponse>('/admin/verifications/withdrawals'),
+
+  approveWithdrawal: (id: string) =>
+    api.post<ApiResponse>(`/admin/verifications/withdrawals/${id}/approve`),
+
+  rejectWithdrawal: (id: string, reason: string) =>
+    api.post<ApiResponse>(`/admin/verifications/withdrawals/${id}/reject`, { reason }),
 };
 
 // ── Reviews API ──
@@ -267,4 +301,31 @@ export const paymentsApi = {
     
   getPaymentMethods: () =>
     api.get<ApiResponse>('/payments/methods'),
+};
+
+// ── Wallet API (Provider Earnings) ──
+export const walletApi = {
+  getWalletInfo: () =>
+    api.get<ApiResponse>('/wallet'),
+    
+  updateBankDetails: (data: { accountName: string; accountNumber: string; sortCode: string }) =>
+    api.post<ApiResponse>('/wallet/bank-details', data),
+    
+  requestWithdrawal: (amount: number) =>
+    api.post<ApiResponse>('/wallet/withdraw', { amount }),
+    
+  getTransactions: (period?: 'day' | 'week' | 'month') =>
+    api.get<ApiResponse>(`/wallet/transactions${period ? `?period=${period}` : ''}`),
+};
+
+// ── Notifications API ──
+export const notificationsApi = {
+  getMyNotifications: () =>
+    api.get<ApiResponse>('/notifications'),
+    
+  markAsRead: (id: string) =>
+    api.post<ApiResponse>(`/notifications/${id}/read`),
+    
+  markAllAsRead: () =>
+    api.post<ApiResponse>('/notifications/read-all'),
 };

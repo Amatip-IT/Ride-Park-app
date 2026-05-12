@@ -60,8 +60,9 @@ export function ForgotPasswordScreen() {
       setError('Please enter a valid 6-digit OTP code');
       return;
     }
-    if (!newPassword.trim() || newPassword.length < 6) {
-      setError('Password must be at least 6 characters');
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+    if (!passwordRegex.test(newPassword)) {
+      setError('Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character');
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -156,7 +157,7 @@ export function ForgotPasswordScreen() {
             <View style={[styles.inputWrapper, { position: 'relative' }]}>
               <TextInput
                 style={styles.input}
-                placeholder="New Password (min 6 chars)"
+                placeholder="New Password (min 8 chars)"
                 placeholderTextColor={COLORS.textTertiary}
                 value={newPassword}
                 onChangeText={setNewPassword}

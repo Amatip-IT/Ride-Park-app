@@ -9,6 +9,7 @@ import { Taxi, TaxiDocument } from 'src/schemas/taxi.schema';
 import { Chauffeur, ChauffeurDocument } from 'src/schemas/chauffeur.schema';
 import { User, UserDocument } from 'src/schemas/user.schema';
 import { Response } from 'src/common/interfaces/response.interface';
+import { NotificationsService } from 'src/notifications/notifications.service';
 
 // Pricing constants
 const RATE_PER_MILE = 1.10;
@@ -22,6 +23,7 @@ export class TaxiBookingsService {
     @InjectModel(Taxi.name) private taxiModel: Model<TaxiDocument>,
     @InjectModel(Chauffeur.name) private chauffeurModel: Model<ChauffeurDocument>,
     @InjectModel(User.name) private userModel: Model<UserDocument>,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   /**
@@ -118,6 +120,27 @@ export class TaxiBookingsService {
     postcodeFilter?: string,
   ): Promise<Response> {
     try {
+      // Check if driver's documents are approved before showing requests
+      const taxiRecord = await this.taxiModel.findOne({ user: driverId });
+      const chauffeurRecord = await this.chauffeurModel.findOne({ user: driverId });
+      const driverRecord = taxiRecord || chauffeurRecord;
+
+      if (!driverRecord) {
+        return { success: false, message: 'Driver record not found. Please complete your registration.' };
+      }
+
+      if (driverRecord.status !== 'approved') {
+        let statusMessage = 'Your documents have not been approved yet. ';
+        if (driverRecord.status === 'not_applied') {
+          statusMessage += 'Please submit your driver verification documents to go online.';
+        } else if (driverRecord.status === 'pending_auto_check' || driverRecord.status === 'pending_admin_review') {
+          statusMessage += 'Your documents are currently under review. You will be notified once approved.';
+        } else if (driverRecord.status === 'rejected') {
+          statusMessage += 'Your documents were rejected. Please resubmit valid documents.';
+        }
+        return { success: false, message: statusMessage };
+      }
+
       const filter: any = { status: 'searching' };
 
       // If postcode filter provided, match the first part (outward code)
@@ -203,6 +226,18 @@ export class TaxiBookingsService {
         };
       }
 
+      // Check if driver's documents are approved
+      const taxiRecord = await this.taxiModel.findOne({ user: driverId });
+      const chauffeurRecord = await this.chauffeurModel.findOne({ user: driverId });
+      const verificationRecord = taxiRecord || chauffeurRecord;
+
+      if (!verificationRecord || verificationRecord.status !== 'approved') {
+        return {
+          success: false,
+          message: 'You cannot accept rides until your driver documents have been approved.',
+        };
+      }
+
       // Look up the driver's number
       const driverRecord: any =
         (await this.taxiModel.findOne({ user: driverId })) ||
@@ -234,6 +269,15 @@ export class TaxiBookingsService {
         .populate('passenger', 'firstName lastName phoneNumber')
         .populate('acceptedDriver', 'firstName lastName phoneNumber')
         .exec();
+
+      // Notify passenger
+      await this.notificationsService.sendNotification(
+        request.passenger.toString(),
+        'Ride Accepted!',
+        `A driver is on their way. ETA: ${data.etaMinutes} mins. Vehicle: ${data.vehicleMake} ${data.vehicleModel} (${data.plateNumber})`,
+        'ride',
+        { rideId: request._id }
+      );
 
       return {
         success: true,
@@ -276,6 +320,15 @@ export class TaxiBookingsService {
         await this.chauffeurModel.updateOne(
           { user: request.acceptedDriver },
           { $set: { availability: 'online' } },
+        );
+
+        // Notify the driver
+        await this.notificationsService.sendNotification(
+          request.acceptedDriver.toString(),
+          'Ride Cancelled',
+          'The passenger has cancelled the ride request.',
+          'system',
+          { rideId: request._id }
         );
       }
 

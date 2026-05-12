@@ -4,19 +4,29 @@ import { Model } from 'mongoose';
 import { ParkingVerification, ParkingVerificationDocument } from 'src/schemas/parking-verification.schema';
 import { ParkingSpace, ParkingSpaceDocument } from 'src/schemas/parking-space.schema';
 import { User, UserDocument } from 'src/schemas/user.schema';
+import { Wallet, WalletDocument } from 'src/schemas/wallet.schema';
+import { Transaction, TransactionDocument } from 'src/schemas/transaction.schema';
+import { PlatformSettings, PlatformSettingsDocument } from 'src/schemas/platform-settings.schema';
 import { Response } from 'src/common/interfaces/response.interface';
 import { What3WordsService } from 'src/utility/what3words.service';
+import Stripe from 'stripe';
 
 @Injectable()
 export class AdminService {
   private readonly logger = new Logger(AdminService.name);
+  private stripe: Stripe;
 
   constructor(
     @InjectModel(ParkingVerification.name) private parkingVerifModel: Model<ParkingVerificationDocument>,
     @InjectModel(ParkingSpace.name) private parkingSpaceModel: Model<ParkingSpaceDocument>,
     @InjectModel(User.name) private userModel: Model<UserDocument>,
+    @InjectModel(Wallet.name) private walletModel: Model<WalletDocument>,
+    @InjectModel(Transaction.name) private transactionModel: Model<TransactionDocument>,
+    @InjectModel(PlatformSettings.name) private platformSettingsModel: Model<PlatformSettingsDocument>,
     private what3wordsService: What3WordsService,
-  ) {}
+  ) {
+    this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_mock');
+  }
 
   /**
    * Get all pending parking provider verification requests
@@ -265,6 +275,97 @@ export class AdminService {
         success: false,
         message: `Failed to reject identity: ${error instanceof Error ? error.message : 'Unknown error'}`,
       };
+    }
+  }
+  // ── Platform Settings ──
+  async getPlatformSettings(): Promise<Response> {
+    let settings = await this.platformSettingsModel.findOne();
+    if (!settings) {
+      settings = await this.platformSettingsModel.create({ platformFeePercentage: 10 });
+    }
+    return { success: true, data: settings, message: 'Settings retrieved' };
+  }
+
+  async updatePlatformFee(percentage: number): Promise<Response> {
+    let settings = await this.platformSettingsModel.findOne();
+    if (!settings) {
+      settings = new this.platformSettingsModel({ platformFeePercentage: percentage });
+    } else {
+      settings.platformFeePercentage = percentage;
+    }
+    await settings.save();
+    return { success: true, data: settings, message: `Platform fee updated to ${percentage}%` };
+  }
+
+  // ── Payouts (Withdrawals) ──
+  async getPendingWithdrawals(): Promise<Response> {
+    const pending = await this.transactionModel
+      .find({ type: 'withdrawal', status: 'pending' })
+      .populate('providerId', 'firstName lastName email phoneNumber')
+      .sort({ createdAt: -1 })
+      .exec();
+    return { success: true, data: pending, message: 'Pending withdrawals retrieved' };
+  }
+
+  async approveWithdrawal(transactionId: string): Promise<Response> {
+    try {
+      const transaction = await this.transactionModel.findById(transactionId).exec();
+      if (!transaction || transaction.type !== 'withdrawal') {
+        return { success: false, message: 'Withdrawal request not found' };
+      }
+      if (transaction.status !== 'pending') {
+        return { success: false, message: 'Withdrawal is not pending' };
+      }
+
+      const wallet = await this.walletModel.findOne({ providerId: transaction.providerId }).exec();
+      if (!wallet || !wallet.stripeConnectId) {
+        return { success: false, message: 'Provider wallet or Stripe Connect account not found' };
+      }
+
+      // Transfer funds via Stripe
+      const amountInPence = Math.round(transaction.amount * 100);
+      const transfer = await this.stripe.transfers.create({
+        amount: amountInPence,
+        currency: 'gbp',
+        destination: wallet.stripeConnectId,
+        description: `Payout for ${transactionId}`,
+      });
+
+      transaction.status = 'completed';
+      transaction.referenceId = transfer.id;
+      await transaction.save();
+
+      return { success: true, data: transaction, message: 'Withdrawal approved and funds transferred' };
+    } catch (e: any) {
+      this.logger.error(`Stripe Transfer Failed: ${e.message}`);
+      return { success: false, message: `Stripe Transfer Failed: ${e.message}` };
+    }
+  }
+
+  async rejectWithdrawal(transactionId: string, reason: string): Promise<Response> {
+    try {
+      const transaction = await this.transactionModel.findById(transactionId).exec();
+      if (!transaction || transaction.type !== 'withdrawal') {
+        return { success: false, message: 'Withdrawal request not found' };
+      }
+      if (transaction.status !== 'pending') {
+        return { success: false, message: 'Withdrawal is not pending' };
+      }
+
+      transaction.status = 'rejected';
+      transaction.adminNotes = reason;
+      await transaction.save();
+
+      // Refund the wallet
+      const wallet = await this.walletModel.findOne({ providerId: transaction.providerId }).exec();
+      if (wallet) {
+        wallet.balance += transaction.amount;
+        await wallet.save();
+      }
+
+      return { success: true, data: transaction, message: 'Withdrawal rejected and funds refunded to provider' };
+    } catch (error) {
+      return { success: false, message: `Failed to reject withdrawal: ${error instanceof Error ? error.message : 'Unknown error'}` };
     }
   }
 }

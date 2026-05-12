@@ -24,7 +24,7 @@ export class UsersController {
 
   //route to login a user
   @Post('login')
-  async loginUser(@Body() loginDto: { email: string; password: string }) {
+  async loginUser(@Body() loginDto: { email: string; password: string; otp?: string }) {
     const result = await this.usersService.loginUser(loginDto);
     // Check if result is an error response with success false
     if (!result.success) {
@@ -116,6 +116,7 @@ export class UsersController {
     if (updateData.lastName) user.lastName = updateData.lastName;
     if (updateData.profileImageUrl) user.profileImageUrl = updateData.profileImageUrl;
     if (updateData.phoneNumber) user.phoneNumber = updateData.phoneNumber;
+    if (updateData.pushToken) user.pushToken = updateData.pushToken;
     
     await user.save();
     return { success: true, message: 'Profile updated successfully', data: user };
