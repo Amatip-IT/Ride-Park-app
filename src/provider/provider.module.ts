@@ -7,6 +7,7 @@ import { Chauffeur, ChauffeurSchema } from 'src/schemas/chauffeur.schema';
 import { Taxi, TaxiSchema } from 'src/schemas/taxi.schema';
 import { User, UserSchema } from 'src/schemas/user.schema';
 import { BookingRequest, BookingRequestSchema } from 'src/schemas/booking-request.schema';
+import { VerificationModule } from '../verification/verification.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { BookingRequest, BookingRequestSchema } from 'src/schemas/booking-reques
       { name: User.name, schema: UserSchema },
       { name: BookingRequest.name, schema: BookingRequestSchema },
     ]),
+    VerificationModule,
   ],
   controllers: [ProviderController],
   providers: [ProviderService],

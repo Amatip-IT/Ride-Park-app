@@ -131,7 +131,7 @@ export function DriverVerificationScreen() {
           <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Verification</Text>
-        <TouchableOpacity style={styles.helpBtn}>
+        <TouchableOpacity style={styles.helpBtn} onPress={() => navigation.navigate('LegalDocument', { documentType: 'help' })}>
           <Text style={styles.helpText}>Help</Text>
         </TouchableOpacity>
       </View>

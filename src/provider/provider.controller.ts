@@ -7,14 +7,21 @@ import {
   UseGuards,
   HttpException,
   HttpStatus,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ProviderService } from './provider.service';
+import { FileUploadService } from '../verification/services/file/file-upload.service';
 import { AuthGuard } from 'src/guards/auth.guard';
 
 @Controller('provider')
 @UseGuards(AuthGuard)
 export class ProviderController {
-  constructor(private readonly providerService: ProviderService) {}
+  constructor(
+    private readonly providerService: ProviderService,
+    private readonly fileUploadService: FileUploadService,
+  ) {}
 
   /**
    * GET /provider/verification-status
@@ -174,5 +181,42 @@ export class ProviderController {
     const user = req.user;
     const userId = user._id || user.id;
     return this.providerService.getDriverNumber(userId, user.role);
+  }
+
+  /**
+   * POST /provider/upload-document
+   * Upload a document to S3
+   */
+  @Post('upload-document')
+  @UseInterceptors(FileInterceptor('file'))
+  async uploadDocument(
+    @Req() req: any,
+    @UploadedFile() file: any,
+  ) {
+    if (!file) {
+      throw new HttpException({ message: 'No file provided' }, HttpStatus.BAD_REQUEST);
+    }
+
+    const user = req.user;
+    const userId = user._id || user.id;
+    
+    // Validate file type (allow images and pdfs)
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+    if (!this.fileUploadService.validateFileType(file, allowedTypes)) {
+      throw new HttpException({ message: 'Invalid file type. Only JPEG, PNG, WEBP and PDF are allowed.' }, HttpStatus.BAD_REQUEST);
+    }
+
+    // Validate size (e.g. 10MB)
+    if (!this.fileUploadService.validateFileSize(file, 10)) {
+      throw new HttpException({ message: 'File too large. Maximum size is 10MB.' }, HttpStatus.BAD_REQUEST);
+    }
+
+    try {
+      const folder = `provider-documents/${userId}`;
+      const url = await this.fileUploadService.uploadFile(file, folder);
+      return { success: true, url, message: 'Document uploaded successfully' };
+    } catch (error) {
+      throw new HttpException({ message: 'Failed to upload document' }, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
   }
 }

@@ -108,10 +108,26 @@ export function DocumentUploadScreen() {
 
       const fieldName = docFieldMapping[docId] || 'driverLicenseUrl';
 
-      // Submit the document URI to the verification endpoint
+      // 1. Upload the file to S3
+      const formData = new FormData();
+      formData.append('file', {
+        uri: Platform.OS === 'ios' ? documentUri.replace('file://', '') : documentUri,
+        name: documentName || 'upload.jpg',
+        type: documentName?.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg',
+      } as any);
+
+      const uploadRes = await providerApi.uploadDocument(formData);
+      
+      if (!uploadRes.data?.success || !uploadRes.data.url) {
+        throw new Error(uploadRes.data?.message || 'Failed to upload document to storage');
+      }
+
+      const s3Url = uploadRes.data.url;
+
+      // 2. Submit the returned S3 URL to the verification endpoint
       // This updates the backend status to 'pending_admin_review'
       const submitData: Record<string, string> = {};
-      submitData[fieldName] = documentUri;
+      submitData[fieldName] = s3Url;
 
       let res;
       if (role === 'taxi_driver') {

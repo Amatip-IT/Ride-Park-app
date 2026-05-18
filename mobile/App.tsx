@@ -5,8 +5,6 @@ import * as SplashScreen from 'expo-splash-screen';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { RootNavigator } from '@/navigation/RootNavigator';
 import { useAuthStore } from '@/store/authStore';
-import { usePushNotifications } from '@/hooks/usePushNotifications';
-import { AnimatedSplashScreen } from '@/screens/AnimatedSplashScreen';
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
@@ -17,13 +15,7 @@ export default function App() {
   // });
   const fontsLoaded = true; // Temporarily skip font loading
 
-  const [isAppReady, setIsAppReady] = React.useState(false);
-  const [isSplashAnimationComplete, setAnimationComplete] = React.useState(false);
-
-  const { restoreToken, isAuthenticated } = useAuthStore();
-
-  // Initialize push notifications securely when user logs in
-  usePushNotifications(isAuthenticated);
+  const { restoreToken } = useAuthStore();
 
   useEffect(() => {
     async function prepare() {
@@ -33,8 +25,8 @@ export default function App() {
       } catch (e) {
         console.warn(e);
       } finally {
-        // App is ready but don't hide splash async here if AnimatedSplashScreen handles it
-        setIsAppReady(true);
+        // Tell the splash screen to hide after we've prepared the app
+        SplashScreen.hideAsync();
       }
     }
 
@@ -42,18 +34,14 @@ export default function App() {
   }, []);
 
   // Wait until fonts are loaded before rendering
-  if (!fontsLoaded || !isAppReady) {
+  if (!fontsLoaded) {
     return null;
   }
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <StatusBar style="light" />
-      {!isSplashAnimationComplete ? (
-        <AnimatedSplashScreen onAnimationComplete={() => setAnimationComplete(true)} />
-      ) : (
-        <RootNavigator />
-      )}
+      <RootNavigator />
     </GestureHandlerRootView>
   );
 }

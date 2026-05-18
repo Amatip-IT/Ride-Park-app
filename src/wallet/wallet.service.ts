@@ -5,6 +5,7 @@ import { Wallet, WalletDocument } from 'src/schemas/wallet.schema';
 import { Transaction, TransactionDocument } from 'src/schemas/transaction.schema';
 import { PlatformSettings, PlatformSettingsDocument } from 'src/schemas/platform-settings.schema';
 import { User, UserDocument } from 'src/schemas/user.schema';
+import { PaymentsService } from 'src/payments/payments.service';
 import Stripe from 'stripe';
 
 @Injectable()
@@ -16,6 +17,7 @@ export class WalletService {
     @InjectModel(Transaction.name) private transactionModel: Model<TransactionDocument>,
     @InjectModel(PlatformSettings.name) private platformSettingsModel: Model<PlatformSettingsDocument>,
     @InjectModel(User.name) private userModel: Model<UserDocument>,
+    private readonly paymentsService: PaymentsService,
   ) {
     this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_mock');
   }
@@ -34,6 +36,28 @@ export class WalletService {
       wallet = await this.walletModel.create({ providerId: new Types.ObjectId(providerId) });
     }
     return wallet;
+  }
+
+  async topUpWallet(userId: string, amount: number) {
+    // 1. Charge via PaymentsService
+    const paymentIntent = await this.paymentsService.chargeCustomer(userId, amount, 'Wallet Top Up');
+    
+    // 2. Increase balance
+    const wallet = await this.getWallet(userId);
+    wallet.balance += amount;
+    await wallet.save();
+
+    // 3. Create transaction
+    await this.transactionModel.create({
+      providerId: new Types.ObjectId(userId),
+      type: 'deposit',
+      amount: amount,
+      status: 'completed',
+      description: 'Wallet Top Up via Card',
+      referenceId: paymentIntent.id
+    });
+
+    return { success: true, message: 'Top up successful', data: wallet };
   }
 
   async updateBankDetails(providerId: string, details: { accountName: string; accountNumber: string; sortCode: string }) {

@@ -77,6 +77,33 @@ export function PassengerTrackingScreen() {
     }
   };
 
+  const handleCancelRide = () => {
+    Alert.alert(
+      'Cancel Ride',
+      'Are you sure you want to cancel this ride request?',
+      [
+        { text: 'No', style: 'cancel' },
+        {
+          text: 'Yes, Cancel',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const res = await taxiBookingsApi.cancelRequest(requestId);
+              if (res.data?.success) {
+                Alert.alert('Cancelled', 'Your ride request has been cancelled');
+                navigation.goBack();
+              } else {
+                Alert.alert('Error', res.data?.message || 'Failed to cancel');
+              }
+            } catch (err: any) {
+              Alert.alert('Error', err?.response?.data?.message || 'Failed to cancel ride');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   if (loading) {
     return (
       <SafeAreaView style={styles.safeArea}>
@@ -176,13 +203,24 @@ export function PassengerTrackingScreen() {
           )}
         </View>
 
-        {/* Back button */}
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Text style={styles.backButtonText}>Close</Text>
-        </TouchableOpacity>
+        {/* Buttons */}
+        <View style={{ flexDirection: 'row', gap: SPACING.md }}>
+          <TouchableOpacity
+            style={[styles.backButton, { flex: 1 }]}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={styles.backButtonText}>Close</Text>
+          </TouchableOpacity>
+
+          {['searching', 'accepted'].includes(request.status) && (
+            <TouchableOpacity
+              style={[styles.backButton, { flex: 1, borderColor: COLORS.coralRed }]}
+              onPress={handleCancelRide}
+            >
+              <Text style={[styles.backButtonText, { color: COLORS.coralRed }]}>Cancel Ride</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
     </SafeAreaView>
   );

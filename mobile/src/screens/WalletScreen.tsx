@@ -1,20 +1,35 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, SafeAreaView, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, SafeAreaView, ActivityIndicator, Alert, Modal, TextInput } from 'react-native';
 import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useStripe, StripeProvider } from '@stripe/stripe-react-native';
-import { paymentsApi } from '@/api';
+import { paymentsApi, walletApi } from '@/api';
 
 export function WalletScreenContent() {
   const [paymentMethods, setPaymentMethods] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [platformPayAvailable, setPlatformPayAvailable] = React.useState(false);
+  const [walletBalance, setWalletBalance] = React.useState(0);
+  const [isTopUpModalVisible, setTopUpModalVisible] = React.useState(false);
+  const [topUpAmount, setTopUpAmount] = React.useState('');
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
 
   React.useEffect(() => {
     fetchPaymentMethods();
+    fetchWalletInfo();
     checkPlatformPay();
   }, []);
+
+  const fetchWalletInfo = async () => {
+    try {
+      const res = await walletApi.getWalletInfo();
+      if (res.data?.success) {
+        setWalletBalance(res.data.data.balance || 0);
+      }
+    } catch (err) {
+      console.log('Failed to fetch wallet info', err);
+    }
+  };
 
   const checkPlatformPay = async () => {
     // Apple Pay on iOS, Google Pay on Android — show button if platform supports it
@@ -35,6 +50,29 @@ export function WalletScreenContent() {
     }
   };
 
+  const submitTopUp = async () => {
+    const amount = parseFloat(topUpAmount);
+    if (isNaN(amount) || amount <= 0) {
+      Alert.alert('Invalid Amount', 'Please enter a valid amount.');
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      const res = await walletApi.topUp(amount);
+      if (res.data?.success) {
+        Alert.alert('Success', 'Wallet topped up successfully!');
+        setTopUpModalVisible(false);
+        setTopUpAmount('');
+        fetchWalletInfo();
+      }
+    } catch (err: any) {
+      Alert.alert('Error', err.response?.data?.message || err.message || 'Failed to top up. Please ensure you have a default card added.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleAddCard = async () => {
     try {
       // 1. Fetch setup intent from backend
@@ -43,20 +81,13 @@ export function WalletScreenContent() {
       
       const { setupIntent, ephemeralKey, customer } = res.data.data;
 
-      // 2. Initialize Payment Sheet (with Apple Pay / Google Pay)
+      // 2. Initialize Payment Sheet (Standard Card only for testing)
       const initRes = await initPaymentSheet({
         merchantDisplayName: 'Gleezip',
         customerId: customer,
         customerEphemeralKeySecret: ephemeralKey,
         setupIntentClientSecret: setupIntent,
         allowsDelayedPaymentMethods: false,
-        applePay: Platform.OS === 'ios' ? {
-          merchantCountryCode: 'GB',
-        } : undefined,
-        googlePay: Platform.OS === 'android' ? {
-          merchantCountryCode: 'GB',
-          testEnv: true,
-        } : undefined,
       });
 
       if (initRes.error) {
@@ -98,8 +129,8 @@ export function WalletScreenContent() {
           
           <View style={styles.balanceCard}>
             <Text style={styles.balanceLabel}>Available Balance</Text>
-            <Text style={styles.balanceAmount}>£0.00</Text>
-            <TouchableOpacity style={styles.topUpBtn}>
+            <Text style={styles.balanceAmount}>£{walletBalance.toFixed(2)}</Text>
+            <TouchableOpacity style={styles.topUpBtn} onPress={() => setTopUpModalVisible(true)}>
               <Text style={styles.topUpText}>Top Up</Text>
             </TouchableOpacity>
           </View>
@@ -165,18 +196,45 @@ export function WalletScreenContent() {
 
         </ScrollView>
       </View>
+
+      {/* Top Up Modal */}
+      <Modal visible={isTopUpModalVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Top Up Wallet</Text>
+            <Text style={styles.modalSubtitle}>Enter the amount you wish to top up using your default card.</Text>
+            
+            <TextInput
+              style={styles.input}
+              placeholder="Amount (£)"
+              keyboardType="numeric"
+              value={topUpAmount}
+              onChangeText={setTopUpAmount}
+              placeholderTextColor={COLORS.textTertiary}
+            />
+            
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.modalBtnCancel} onPress={() => setTopUpModalVisible(false)}>
+                <Text style={styles.modalBtnCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity style={styles.modalBtnSubmit} onPress={submitTopUp}>
+                {loading ? (
+                  <ActivityIndicator color="#FFF" />
+                ) : (
+                  <Text style={styles.modalBtnSubmitText}>Confirm</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 export function WalletScreen() {
-  return (
-    <StripeProvider
-      publishableKey={process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || 'pk_test_mock'}
-    >
-      <WalletScreenContent />
-    </StripeProvider>
-  );
+  return <WalletScreenContent />;
 }
 
 const styles = StyleSheet.create({
@@ -332,5 +390,77 @@ const styles = StyleSheet.create({
     color: COLORS.textTertiary,
     fontSize: 12,
     lineHeight: 18,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: SPACING.xl,
+  },
+  modalContent: {
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.xl,
+    padding: SPACING.xl,
+    width: '100%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: FONT_WEIGHTS.bold,
+    color: COLORS.textPrimary,
+    marginBottom: SPACING.xs,
+    textAlign: 'center',
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    marginBottom: SPACING.lg,
+    textAlign: 'center',
+  },
+  input: {
+    backgroundColor: COLORS.background,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.md,
+    fontSize: 16,
+    color: COLORS.textPrimary,
+    marginBottom: SPACING.xl,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: SPACING.md,
+  },
+  modalBtnCancel: {
+    flex: 1,
+    paddingVertical: SPACING.md,
+    borderRadius: BORDER_RADIUS.lg,
+    backgroundColor: COLORS.background,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  modalBtnCancelText: {
+    color: COLORS.textSecondary,
+    fontWeight: FONT_WEIGHTS.bold,
+    fontSize: 16,
+  },
+  modalBtnSubmit: {
+    flex: 1,
+    paddingVertical: SPACING.md,
+    borderRadius: BORDER_RADIUS.lg,
+    backgroundColor: COLORS.electricTeal,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalBtnSubmitText: {
+    color: '#FFF',
+    fontWeight: FONT_WEIGHTS.bold,
+    fontSize: 16,
   },
 });

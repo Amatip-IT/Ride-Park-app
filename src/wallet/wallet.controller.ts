@@ -14,6 +14,15 @@ export class WalletController {
     return { success: true, data: wallet };
   }
 
+  @Post('top-up')
+  async topUpWallet(@Req() req: any, @Body() body: { amount: number }) {
+    const userId = req.user._id || req.user.id;
+    if (!body.amount || body.amount <= 0) {
+      throw new HttpException('Valid amount is required', HttpStatus.BAD_REQUEST);
+    }
+    return this.walletService.topUpWallet(userId, body.amount);
+  }
+
   @Post('bank-details')
   async updateBankDetails(@Req() req: any, @Body() body: { accountName: string; accountNumber: string; sortCode: string }) {
     const userId = req.user._id || req.user.id;

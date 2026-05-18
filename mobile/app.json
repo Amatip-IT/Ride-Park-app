@@ -1,21 +1,19 @@
 {
   "expo": {
-    "name": "Gleezip",
-    "slug": "gleezip",
+    "name": "Ride & Park",
+    "slug": "ride-and-park-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "rideandpark",
     "userInterfaceStyle": "dark",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.gleezip.app"
+      "supportsTablet": true
     },
     "android": {
-      "package": "com.gleezip.app",
       "adaptiveIcon": {
-        "backgroundColor": "#3D1556",
+        "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
@@ -25,8 +23,7 @@
     },
     "web": {
       "output": "single",
-      "favicon": "./assets/images/favicon.png",
-      "bundler": "metro"
+      "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
       [
@@ -40,8 +37,7 @@
             "backgroundColor": "#000000"
           }
         }
-      ],
-      "@react-native-community/datetimepicker"
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
