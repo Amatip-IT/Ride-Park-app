@@ -95,7 +95,7 @@ describe('TwilioService', () => {
       const callArgs = mockCreate.mock.calls[0]?.[0] as
         | MessageCreateParams
         | undefined;
-      expect(callArgs?.body).toContain('Your Ride and Park verification code');
+      expect(callArgs?.body).toContain('Your Gleezip verification code');
       expect(callArgs?.body).toContain('expires in 10 minutes');
       expect(callArgs?.body).toContain('Never share this code');
     });
@@ -146,7 +146,7 @@ describe('TwilioService', () => {
         | MessageCreateParams
         | undefined;
       expect(callArgs?.body).toContain(
-        `Welcome to Ride and Park, ${firstName}`,
+        `Welcome to Gleezip, ${firstName}`,
       );
       expect(callArgs?.body).toContain('verified');
     });

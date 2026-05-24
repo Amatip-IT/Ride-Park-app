@@ -6,10 +6,16 @@ import {
 } from 'react-native';
 import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
-import { bookingsApi } from '@/api';
-import { useFocusEffect } from '@react-navigation/native';
+import { bookingsApi, providerApi } from '@/api';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useAuthStore } from '@/store/authStore';
 
 export function ProviderRequestsScreen() {
+  const { user } = useAuthStore();
+  const navigation = useNavigation<any>();
+  const isDriverOrTaxi = user?.role === 'driver' || user?.role === 'taxi_driver';
+  const [verificationStatus, setVerificationStatus] = useState<string | null>(null);
+  const [verificationLoading, setVerificationLoading] = useState(isDriverOrTaxi);
   const [activeTab, setActiveTab] = useState<'pending' | 'responded'>('pending');
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,8 +44,51 @@ export function ProviderRequestsScreen() {
   useFocusEffect(
     useCallback(() => {
       fetchRequests();
+      // Check verification for drivers/taxis
+      if (isDriverOrTaxi) {
+        (async () => {
+          try {
+            const res = await providerApi.getVerificationStatus();
+            setVerificationStatus(res.data?.data?.status || 'not_applied');
+          } catch { setVerificationStatus('not_applied'); }
+          finally { setVerificationLoading(false); }
+        })();
+      }
     }, [])
   );
+
+  // Verification gate for drivers/taxi drivers
+  if (isDriverOrTaxi && verificationLoading) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={COLORS.electricTeal} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (isDriverOrTaxi && verificationStatus !== 'approved') {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: SPACING.xl }}>
+          <Ionicons name="shield-checkmark-outline" size={64} color={COLORS.amber} />
+          <Text style={{ color: COLORS.textPrimary, fontSize: 20, fontWeight: 'bold' as const, marginTop: SPACING.lg, textAlign: 'center' }}>
+            Verification Required
+          </Text>
+          <Text style={{ color: COLORS.textSecondary, fontSize: 14, marginTop: SPACING.sm, textAlign: 'center', lineHeight: 20 }}>
+            You need to complete your document verification and be approved before you can view ride requests.
+          </Text>
+          <TouchableOpacity
+            style={{ backgroundColor: COLORS.electricTeal, paddingVertical: 14, paddingHorizontal: 32, borderRadius: 12, marginTop: SPACING.xl }}
+            onPress={() => navigation.navigate('DriverVerification')}
+          >
+            <Text style={{ color: '#FFF', fontWeight: 'bold' as const, fontSize: 15 }}>Go to Verification</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   const handleRespond = async (requestId: string, action: 'accept' | 'reject') => {
     if (action === 'reject' && showRejectInput !== requestId) {
@@ -60,7 +109,7 @@ export function ProviderRequestsScreen() {
         Alert.alert(
           action === 'accept' ? 'Accepted!' : 'Rejected',
           action === 'accept'
-            ? 'You have accepted this booking request.'
+            ? 'You have accepted this booking request. The parking spot has been reserved.'
             : 'You have rejected this booking request.',
         );
         setShowRejectInput(null);
@@ -70,14 +119,44 @@ export function ProviderRequestsScreen() {
         Alert.alert('Error', res.data?.message || 'Failed to respond');
       }
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Failed to respond to request');
+      Alert.alert('Error', err?.response?.data?.message || err?.message || 'Failed to respond to request');
     } finally {
       setRespondingId(null);
     }
   };
 
+  const handleComplete = async (requestId: string) => {
+    Alert.alert(
+      'Complete Booking',
+      'Mark this booking as completed? The parking spot will be freed up for new bookings.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Complete',
+          onPress: async () => {
+            setRespondingId(requestId);
+            try {
+              const res = await bookingsApi.completeBooking(requestId);
+              if (res.data?.success) {
+                Alert.alert('Completed! ✅', 'The booking has been completed and the parking spot is now available again.');
+                fetchRequests();
+              } else {
+                Alert.alert('Error', res.data?.message || 'Failed to complete booking');
+              }
+            } catch (err: any) {
+              Alert.alert('Error', err?.response?.data?.message || 'Failed to complete booking');
+            } finally {
+              setRespondingId(null);
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const pendingRequests = requests.filter(r => r.status === 'pending');
-  const respondedRequests = requests.filter(r => ['accepted', 'rejected'].includes(r.status));
+  const acceptedRequests = requests.filter(r => r.status === 'accepted');
+  const respondedRequests = requests.filter(r => ['accepted', 'rejected', 'completed'].includes(r.status));
   const displayRequests = activeTab === 'pending' ? pendingRequests : respondedRequests;
 
   const renderRequestCard = (request: any) => {
@@ -106,13 +185,17 @@ export function ProviderRequestsScreen() {
           {!isPending && (
             <View style={[
               styles.statusBadge,
-              { backgroundColor: request.status === 'accepted' ? `${COLORS.success}20` : `${COLORS.coralRed}20` },
+              { backgroundColor: request.status === 'accepted' ? `${COLORS.success}20`
+                : request.status === 'completed' ? `${COLORS.info}20`
+                : `${COLORS.coralRed}20` },
             ]}>
               <Text style={[
                 styles.statusText,
-                { color: request.status === 'accepted' ? COLORS.success : COLORS.coralRed },
+                { color: request.status === 'accepted' ? COLORS.success
+                  : request.status === 'completed' ? COLORS.info
+                  : COLORS.coralRed },
               ]}>
-                {request.status === 'accepted' ? 'Accepted' : 'Rejected'}
+                {request.status === 'accepted' ? 'Active' : request.status === 'completed' ? 'Completed' : 'Rejected'}
               </Text>
             </View>
           )}
@@ -205,6 +288,26 @@ export function ProviderRequestsScreen() {
                 )}
               </TouchableOpacity>
             </View>
+          </View>
+        )}
+
+        {/* Complete button for accepted parking bookings */}
+        {request.status === 'accepted' && request.serviceType === 'parking' && (
+          <View style={styles.actionsContainer}>
+            <TouchableOpacity
+              style={[styles.completeBtn, isResponding && styles.btnDisabled]}
+              onPress={() => handleComplete(request._id)}
+              disabled={isResponding}
+            >
+              {isResponding && respondingId === request._id ? (
+                <ActivityIndicator size="small" color="#FFF" />
+              ) : (
+                <>
+                  <Ionicons name="checkmark-done" size={18} color="#FFF" />
+                  <Text style={styles.completeBtnText}>Complete Booking</Text>
+                </>
+              )}
+            </TouchableOpacity>
           </View>
         )}
 
@@ -386,6 +489,12 @@ const styles = StyleSheet.create({
   },
   acceptBtnText: { color: '#FFF', fontSize: FONT_SIZES.label, fontWeight: FONT_WEIGHTS.bold },
   btnDisabled: { opacity: 0.5 },
+  completeBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    paddingVertical: SPACING.md, backgroundColor: COLORS.success,
+    borderRadius: BORDER_RADIUS.md,
+  },
+  completeBtnText: { color: '#FFF', fontSize: FONT_SIZES.label, fontWeight: FONT_WEIGHTS.bold },
 
   // Empty
   emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 60 },

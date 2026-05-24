@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, TextInput, ScrollView, TouchableOpacity,
-  Platform, SafeAreaView, ActivityIndicator, Alert,
+  Platform, SafeAreaView, ActivityIndicator, Alert, Modal, Image,
 } from 'react-native';
 import { useEffect } from 'react';
 import * as Location from 'expo-location';
@@ -51,6 +51,7 @@ export function SearchScreen() {
   const [results, setResults] = useState<any[]>([]);
   const [hasSearched, setHasSearched] = useState(false);
   const [resultMessage, setResultMessage] = useState('');
+  const [selectedDriver, setSelectedDriver] = useState<any | null>(null);
 
   // Update service type if navigating from another tab with a param
   useEffect(() => {
@@ -121,10 +122,6 @@ export function SearchScreen() {
 
   const handleSearch = useCallback(async () => {
     const query = searchQuery.trim();
-    if (!query && serviceType === 'parking') {
-      Alert.alert('Search', 'Please enter a location or postcode');
-      return;
-    }
 
     setIsSearching(true);
     setHasSearched(true);
@@ -215,11 +212,9 @@ export function SearchScreen() {
     setShowSuggestions(false);
   };
 
-  // Automatically load all drivers/taxis when tab changes to them
+  // Automatically load all results when tab changes
   useEffect(() => {
-    if (serviceType === 'driver' || serviceType === 'taxi') {
-      handleSearch();
-    }
+    handleSearch();
   }, [serviceType]);
 
   const handleParkingTap = (space: any) => {
@@ -264,17 +259,7 @@ export function SearchScreen() {
         Alert.alert('Driver Offline', 'This driver is currently offline and cannot accept requests.');
         return;
       }
-      Alert.alert(
-        'Driver Details',
-        `Name: ${user.firstName} ${user.lastName}\nDriver #: ${driverNum || 'N/A'}\nRate: £1.10/mile\nFrom: ${user.address?.town || user.postCode || 'N/A'}\n\nDo you want to request this specific driver?`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { 
-            text: 'Hire Driver', 
-            onPress: () => navigation.navigate('DriverRequest', { serviceId: item._id, prefilledName: `${user.firstName} ${user.lastName}` })
-          }
-        ]
-      );
+      setSelectedDriver(item);
     };
 
     return (
@@ -314,17 +299,7 @@ export function SearchScreen() {
         Alert.alert('Taxi Offline', 'This taxi is currently offline and cannot accept requests.');
         return;
       }
-      Alert.alert(
-        'Taxi Details',
-        `Name: ${user.firstName} ${user.lastName}\nTaxi #: ${driverNum || 'N/A'}\nVehicle: ${item.vehicleInfo?.make || 'Standard'} ${item.vehicleInfo?.model || 'Vehicle'}\nRate: £1.10/mi + £0.20/min\n\nWould you like to broadcast a ride request for a taxi?`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { 
-            text: 'Request Taxi', 
-            onPress: () => navigation.navigate('TaxiBooking', { serviceId: item._id, prefilledName: `${user.firstName} ${user.lastName}` })
-          }
-        ]
-      );
+      setSelectedDriver(item);
     };
 
     return (
@@ -506,6 +481,123 @@ export function SearchScreen() {
             </>
           )}
         </ScrollView>
+
+        {/* Premium Bottom Modal for Driver & Vehicle details */}
+        <Modal
+          visible={selectedDriver !== null}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => setSelectedDriver(null)}
+        >
+          <View style={styles.modalOverlay}>
+            <TouchableOpacity 
+              style={styles.modalBg} 
+              activeOpacity={1} 
+              onPress={() => setSelectedDriver(null)} 
+            />
+            <View style={styles.modalContent}>
+              {/* Top pill/handle */}
+              <View style={styles.modalHandle} />
+              
+              <Text style={styles.modalHeaderTitle}>
+                {serviceType === 'taxi' ? '🚕 Taxi Details' : '🤵 Chauffeur Details'}
+              </Text>
+
+              {selectedDriver && (
+                <View style={{ alignItems: 'center', width: '100%', marginVertical: SPACING.md }}>
+                  {/* Avatar / Initials */}
+                  <View style={styles.modalAvatarPlaceholder}>
+                    <Text style={styles.modalAvatarText}>
+                      {((selectedDriver.user?.firstName?.[0] || '?') + (selectedDriver.user?.lastName?.[0] || '')).toUpperCase()}
+                    </Text>
+                  </View>
+
+                  <Text style={styles.modalDriverName}>
+                    {selectedDriver.user?.firstName} {selectedDriver.user?.lastName}
+                  </Text>
+                  
+                  <View style={styles.modalDriverNumberBadge}>
+                    <Text style={styles.modalDriverNumberText}>
+                      {serviceType === 'taxi' ? 'Taxi' : 'Chauffeur'} #{selectedDriver.driverNumber || '001'}
+                    </Text>
+                  </View>
+
+                  {/* Vehicle Card */}
+                  <View style={styles.modalVehicleCard}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, width: '100%' }}>
+                      <Ionicons name="car-sport" size={24} color={COLORS.electricTeal} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.modalVehicleTitle}>
+                          {selectedDriver.vehicleInfo?.make || 'Standard'} {selectedDriver.vehicleInfo?.model || 'Vehicle'}
+                        </Text>
+                        <Text style={styles.modalVehicleSub}>
+                          Color: {selectedDriver.vehicleInfo?.color || 'Black'} • Year: {selectedDriver.vehicleInfo?.year || 'N/A'}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.modalPlateBox}>
+                      <Text style={styles.modalPlateText}>
+                        {selectedDriver.vehicleInfo?.plateNumber || selectedDriver.vehicleInfo?.registration || 'NO PLATE'}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Pricing / Info Row */}
+                  <View style={styles.modalPricingCard}>
+                    <View style={styles.modalPricingRow}>
+                      <Ionicons name="cash-outline" size={18} color={COLORS.textSecondary} />
+                      <Text style={styles.modalPricingText}>
+                        {serviceType === 'taxi' 
+                          ? 'Rate: £1.10 per mile + £0.20 per minute' 
+                          : 'Rate: £1.10 per mile'}
+                      </Text>
+                    </View>
+                    <View style={styles.modalPricingRow}>
+                      <Ionicons name="location-outline" size={18} color={COLORS.textSecondary} />
+                      <Text style={styles.modalPricingText}>
+                        Base: {selectedDriver.user?.address?.town || selectedDriver.user?.postCode || 'N/A'}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Actions */}
+                  <View style={styles.modalActions}>
+                    <TouchableOpacity 
+                      style={styles.modalCancelBtn}
+                      onPress={() => setSelectedDriver(null)}
+                    >
+                      <Text style={styles.modalCancelBtnText}>Close</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity 
+                      style={styles.modalConfirmBtn}
+                      onPress={() => {
+                        const driver = selectedDriver;
+                        setSelectedDriver(null);
+                        if (serviceType === 'taxi') {
+                          navigation.navigate('TaxiBooking', { 
+                            serviceId: driver._id, 
+                            prefilledName: `${driver.user?.firstName} ${driver.user?.lastName}` 
+                          });
+                        } else {
+                          navigation.navigate('DriverRequest', { 
+                            serviceId: driver._id, 
+                            prefilledName: `${driver.user?.firstName} ${driver.user?.lastName}` 
+                          });
+                        }
+                      }}
+                    >
+                      <Text style={styles.modalConfirmBtnText}>
+                        {serviceType === 'taxi' ? 'Book Taxi' : 'Hire Chauffeur'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+            </View>
+          </View>
+        </Modal>
       </View>
     </SafeAreaView>
   );
@@ -764,5 +856,158 @@ const styles = StyleSheet.create({
     color: COLORS.textTertiary,
     fontSize: 11,
     marginTop: 1,
+  },
+
+  // Premium Modal Styles
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  modalBg: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+  },
+  modalContent: {
+    backgroundColor: COLORS.surface,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    padding: SPACING.xl,
+    paddingBottom: Platform.OS === 'ios' ? 40 : SPACING.xl,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 24,
+  },
+  modalHandle: {
+    width: 38,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: COLORS.border,
+    marginBottom: SPACING.lg,
+  },
+  modalHeaderTitle: {
+    fontSize: 18,
+    fontWeight: FONT_WEIGHTS.bold,
+    color: COLORS.textPrimary,
+    marginBottom: SPACING.md,
+  },
+  modalAvatarPlaceholder: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: `${COLORS.electricTeal}15`,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: SPACING.md,
+  },
+  modalAvatarText: {
+    fontSize: 24,
+    fontWeight: FONT_WEIGHTS.bold,
+    color: COLORS.electricTeal,
+  },
+  modalDriverName: {
+    fontSize: 20,
+    fontWeight: FONT_WEIGHTS.bold,
+    color: COLORS.textPrimary,
+    marginBottom: 4,
+  },
+  modalDriverNumberBadge: {
+    backgroundColor: COLORS.surfaceAlt,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 4,
+    borderRadius: BORDER_RADIUS.full,
+    marginBottom: SPACING.lg,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  modalDriverNumberText: {
+    fontSize: 12,
+    fontWeight: FONT_WEIGHTS.semibold,
+    color: COLORS.textSecondary,
+  },
+  modalVehicleCard: {
+    backgroundColor: COLORS.surfaceAlt,
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.lg,
+    width: '100%',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginBottom: SPACING.md,
+  },
+  modalVehicleTitle: {
+    fontSize: 15,
+    fontWeight: FONT_WEIGHTS.bold,
+    color: COLORS.textPrimary,
+  },
+  modalVehicleSub: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginTop: 2,
+  },
+  modalPlateBox: {
+    backgroundColor: COLORS.amber,
+    borderRadius: BORDER_RADIUS.sm,
+    paddingVertical: 5,
+    paddingHorizontal: 12,
+    alignSelf: 'flex-start',
+    marginTop: SPACING.md,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.1)',
+  },
+  modalPlateText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#000',
+    letterSpacing: 1,
+  },
+  modalPricingCard: {
+    width: '100%',
+    gap: SPACING.sm,
+    marginBottom: SPACING.lg,
+    paddingHorizontal: SPACING.xs,
+  },
+  modalPricingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+  },
+  modalPricingText: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    fontWeight: FONT_WEIGHTS.medium,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: SPACING.md,
+    width: '100%',
+  },
+  modalCancelBtn: {
+    flex: 1,
+    paddingVertical: SPACING.lg,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalCancelBtnText: {
+    color: COLORS.textSecondary,
+    fontSize: 15,
+    fontWeight: FONT_WEIGHTS.semibold,
+  },
+  modalConfirmBtn: {
+    flex: 2,
+    backgroundColor: COLORS.electricTeal,
+    paddingVertical: SPACING.lg,
+    borderRadius: BORDER_RADIUS.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalConfirmBtnText: {
+    color: '#FFF',
+    fontSize: 15,
+    fontWeight: FONT_WEIGHTS.bold,
   },
 });

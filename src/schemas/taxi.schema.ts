@@ -93,6 +93,27 @@ export class Taxi {
   @Prop({ type: Object })
   motCheck?: MotCheckData;
 
+  // ── Individual Document URLs ──
+  // Driver requirements
+  @Prop() natInsuranceUrl?: string;
+  @Prop() vatCertUrl?: string;
+  @Prop() dvlaLicenceUrl?: string;
+  @Prop() bankStatementUrl?: string;
+  @Prop() dvlaCheckCodeUrl?: string;
+  @Prop() phvDriverLicenceUrl?: string;
+  @Prop() profilePhotoUrl?: string;
+
+  // Vehicle requirements
+  @Prop() phvlUrl?: string;
+  @Prop() v5cUrl?: string;
+  @Prop() insuranceUrl?: string;
+  @Prop() vehicleInspectionUrl?: string;
+
+  // Per-document status tracking
+  @Prop({ type: Object, default: {} })
+  documentStatuses?: Record<string, string>;
+
+  // Legacy generic documents (kept for backward compatibility)
   @Prop({ type: Object })
   documents?: any;
 

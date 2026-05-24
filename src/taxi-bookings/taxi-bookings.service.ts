@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, forwardRef, Inject } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import {
@@ -10,6 +10,8 @@ import { Chauffeur, ChauffeurDocument } from 'src/schemas/chauffeur.schema';
 import { User, UserDocument } from 'src/schemas/user.schema';
 import { Response } from 'src/common/interfaces/response.interface';
 import { NotificationsService } from 'src/notifications/notifications.service';
+import { TaxiBookingsGateway } from './taxi-bookings.gateway';
+import { PaymentsService } from 'src/payments/payments.service';
 
 // Pricing constants
 const RATE_PER_MILE = 1.10;
@@ -24,6 +26,9 @@ export class TaxiBookingsService {
     @InjectModel(Chauffeur.name) private chauffeurModel: Model<ChauffeurDocument>,
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     private readonly notificationsService: NotificationsService,
+    private readonly paymentsService: PaymentsService,
+    @Inject(forwardRef(() => TaxiBookingsGateway))
+    private readonly taxiGateway: TaxiBookingsGateway,
   ) {}
 
   /**
@@ -47,6 +52,22 @@ export class TaxiBookingsService {
     estimatedDurationMinutes?: number;
   }): Promise<Response> {
     try {
+      // 1. Verify passenger has a payment method BEFORE allowing them to request a ride
+      try {
+        const paymentMethods = await this.paymentsService.getPaymentMethods(data.passengerId);
+        if (!paymentMethods || paymentMethods.length === 0) {
+          return {
+            success: false,
+            message: 'Please add a payment method before requesting a ride.',
+          };
+        }
+      } catch (err: any) {
+        return {
+          success: false,
+          message: 'Could not verify payment method. Please check your wallet.',
+        };
+      }
+
       // Check for existing active request
       const existingActive = await this.taxiRequestModel.findOne({
         passenger: data.passengerId,
@@ -238,7 +259,7 @@ export class TaxiBookingsService {
         };
       }
 
-      // Look up the driver's number
+      // Look up the driver's number and vehicle details
       const driverRecord: any =
         (await this.taxiModel.findOne({ user: driverId })) ||
         (await this.chauffeurModel.findOne({ user: driverId }));
@@ -246,11 +267,13 @@ export class TaxiBookingsService {
       // Update the request
       request.status = 'accepted';
       request.acceptedDriver = driverId;
+      
+      // Auto-populate vehicle details directly from the driver's registered profile
       request.driverVehicle = {
-        make: data.vehicleMake,
-        model: data.vehicleModel,
-        color: data.vehicleColor,
-        plateNumber: data.plateNumber,
+        make: driverRecord?.vehicleInfo?.make || 'Standard',
+        model: driverRecord?.vehicleInfo?.model || 'Vehicle',
+        color: driverRecord?.vehicleInfo?.color || 'Black',
+        plateNumber: driverRecord?.vehicleInfo?.plateNumber || driverRecord?.vehicleInfo?.registration || 'N/A',
       };
       request.driverEtaMinutes = data.etaMinutes;
       request.driverNumber = driverRecord?.driverNumber || undefined;
@@ -270,11 +293,14 @@ export class TaxiBookingsService {
         .populate('acceptedDriver', 'firstName lastName phoneNumber')
         .exec();
 
+      // Trigger real-time socket updates for passenger
+      this.taxiGateway.pushRequestUpdate(request._id.toString(), populated);
+
       // Notify passenger
       await this.notificationsService.sendNotification(
         request.passenger.toString(),
         'Ride Accepted!',
-        `A driver is on their way. ETA: ${data.etaMinutes} mins. Vehicle: ${data.vehicleMake} ${data.vehicleModel} (${data.plateNumber})`,
+        `A driver is on their way. ETA: ${data.etaMinutes} mins. Vehicle: ${driverRecord?.vehicleInfo?.make || 'Standard'} ${driverRecord?.vehicleInfo?.model || 'Vehicle'} (${driverRecord?.vehicleInfo?.plateNumber || driverRecord?.vehicleInfo?.registration || 'N/A'})`,
         'ride',
         { rideId: request._id }
       );
@@ -334,6 +360,9 @@ export class TaxiBookingsService {
 
       request.status = 'cancelled';
       await request.save();
+
+      // Trigger real-time socket updates for driver/passenger
+      this.taxiGateway.pushRequestUpdate(request._id.toString(), request);
 
       return {
         success: true,
@@ -418,6 +447,72 @@ export class TaxiBookingsService {
       return {
         success: false,
         message: `Failed to fetch: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      };
+    }
+  }
+
+  /**
+   * Update request status and push live websocket event to the passenger
+   */
+  async updateRequestStatus(
+    requestId: string,
+    status: string,
+    rideId?: string,
+  ): Promise<Response> {
+    try {
+      const request = await this.taxiRequestModel.findById(requestId);
+      if (!request) {
+        return { success: false, message: 'Ride request not found' };
+      }
+
+      request.status = status as any;
+      await request.save();
+
+      const populated = await this.taxiRequestModel
+        .findById(requestId)
+        .populate('passenger', 'firstName lastName phoneNumber')
+        .populate('acceptedDriver', 'firstName lastName phoneNumber')
+        .exec();
+
+      // Trigger WebSockets update
+      this.taxiGateway.pushRequestUpdate(requestId, populated);
+
+      // Send push notifications
+      if (status === 'arrived') {
+        await this.notificationsService.sendNotification(
+          request.passenger.toString(),
+          'Driver Arrived',
+          'Your driver has arrived at the pickup location!',
+          'ride',
+          { rideId: request._id }
+        );
+      } else if (status === 'in_progress') {
+        await this.notificationsService.sendNotification(
+          request.passenger.toString(),
+          'Ride Started',
+          'Your ride is now in progress. Have a safe trip!',
+          'ride',
+          { rideId: request._id }
+        );
+      } else if (status === 'completed') {
+        await this.notificationsService.sendNotification(
+          request.passenger.toString(),
+          'Ride Completed',
+          'Your ride has been successfully completed. Thank you!',
+          'payment',
+          { rideId: request._id }
+        );
+      }
+
+      return {
+        success: true,
+        data: populated,
+        message: `Request status updated to ${status}`,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: `Failed to update status: ${error instanceof Error ? error.message : 'Unknown error'}`,
       };
     }
   }

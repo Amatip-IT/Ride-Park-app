@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { View, StyleSheet, ActivityIndicator } from 'react-native';
 import { WebView } from 'react-native-webview';
 
@@ -7,6 +7,9 @@ interface AmazonMapProps {
   pickupLng?: number;
   destinationLat?: number;
   destinationLng?: number;
+  driverLat?: number;
+  driverLng?: number;
+  driverRotation?: number;
 }
 
 export function AmazonMap({
@@ -14,13 +17,30 @@ export function AmazonMap({
   pickupLng,
   destinationLat,
   destinationLng,
+  driverLat,
+  driverLng,
+  driverRotation = 0,
 }: AmazonMapProps) {
   const AWS_API_KEY = process.env.EXPO_PUBLIC_AWS_LOCATION_KEY || '';
   const AWS_REGION = process.env.EXPO_PUBLIC_AWS_REGION || 'us-east-1';
 
+  const webViewRef = useRef<WebView>(null);
+
   // Fallback map center if no coordinates
-  const centerLng = pickupLng || -0.1276;
-  const centerLat = pickupLat || 51.5072; // London default
+  const centerLng = driverLng || pickupLng || -0.1276;
+  const centerLat = driverLat || pickupLat || 51.5072; // London default
+
+  useEffect(() => {
+    if (webViewRef.current && driverLat && driverLng) {
+      const js = `
+        if (window.updateDriverLocation) {
+          window.updateDriverLocation(${driverLng}, ${driverLat}, ${driverRotation});
+        }
+        true;
+      `;
+      webViewRef.current.injectJavaScript(js);
+    }
+  }, [driverLat, driverLng, driverRotation]);
 
   const htmlContent = `
     <!DOCTYPE html>
@@ -47,6 +67,16 @@ export function AmazonMap({
             border: 3px solid white;
             box-shadow: 0 0 10px rgba(0,0,0,0.5);
           }
+          .marker-car {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: all 0.5s ease-out;
+          }
+          .marker-car span {
+            font-size: 26px;
+            filter: drop-shadow(0px 3px 6px rgba(0,0,0,0.4));
+          }
         </style>
       </head>
       <body>
@@ -72,10 +102,28 @@ export function AmazonMap({
             // Add Navigation Controls
             map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
 
+            let carMarker = null;
+            window.updateDriverLocation = (lng, lat, rotation) => {
+              if (!carMarker) {
+                const carEl = document.createElement('div');
+                carEl.className = 'marker-car';
+                carEl.innerHTML = '<span>🚗</span>';
+                carMarker = new maplibregl.Marker({ element: carEl })
+                  .setLngLat([lng, lat])
+                  .addTo(map);
+              } else {
+                carMarker.setLngLat([lng, lat]);
+              }
+              const carSpan = carMarker.getElement().querySelector('span');
+              if (carSpan) {
+                carSpan.style.display = 'inline-block';
+                carSpan.style.transform = 'rotate(' + (rotation || 0) + 'deg)';
+              }
+            };
+
             map.on('load', () => {
               // Add 3D Buildings
               try {
-                // Get the primary vector tile source provided by AWS
                 const sources = map.getStyle().sources;
                 const sourceId = Object.keys(sources).find(key => sources[key].type === 'vector') || 'esri';
 
@@ -124,7 +172,14 @@ export function AmazonMap({
                 hasBounds = true;
               }
 
-              // Fit bounds securely if we have two points
+              // Initial Car Marker placement
+              if (${driverLng ? 'true' : 'false'} && ${driverLat ? 'true' : 'false'}) {
+                window.updateDriverLocation(${driverLng}, ${driverLat}, ${driverRotation});
+                bounds.extend([${driverLng}, ${driverLat}]);
+                hasBounds = true;
+              }
+
+              // Fit bounds securely if we have points
               if (hasBounds) {
                 map.fitBounds(bounds, { 
                   padding: 60, 
@@ -145,6 +200,7 @@ export function AmazonMap({
   return (
     <View style={styles.container}>
       <WebView
+        ref={webViewRef}
         originWhitelist={['*']}
         source={{ html: htmlContent }}
         style={styles.webview}

@@ -17,6 +17,23 @@ type ParamList = {
   };
 };
 
+// Maps the UI document ID to its dedicated backend schema field name
+const DOC_FIELD_MAPPING: Record<string, string> = {
+  // Driver requirements
+  nat_insurance: 'natInsuranceUrl',
+  vat_cert: 'vatCertUrl',
+  dvla_licence: 'dvlaLicenceUrl',
+  bank_statement: 'bankStatementUrl',
+  dvla_check_code: 'dvlaCheckCodeUrl',
+  phv_driver_licence: 'phvDriverLicenceUrl',
+  profile_photo: 'profilePhotoUrl',
+  // Vehicle requirements
+  phvl: 'phvlUrl',
+  v5c: 'v5cUrl',
+  insurance: 'insuranceUrl',
+  vehicle_inspection: 'vehicleInspectionUrl',
+};
+
 export function DocumentUploadScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<RouteProp<ParamList, 'DocumentUpload'>>();
@@ -90,23 +107,13 @@ export function DocumentUploadScreen() {
       const user = useAuthStore.getState().user;
       const role = user?.role;
 
-      // Map the document ID to the correct field name for the backend
-      const docFieldMapping: Record<string, string> = {
-        dvla_licence: 'driverLicenseUrl',
-        nat_insurance: 'nationalIdUrl',
-        bank_statement: 'proofOfAddressUrl',
-        dvla_check_code: 'proofOfAddressUrl',
-        phv_driver_licence: 'driverLicenseUrl',
-        profile_photo: 'nationalIdUrl',
-        vat_cert: 'nationalIdUrl',
-        // Vehicle docs
-        phvl: 'driverLicenseUrl',
-        v5c: 'nationalIdUrl',
-        insurance: 'proofOfAddressUrl',
-        vehicle_inspection: 'proofOfAddressUrl',
-      };
-
-      const fieldName = docFieldMapping[docId] || 'driverLicenseUrl';
+      // Get the dedicated backend field for this document
+      const docField = DOC_FIELD_MAPPING[docId];
+      if (!docField) {
+        Alert.alert('Error', `Unknown document type: ${docId}`);
+        setIsUploading(false);
+        return;
+      }
 
       // 1. Upload the file to S3
       const formData = new FormData();
@@ -124,16 +131,12 @@ export function DocumentUploadScreen() {
 
       const s3Url = uploadRes.data.url;
 
-      // 2. Submit the returned S3 URL to the verification endpoint
-      // This updates the backend status to 'pending_admin_review'
-      const submitData: Record<string, string> = {};
-      submitData[fieldName] = s3Url;
-
+      // 2. Submit the S3 URL with the dedicated field name
       let res;
       if (role === 'taxi_driver') {
-        res = await providerApi.submitTaxiVerification(submitData as any);
+        res = await providerApi.submitTaxiVerification({ docField, docUrl: s3Url });
       } else {
-        res = await providerApi.submitDriverVerification(submitData as any);
+        res = await providerApi.submitDriverVerification({ docField, docUrl: s3Url });
       }
 
       if (res.data?.success) {

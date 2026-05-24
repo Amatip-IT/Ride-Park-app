@@ -8,6 +8,21 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useAuthStore } from '@/store/authStore';
 
+// Maps the UI doc ID to the backend schema field name
+const DOC_TO_FIELD: Record<string, string> = {
+  nat_insurance: 'natInsuranceUrl',
+  vat_cert: 'vatCertUrl',
+  dvla_licence: 'dvlaLicenceUrl',
+  bank_statement: 'bankStatementUrl',
+  dvla_check_code: 'dvlaCheckCodeUrl',
+  phv_driver_licence: 'phvDriverLicenceUrl',
+  profile_photo: 'profilePhotoUrl',
+  phvl: 'phvlUrl',
+  v5c: 'v5cUrl',
+  insurance: 'insuranceUrl',
+  vehicle_inspection: 'vehicleInspectionUrl',
+};
+
 const DRIVER_DOCS = [
   { id: 'nat_insurance', title: 'National Insurance', optional: true },
   { id: 'vat_cert', title: 'VAT Certificate', optional: true },
@@ -46,28 +61,30 @@ export function DriverVerificationScreen() {
             setOverallStatus(backendStatus);
             
             const docs = data?.documents || {};
-            
-            // Map backend documents to the local UI ids
-            const mapping: Record<string, string> = {
-              driverLicenseUrl: 'dvla_licence',
-              nationalIdUrl: 'nat_insurance',
-              proofOfAddressUrl: 'bank_statement',
-            };
+            const perDocStatuses = data?.documentStatuses || {};
 
             const newStatuses: Record<string, { status: string }> = {};
             
-            // Determine per-document status based on overall verification status
-            Object.keys(docs).forEach(key => {
-              if (docs[key]) {
-                const mappedId = mapping[key] || key;
-                if (backendStatus === 'approved') {
-                  newStatuses[mappedId] = { status: 'Verified' };
-                } else if (backendStatus === 'pending_admin_review' || backendStatus === 'pending_auto_check') {
-                  newStatuses[mappedId] = { status: 'Uploaded, Await Review' };
-                } else if (backendStatus === 'rejected') {
-                  newStatuses[mappedId] = { status: 'Rejected' };
+            // Map each document field to its UI doc ID with per-document status
+            Object.entries(DOC_TO_FIELD).forEach(([uiId, fieldName]) => {
+              if (docs[fieldName]) {
+                // Document URL exists — check its individual status
+                const docStatus = perDocStatuses[fieldName];
+                if (docStatus === 'verified') {
+                  newStatuses[uiId] = { status: 'Verified' };
+                } else if (docStatus === 'rejected') {
+                  newStatuses[uiId] = { status: 'Rejected' };
+                } else if (docStatus === 'uploaded') {
+                  newStatuses[uiId] = { status: 'Uploaded, Await Review' };
                 } else {
-                  newStatuses[mappedId] = { status: 'Uploaded' };
+                  // Fallback to overall status
+                  if (backendStatus === 'approved') {
+                    newStatuses[uiId] = { status: 'Verified' };
+                  } else if (backendStatus === 'rejected') {
+                    newStatuses[uiId] = { status: 'Rejected' };
+                  } else {
+                    newStatuses[uiId] = { status: 'Uploaded, Await Review' };
+                  }
                 }
               }
             });
@@ -96,7 +113,7 @@ export function DriverVerificationScreen() {
   const getStatusText = (status: string | undefined, optional: boolean) => {
     if (status) return status;
     if (optional) return 'Optional';
-    return 'Not Submitted'; // Changed from 'Pending' to 'Not Submitted'
+    return 'Not Submitted';
   };
 
   const renderDocItem = (item: typeof DRIVER_DOCS[0]) => {

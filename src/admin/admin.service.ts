@@ -7,9 +7,41 @@ import { User, UserDocument } from 'src/schemas/user.schema';
 import { Wallet, WalletDocument } from 'src/schemas/wallet.schema';
 import { Transaction, TransactionDocument } from 'src/schemas/transaction.schema';
 import { PlatformSettings, PlatformSettingsDocument } from 'src/schemas/platform-settings.schema';
+import { Chauffeur, ChauffeurDocument } from 'src/schemas/chauffeur.schema';
+import { Taxi, TaxiDocument } from 'src/schemas/taxi.schema';
 import { Response } from 'src/common/interfaces/response.interface';
 import { What3WordsService } from 'src/utility/what3words.service';
 import Stripe from 'stripe';
+
+// All valid document field names
+const VALID_DOC_FIELDS = [
+  'natInsuranceUrl',
+  'vatCertUrl',
+  'dvlaLicenceUrl',
+  'bankStatementUrl',
+  'dvlaCheckCodeUrl',
+  'phvDriverLicenceUrl',
+  'profilePhotoUrl',
+  'phvlUrl',
+  'v5cUrl',
+  'insuranceUrl',
+  'vehicleInspectionUrl',
+] as const;
+
+// Human-readable labels for document fields
+const DOC_LABELS: Record<string, string> = {
+  natInsuranceUrl: 'National Insurance',
+  vatCertUrl: 'VAT Certificate',
+  dvlaLicenceUrl: 'DVLA Plastic Driving Licence',
+  bankStatementUrl: 'Bank Statement',
+  dvlaCheckCodeUrl: 'DVLA Electronic Counterpart Check Code',
+  phvDriverLicenceUrl: 'Private Hire Driver Licence (Paper & Badge)',
+  profilePhotoUrl: 'Profile Photo',
+  phvlUrl: 'Private Hire Vehicle Licence (PHVL)',
+  v5cUrl: 'V5C Vehicle Logbook',
+  insuranceUrl: 'Insurance Certificate',
+  vehicleInspectionUrl: 'UK Vehicle Inspection',
+};
 
 @Injectable()
 export class AdminService {
@@ -23,10 +55,16 @@ export class AdminService {
     @InjectModel(Wallet.name) private walletModel: Model<WalletDocument>,
     @InjectModel(Transaction.name) private transactionModel: Model<TransactionDocument>,
     @InjectModel(PlatformSettings.name) private platformSettingsModel: Model<PlatformSettingsDocument>,
+    @InjectModel(Chauffeur.name) private chauffeurModel: Model<ChauffeurDocument>,
+    @InjectModel(Taxi.name) private taxiModel: Model<TaxiDocument>,
     private what3wordsService: What3WordsService,
   ) {
     this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_mock');
   }
+
+  // ══════════════════════════════════════════════
+  // ── Parking Space Verifications ──
+  // ══════════════════════════════════════════════
 
   /**
    * Get all pending parking provider verification requests
@@ -100,16 +138,29 @@ export class AdminService {
       // If we don't have a name from the provider, construct one
       const docs = verification.documents || {};
       const parkName = docs.parkName || `${user.firstName}'s Parking Space`;
-      
+
+      // Resolve photos: provider submits as 'parkPhotos' (array) or 'parkPhotoUrl' (legacy single)
+      const parkPhotos: string[] = Array.isArray(docs.parkPhotos)
+        ? docs.parkPhotos
+        : docs.parkPhotoUrl
+          ? [docs.parkPhotoUrl]
+          : [];
+      const cctvPhotos: string[] = Array.isArray(docs.cctvPhotos)
+        ? docs.cctvPhotos
+        : docs.cctvPhotoUrl
+          ? [docs.cctvPhotoUrl]
+          : [];
+
       // 3. Create the official, searchable Parking Space!
       const newSpace = new this.parkingSpaceModel({
         owner: user._id,
         name: parkName,
-        description: 'Secure parking space approved by Gleezip admins.',
-        postCode: verification.postcode || 'UNKNOWN',
+        description: docs.description || 'Secure parking space approved by Gleezip admins.',
+        postCode: verification.postcode || docs.parkPostcode || 'UNKNOWN',
         hourlyRate: parseFloat(docs.hourlyRate) || customHourlyRate,
         dailyRate: docs.dailyRate ? parseFloat(docs.dailyRate) : undefined,
         totalSpots: parseInt(docs.totalSpots) || 1,
+        occupiedSpots: 0,
         parkingType: docs.parkingType || 'Short Stay',
         bookingMethods: docs.bookingMethods ? docs.bookingMethods.split(',').map((s: string) => s.trim()) : ['Online / App'],
         acceptedVehicles: docs.acceptedVehicles ? docs.acceptedVehicles.split(',').map((s: string) => s.trim()) : ['Car'],
@@ -118,8 +169,8 @@ export class AdminService {
         chargesDescription: docs.chargesDescription || undefined,
         isAvailable: true,
         isVerified: true,
-        photos: docs.parkPhotoUrl ? [docs.parkPhotoUrl] : [],
-        cctvPhotos: docs.cctvPhotoUrl ? [docs.cctvPhotoUrl] : [],
+        photos: parkPhotos,
+        cctvPhotos: cctvPhotos,
       });
 
       // Add the enriched location data if we got it
@@ -192,6 +243,219 @@ export class AdminService {
       };
     }
   }
+
+  // ══════════════════════════════════════════════
+  // ── Driver / Taxi Document Verifications ──
+  // ══════════════════════════════════════════════
+
+  /**
+   * Get all drivers and taxi drivers with pending verification status
+   * Returns combined list from both Chauffeur and Taxi collections
+   */
+  async getPendingDriverVerifications(): Promise<Response> {
+    try {
+      // Fetch pending chauffeurs
+      const pendingChauffeurs = await this.chauffeurModel
+        .find({ status: 'pending_admin_review' })
+        .populate('user', 'firstName lastName email phoneNumber role')
+        .sort({ updatedAt: -1 })
+        .exec();
+
+      // Fetch pending taxis
+      const pendingTaxis = await this.taxiModel
+        .find({ status: 'pending_admin_review' })
+        .populate('user', 'firstName lastName email phoneNumber role')
+        .sort({ updatedAt: -1 })
+        .exec();
+
+      // Combine and annotate with provider type
+      const combined = [
+        ...pendingChauffeurs.map(c => {
+          const obj = c.toObject();
+          return { ...obj, providerType: 'driver' };
+        }),
+        ...pendingTaxis.map(t => {
+          const obj = t.toObject();
+          return { ...obj, providerType: 'taxi_driver' };
+        }),
+      ];
+
+      // Sort by most recently updated
+      combined.sort((a: any, b: any) => {
+        const dateA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+        const dateB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+        return dateB - dateA;
+      });
+
+      return {
+        success: true,
+        data: combined,
+        message: `Found ${combined.length} pending driver/taxi verifications`,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: `Failed to fetch driver verifications: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      };
+    }
+  }
+
+  /**
+   * Get full detail of a single driver/taxi verification record
+   */
+  async getDriverVerificationDetail(recordId: string, providerType: string): Promise<Response> {
+    try {
+      let record: any = null;
+
+      if (providerType === 'driver') {
+        record = await this.chauffeurModel
+          .findById(recordId)
+          .populate('user', 'firstName lastName email phoneNumber role')
+          .exec();
+      } else {
+        record = await this.taxiModel
+          .findById(recordId)
+          .populate('user', 'firstName lastName email phoneNumber role')
+          .exec();
+      }
+
+      if (!record) {
+        return { success: false, message: 'Verification record not found' };
+      }
+
+      // Build a structured document list for the admin UI
+      const documentsList = VALID_DOC_FIELDS.map(field => ({
+        field,
+        label: DOC_LABELS[field] || field,
+        url: record[field] || null,
+        status: record.documentStatuses?.[field] || (record[field] ? 'uploaded' : 'not_submitted'),
+      }));
+
+      return {
+        success: true,
+        data: {
+          ...record.toObject(),
+          providerType,
+          documentsList,
+        },
+        message: 'Verification detail retrieved',
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: `Failed to fetch detail: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      };
+    }
+  }
+
+  /**
+   * Approve a driver/taxi verification — sets status to 'approved' and isVerified to true
+   */
+  async approveDriverVerification(recordId: string, providerType: string, adminUserId?: string): Promise<Response> {
+    try {
+      let record: any = null;
+
+      if (providerType === 'driver') {
+        record = await this.chauffeurModel.findById(recordId).exec();
+      } else {
+        record = await this.taxiModel.findById(recordId).exec();
+      }
+
+      if (!record) {
+        return { success: false, message: 'Verification record not found' };
+      }
+
+      if (record.status === 'approved') {
+        return { success: false, message: 'This provider is already approved' };
+      }
+
+      // Set status and isVerified
+      record.status = 'approved';
+      record.isVerified = true;
+      record.isActive = true;
+      if (adminUserId) record.approvedBy = adminUserId;
+
+      // Mark all uploaded documents as verified
+      if (record.documentStatuses) {
+        for (const field of VALID_DOC_FIELDS) {
+          if (record[field] && record.documentStatuses[field]) {
+            record.documentStatuses[field] = 'verified';
+          }
+        }
+        record.markModified('documentStatuses');
+      }
+
+      await record.save();
+
+      // Get user info for the response
+      const user = await this.userModel.findById(record.user).exec();
+
+      return {
+        success: true,
+        data: {
+          recordId: record._id,
+          status: record.status,
+          isVerified: record.isVerified,
+        },
+        message: `${providerType === 'driver' ? 'Driver' : 'Taxi driver'} ${user?.firstName || ''} ${user?.lastName || ''} has been approved and can now accept rides.`,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: `Failed to approve verification: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      };
+    }
+  }
+
+  /**
+   * Reject a driver/taxi verification
+   */
+  async rejectDriverVerification(recordId: string, providerType: string, reason: string): Promise<Response> {
+    try {
+      let record: any = null;
+
+      if (providerType === 'driver') {
+        record = await this.chauffeurModel.findById(recordId).exec();
+      } else {
+        record = await this.taxiModel.findById(recordId).exec();
+      }
+
+      if (!record) {
+        return { success: false, message: 'Verification record not found' };
+      }
+
+      record.status = 'rejected';
+      record.isVerified = false;
+      record.rejectionReason = reason;
+
+      // Mark all document statuses as rejected
+      if (record.documentStatuses) {
+        for (const field of VALID_DOC_FIELDS) {
+          if (record[field] && record.documentStatuses[field]) {
+            record.documentStatuses[field] = 'rejected';
+          }
+        }
+        record.markModified('documentStatuses');
+      }
+
+      await record.save();
+
+      return {
+        success: true,
+        data: null,
+        message: 'Verification rejected.',
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: `Failed to reject verification: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      };
+    }
+  }
+
+  // ══════════════════════════════════════════════
+  // ── Provider Identity Verifications ──
+  // ══════════════════════════════════════════════
 
   /**
    * Get all providers with pending identity verification
@@ -277,7 +541,11 @@ export class AdminService {
       };
     }
   }
+
+  // ══════════════════════════════════════════════
   // ── Platform Settings ──
+  // ══════════════════════════════════════════════
+
   async getPlatformSettings(): Promise<Response> {
     let settings = await this.platformSettingsModel.findOne();
     if (!settings) {
@@ -297,7 +565,10 @@ export class AdminService {
     return { success: true, data: settings, message: `Platform fee updated to ${percentage}%` };
   }
 
+  // ══════════════════════════════════════════════
   // ── Payouts (Withdrawals) ──
+  // ══════════════════════════════════════════════
+
   async getPendingWithdrawals(): Promise<Response> {
     const pending = await this.transactionModel
       .find({ type: 'withdrawal', status: 'pending' })

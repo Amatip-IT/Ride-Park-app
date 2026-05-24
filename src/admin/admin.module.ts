@@ -8,6 +8,8 @@ import { User, UserSchema } from 'src/schemas/user.schema';
 import { Wallet, WalletSchema } from 'src/schemas/wallet.schema';
 import { Transaction, TransactionSchema } from 'src/schemas/transaction.schema';
 import { PlatformSettings, PlatformSettingsSchema } from 'src/schemas/platform-settings.schema';
+import { Chauffeur, ChauffeurSchema } from 'src/schemas/chauffeur.schema';
+import { Taxi, TaxiSchema } from 'src/schemas/taxi.schema';
 import { UtilityModule } from 'src/utility/utility.module';
 
 @Module({
@@ -19,6 +21,8 @@ import { UtilityModule } from 'src/utility/utility.module';
       { name: Wallet.name, schema: WalletSchema },
       { name: Transaction.name, schema: TransactionSchema },
       { name: PlatformSettings.name, schema: PlatformSettingsSchema },
+      { name: Chauffeur.name, schema: ChauffeurSchema },
+      { name: Taxi.name, schema: TaxiSchema },
     ]),
     UtilityModule,
   ],

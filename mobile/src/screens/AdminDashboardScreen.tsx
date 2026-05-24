@@ -115,14 +115,30 @@ export function AdminDashboardScreen() {
           <Ionicons name="chevron-forward" size={22} color={COLORS.textTertiary} />
         </TouchableOpacity>
 
+        {/* Driver / Taxi Verifications */}
+        <TouchableOpacity
+          style={styles.card}
+          onPress={() => navigation.navigate('AdminDriverQueue')}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.iconContainer, { backgroundColor: `${COLORS.amber}12` }]}>
+            <Ionicons name="car-sport-outline" size={28} color={COLORS.amber} />
+          </View>
+          <View style={styles.cardContent}>
+            <Text style={styles.cardTitle}>Driver Verifications</Text>
+            <Text style={styles.cardDesc}>Review driver and taxi driver document submissions.</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={22} color={COLORS.textTertiary} />
+        </TouchableOpacity>
+
         {/* Identity Documents */}
         <TouchableOpacity
           style={styles.card}
           onPress={() => navigation.navigate('AdminIdentityQueue')}
           activeOpacity={0.7}
         >
-          <View style={[styles.iconContainer, { backgroundColor: `${COLORS.amber}12` }]}>
-            <Ionicons name="id-card-outline" size={28} color={COLORS.amber} />
+          <View style={[styles.iconContainer, { backgroundColor: `${COLORS.info}12` }]}>
+            <Ionicons name="id-card-outline" size={28} color={COLORS.info} />
           </View>
           <View style={styles.cardContent}>
             <Text style={styles.cardTitle}>Identity Documents</Text>

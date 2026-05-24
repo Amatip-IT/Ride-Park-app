@@ -7,10 +7,12 @@ import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/cons
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/store/authStore';
 import { providerApi } from '@/api';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, NavigationProp } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 
 type VerificationStatus = 'not_applied' | 'pending_admin_review' | 'approved' | 'rejected';
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 
 const STATUS_CONFIG: Record<string, { color: string; label: string; icon: keyof typeof Ionicons.glyphMap }> = {
   not_applied: { color: COLORS.softSlate, label: 'Draft', icon: 'document-text-outline' },
@@ -58,6 +60,7 @@ const PARKING_FIELDS: DocItem[] = [
 
 export function ProviderVerificationScreen() {
   const { user } = useAuthStore();
+  const navigation = useNavigation<NavigationProp<any>>();
   const role = user?.role || 'parking_provider';
 
   const [verifications, setVerifications] = useState<any[]>([]);
@@ -186,10 +189,33 @@ export function ProviderVerificationScreen() {
         submitData._id = currentId;
       }
 
-      // Add selected images (arrays)
-      Object.entries(selectedImages).forEach(([key, uris]) => {
-        if (uris && uris.length > 0) submitData[key] = uris;
-      });
+      // Upload selected images to S3 first, then store S3 URLs
+      for (const [key, uris] of Object.entries(selectedImages)) {
+        if (!uris || uris.length === 0) continue;
+
+        const s3Urls: string[] = [];
+        for (const uri of uris) {
+          try {
+            const imgFormData = new FormData();
+            imgFormData.append('file', {
+              uri: Platform.OS === 'ios' ? uri.replace('file://', '') : uri,
+              name: `park_${key}_${Date.now()}.jpg`,
+              type: 'image/jpeg',
+            } as any);
+
+            const uploadRes = await providerApi.uploadDocument(imgFormData);
+            if (uploadRes.data?.success && uploadRes.data.url) {
+              s3Urls.push(uploadRes.data.url);
+            }
+          } catch (uploadErr) {
+            console.warn(`Failed to upload ${key} image:`, uploadErr);
+          }
+        }
+
+        // Merge with any existing S3 URLs from previous uploads
+        const existing: string[] = Array.isArray(documents[key]) ? documents[key] : [];
+        submitData[key] = [...existing, ...s3Urls];
+      }
 
       const response = await providerApi.submitParkingVerification(submitData);
 
@@ -461,9 +487,18 @@ export function ProviderVerificationScreen() {
               <View style={styles.infoBox}>
                  <Ionicons name="checkmark-circle" size={24} color={COLORS.success} />
                  <Text style={styles.infoBoxText}>
-                   Your park is live and accepting bookings! You can manage availability on your dashboard.
+                   Your park is live and accepting bookings!
                  </Text>
               </View>
+              <TouchableOpacity
+                style={styles.manageSpacesBtn}
+                onPress={() => navigation.navigate('ProviderSpaceManagement')}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="settings-outline" size={20} color="#FFF" />
+                <Text style={styles.manageSpacesBtnText}>Manage My Spaces</Text>
+                <Ionicons name="chevron-forward" size={18} color="#FFF" style={{ marginLeft: 'auto' }} />
+              </TouchableOpacity>
             </View>
           )}
 
@@ -595,5 +630,17 @@ const styles = StyleSheet.create({
   addImageText: {
     color: COLORS.textSecondary, fontSize: 12, marginTop: 4,
     fontWeight: FONT_WEIGHTS.medium,
+  },
+
+  // Manage Spaces button
+  manageSpacesBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: COLORS.electricTeal, borderRadius: BORDER_RADIUS.lg,
+    paddingVertical: 16, paddingHorizontal: SPACING.lg, marginTop: SPACING.md,
+    shadowColor: COLORS.electricTeal, shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3, shadowRadius: 8, elevation: 4,
+  },
+  manageSpacesBtnText: {
+    color: '#FFF', fontSize: 16, fontWeight: FONT_WEIGHTS.bold,
   },
 });

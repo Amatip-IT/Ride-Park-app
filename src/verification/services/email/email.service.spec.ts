@@ -78,7 +78,7 @@ describe('EmailService', () => {
       expect(mockSendMail).toHaveBeenCalledWith(
         expect.objectContaining({
           to: email,
-          subject: 'Email Verification - Ride and Park',
+          subject: 'Email Verification - Gleezip',
         }),
       );
     });
@@ -104,7 +104,7 @@ describe('EmailService', () => {
       expect(mockSendMail).toHaveBeenCalledWith(
         expect.objectContaining({
           to: email,
-          subject: 'Welcome to Ride and Park! 🎉',
+          subject: 'Welcome to Gleezip! 🎉',
         }),
       );
     });

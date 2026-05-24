@@ -8,6 +8,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { taxiBookingsApi, ridesApi } from '@/api';
 import { AmazonMap } from '@/components/AmazonMap';
+import * as Location from 'expo-location';
+import { useTaxiStore } from '@/store/taxiStore';
+import { useAuthStore } from '@/store/authStore';
 
 type ParamList = {
   ProviderActiveJourney: {
@@ -27,6 +30,54 @@ export function ProviderActiveJourneyScreen() {
   // Journey state: 'accepted' -> 'arrived' -> 'in_progress' -> 'completed'
   const [journeyState, setJourneyState] = useState<'accepted' | 'arrived' | 'in_progress' | 'completed'>('accepted');
   const [rideId, setRideId] = useState<string | null>(null);
+
+  const { user } = useAuthStore();
+  const { connect, joinRide, leaveRide, updateDriverLocation, driverLocation } = useTaxiStore();
+
+  useEffect(() => {
+    let locationSubscription: any = null;
+
+    const startWatching = async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          console.warn('Location permission denied for tracking');
+          return;
+        }
+
+        locationSubscription = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.High,
+            timeInterval: 2000,
+            distanceInterval: 5,
+          },
+          (location) => {
+            const { latitude, longitude, heading } = location.coords;
+            const driverId = user?._id || (user as any)?.id;
+            if (driverId && requestId) {
+              updateDriverLocation(requestId, driverId, latitude, longitude, heading || 0);
+            }
+          }
+        );
+      } catch (err) {
+        console.error('Error starting location watcher:', err);
+      }
+    };
+
+    if (user && (journeyState === 'accepted' || journeyState === 'in_progress')) {
+      const userId = user._id || (user as any).id;
+      connect(userId);
+      joinRide(requestId);
+      startWatching();
+    }
+
+    return () => {
+      if (locationSubscription) {
+        locationSubscription.remove();
+      }
+      leaveRide(requestId);
+    };
+  }, [requestId, user, journeyState]);
 
   useEffect(() => {
     fetchRequest();
@@ -49,8 +100,13 @@ export function ProviderActiveJourneyScreen() {
     try {
       if (journeyState === 'accepted') {
         // Driver arrived at pickup
-        setJourneyState('arrived');
-        Alert.alert('Arrived', 'Passenger has been notified of your arrival.');
+        const res = await taxiBookingsApi.updateStatus(requestId, 'arrived');
+        if (res.data?.success) {
+          setJourneyState('arrived');
+          Alert.alert('Arrived', 'Passenger has been notified of your arrival.');
+        } else {
+          Alert.alert('Error', res.data?.message || 'Failed to update status');
+        }
       } else if (journeyState === 'arrived') {
         // Start the actual ride
         const res = await ridesApi.startRide({
@@ -69,7 +125,10 @@ export function ProviderActiveJourneyScreen() {
           }
         });
         if (res.data?.success) {
-          setRideId(res.data.data._id);
+          const newRideId = res.data.data._id;
+          setRideId(newRideId);
+          // Sync request status to in_progress
+          await taxiBookingsApi.updateStatus(requestId, 'in_progress', newRideId);
           setJourneyState('in_progress');
           Alert.alert('Ride Started', 'The journey is now in progress.');
         } else {
@@ -84,6 +143,8 @@ export function ProviderActiveJourneyScreen() {
           requestItem.estimatedDurationMinutes || 15
         );
         if (res.data?.success) {
+          // Sync request status to completed
+          await taxiBookingsApi.updateStatus(requestId, 'completed');
           setJourneyState('completed');
           Alert.alert(
             'Ride Completed',
@@ -96,7 +157,7 @@ export function ProviderActiveJourneyScreen() {
         navigation.navigate('ProviderHome');
       }
     } catch (err: any) {
-      Alert.alert('Error', err?.response?.data?.message || 'An error occurred');
+      Alert.alert('Error', err?.message || err?.response?.data?.message || 'An error occurred');
     }
   };
 
@@ -149,6 +210,9 @@ export function ProviderActiveJourneyScreen() {
            pickupLng={requestItem.pickupLng}
            destinationLat={requestItem.destinationLat}
            destinationLng={requestItem.destinationLng}
+           driverLat={driverLocation?.lat}
+           driverLng={driverLocation?.lng}
+           driverRotation={driverLocation?.rotation}
         />
       </View>
 

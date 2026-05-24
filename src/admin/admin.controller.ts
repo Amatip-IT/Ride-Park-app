@@ -4,6 +4,7 @@ import {
   Post,
   Param,
   Body,
+  Query,
   HttpException,
   HttpStatus,
 } from '@nestjs/common';
@@ -47,6 +48,67 @@ export class AdminController {
     }
 
     const result = await this.adminService.rejectParkingVerification(id, reason);
+    if (!result.success) {
+      throw new HttpException(result, HttpStatus.BAD_REQUEST);
+    }
+    return result;
+  }
+
+  // ── Driver / Taxi Document Verifications ──
+
+  @Get('drivers')
+  async getPendingDriverVerifications() {
+    const result = await this.adminService.getPendingDriverVerifications();
+    if (!result.success) {
+      throw new HttpException(result, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+    return result;
+  }
+
+  @Get('drivers/:id')
+  async getDriverVerificationDetail(
+    @Param('id') id: string,
+    @Query('type') providerType: string,
+  ) {
+    if (!providerType || !['driver', 'taxi_driver'].includes(providerType)) {
+      throw new HttpException({ success: false, message: 'Query param "type" must be "driver" or "taxi_driver"' }, HttpStatus.BAD_REQUEST);
+    }
+    const result = await this.adminService.getDriverVerificationDetail(id, providerType);
+    if (!result.success) {
+      throw new HttpException(result, HttpStatus.BAD_REQUEST);
+    }
+    return result;
+  }
+
+  @Post('drivers/:id/approve')
+  async approveDriverVerification(
+    @Param('id') id: string,
+    @Body('providerType') providerType: string,
+  ) {
+    if (!providerType || !['driver', 'taxi_driver'].includes(providerType)) {
+      throw new HttpException({ success: false, message: 'providerType must be "driver" or "taxi_driver"' }, HttpStatus.BAD_REQUEST);
+    }
+    const result = await this.adminService.approveDriverVerification(id, providerType);
+    if (!result.success) {
+      throw new HttpException(result, HttpStatus.BAD_REQUEST);
+    }
+    return result;
+  }
+
+  @Post('drivers/:id/reject')
+  async rejectDriverVerification(
+    @Param('id') id: string,
+    @Body('providerType') providerType: string,
+    @Body('reason') reason: string,
+  ) {
+    if (!providerType || !['driver', 'taxi_driver'].includes(providerType)) {
+      throw new HttpException({ success: false, message: 'providerType must be "driver" or "taxi_driver"' }, HttpStatus.BAD_REQUEST);
+    }
+    if (!reason) {
+      throw new HttpException({ success: false, message: 'Rejection reason is required' }, HttpStatus.BAD_REQUEST);
+    }
+
+    const result = await this.adminService.rejectDriverVerification(id, providerType, reason);
     if (!result.success) {
       throw new HttpException(result, HttpStatus.BAD_REQUEST);
     }

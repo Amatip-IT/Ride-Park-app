@@ -8,6 +8,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
 import { taxiBookingsApi } from '@/api';
 import { AmazonMap } from '@/components/AmazonMap';
+import { useTaxiStore } from '@/store/taxiStore';
+import { useAuthStore } from '@/store/authStore';
 
 type ParamList = {
   PassengerTrackingScreen: { requestId: string };
@@ -18,14 +20,26 @@ export function PassengerTrackingScreen() {
   const route = useRoute<RouteProp<ParamList, 'PassengerTrackingScreen'>>();
   const { requestId } = route.params;
 
-  const [request, setRequest] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  
+  const { user } = useAuthStore();
+  const {
+    connect,
+    disconnect,
+    joinRide,
+    leaveRide,
+    activeRequest,
+    driverLocation,
+    setActiveRequest,
+  } = useTaxiStore();
+
+  const request = activeRequest;
 
   const fetchRequest = async () => {
     try {
       const res = await taxiBookingsApi.getRequest(requestId);
       if (res.data?.success) {
-        setRequest(res.data.data);
+        setActiveRequest(res.data.data);
       }
     } catch (err) {
       console.log('Failed to fetch request:', err);
@@ -36,12 +50,23 @@ export function PassengerTrackingScreen() {
 
   useEffect(() => {
     fetchRequest();
-  }, [requestId]);
 
-  // Poll for status updates every 10 seconds
+    // Setup real-time Socket.io booking connection
+    if (user) {
+      const userId = user._id || (user as any).id;
+      connect(userId);
+      joinRide(requestId);
+    }
+
+    return () => {
+      leaveRide(requestId);
+    };
+  }, [requestId, user]);
+
+  // Keep a long fallback polling interval (30s) just in case of network drops
   useFocusEffect(
     useCallback(() => {
-      const interval = setInterval(fetchRequest, 10000);
+      const interval = setInterval(fetchRequest, 30000);
       return () => clearInterval(interval);
     }, [requestId])
   );
@@ -133,6 +158,9 @@ export function PassengerTrackingScreen() {
           pickupLng={request.pickupLng}
           destinationLat={request.destinationLat}
           destinationLng={request.destinationLng}
+          driverLat={driverLocation?.lat}
+          driverLng={driverLocation?.lng}
+          driverRotation={driverLocation?.rotation}
         />
       </View>
 

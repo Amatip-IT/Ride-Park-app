@@ -57,18 +57,21 @@ export class FileUploadService {
    */
   async uploadFile(file: MulterFile, folder: string): Promise<string> {
     try {
-      // Generate unique filename
       const parts = file.originalname.split('.');
       const fileExtension = parts.length > 1 ? parts.pop()! : 'bin';
       const uniqueId = randomUUID();
       const fileName = `${folder}/${uniqueId}.${fileExtension}`;
+
+      if (!this.s3Client) {
+        console.warn('⚠️ AWS S3 not configured. Returning mock URL for development.');
+        return `https://mock-s3-bucket.s3.amazonaws.com/${fileName}`;
+      }
 
       const command = new PutObjectCommand({
         Bucket: this.bucketName,
         Key: fileName,
         Body: file.buffer,
         ContentType: file.mimetype,
-        ACL: 'private', // Private by default
       });
 
       await this.s3Client.send(command);
@@ -79,11 +82,9 @@ export class FileUploadService {
 
       console.log(`File uploaded to S3: ${url}`);
       return url;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to upload file to S3:', error);
-      throw new InternalServerErrorException(
-        'Failed to upload file. Please try again later.',
-      );
+      throw new Error(error.message || 'Unknown S3 error');
     }
   }
 

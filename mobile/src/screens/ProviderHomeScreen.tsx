@@ -373,6 +373,24 @@ export function ProviderHomeScreen() {
             <Ionicons name="chevron-forward" size={20} color={COLORS.textTertiary} />
           </TouchableOpacity>
 
+          {/* Manage Spaces (parking provider only) */}
+          {!isDriverOrTaxi && (
+            <TouchableOpacity
+              style={styles.actionCard}
+              onPress={() => navigation.navigate('ProviderSpaceManagement')}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.actionIcon, { backgroundColor: `${COLORS.electricTeal}12` }]}>
+                <Ionicons name="business" size={24} color={COLORS.electricTeal} />
+              </View>
+              <View style={styles.actionContent}>
+                <Text style={styles.actionTitle}>Manage My Spaces</Text>
+                <Text style={styles.actionSubtext}>Edit pricing, capacity, and availability</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={COLORS.textTertiary} />
+            </TouchableOpacity>
+          )}
+
           {/* Ride Requests (driver/taxi only) */}
           {isDriverOrTaxi && (
             <TouchableOpacity

@@ -93,6 +93,10 @@ export const bookingsApi = {
   respondToRequest: (id: string, action: 'accept' | 'reject', responseMessage?: string) =>
     api.patch<ApiResponse>(`/bookings/${id}/respond`, { action, responseMessage }),
 
+  // Provider marks a booking as completed (frees the parking spot)
+  completeBooking: (id: string) =>
+    api.patch<ApiResponse>(`/bookings/${id}/complete`),
+
   // Consumer cancels a booking
   cancelBooking: (id: string) =>
     api.patch<ApiResponse>(`/bookings/${id}/cancel`),
@@ -127,32 +131,28 @@ export const providerApi = {
   getEarnings: () =>
     api.get<ApiResponse>('/provider/earnings'),
 
+  // Get all approved parking spaces with live stats
+  getMySpaces: () =>
+    api.get<ApiResponse>('/provider/my-spaces'),
+
+  // Update a parking space's details (pricing, description, etc.)
+  updateSpace: (spaceId: string, updates: Record<string, any>) =>
+    api.patch<ApiResponse>(`/provider/spaces/${spaceId}`, updates),
+
+  // Toggle a parking space's availability on/off
+  toggleSpaceAvailability: (spaceId: string) =>
+    api.patch<ApiResponse>(`/provider/spaces/${spaceId}/toggle-availability`),
+
   // Submit parking provider verification
   submitParkingVerification: (data: Record<string, any>) =>
     api.post<ApiResponse>('/provider/submit-parking-verification', data),
 
-  // Submit driver verification
-  submitDriverVerification: (data: {
-    driverLicenseUrl?: string;
-    driverLicenseNumber?: string;
-    nationalIdUrl?: string;
-    proofOfAddressUrl?: string;
-    proofOfAddressType?: string;
-  }) =>
+  // Submit a single driver document (docField = the schema field name, docUrl = S3 URL)
+  submitDriverVerification: (data: { docField: string; docUrl: string }) =>
     api.post<ApiResponse>('/provider/submit-driver-verification', data),
 
-  // Submit taxi driver verification
-  submitTaxiVerification: (data: {
-    driverLicenseUrl?: string;
-    driverLicenseNumber?: string;
-    plateNumber?: string;
-    vehicleMake?: string;
-    vehicleModel?: string;
-    vehicleYear?: string;
-    nationalIdUrl?: string;
-    proofOfAddressUrl?: string;
-    proofOfAddressType?: string;
-  }) =>
+  // Submit a single taxi driver document
+  submitTaxiVerification: (data: { docField: string; docUrl: string }) =>
     api.post<ApiResponse>('/provider/submit-taxi-verification', data),
 
   // Toggle online/offline status
@@ -163,7 +163,7 @@ export const providerApi = {
   getMyDriverNumber: () =>
     api.get<ApiResponse>('/provider/my-driver-number'),
 
-  // Upload a document to S3 using native fetch to avoid React Native Axios FormData timeout bugs
+  // Upload a document to S3 using native fetch to avoid React Native Axios FormData bugs
   uploadDocument: async (formData: any) => {
     const { useAuthStore } = require('@/store/authStore');
     const token = useAuthStore.getState().token;
@@ -210,6 +210,19 @@ export const adminApi = {
 
   rejectParkingVerification: (id: string, reason: string) =>
     api.post<ApiResponse>(`/admin/verifications/parking/${id}/reject`, { reason }),
+
+  // ── Driver / Taxi Document Verifications ──
+  getPendingDriverVerifications: () =>
+    api.get<ApiResponse>('/admin/verifications/drivers'),
+
+  getDriverVerificationDetail: (recordId: string, providerType: string) =>
+    api.get<ApiResponse>(`/admin/verifications/drivers/${recordId}?type=${providerType}`),
+
+  approveDriverVerification: (recordId: string, providerType: string) =>
+    api.post<ApiResponse>(`/admin/verifications/drivers/${recordId}/approve`, { providerType }),
+
+  rejectDriverVerification: (recordId: string, providerType: string, reason: string) =>
+    api.post<ApiResponse>(`/admin/verifications/drivers/${recordId}/reject`, { providerType, reason }),
 
   // ── Provider Identity Verifications ──
   getPendingIdentityVerifications: () =>
@@ -298,6 +311,10 @@ export const taxiBookingsApi = {
     etaMinutes: number;
   }) =>
     api.post<ApiResponse>(`/taxi-bookings/${requestId}/accept`, data),
+
+  // Driver updates status
+  updateStatus: (requestId: string, status: string, rideId?: string) =>
+    api.patch<ApiResponse>(`/taxi-bookings/${requestId}/status`, { status, rideId }),
 
   // Passenger cancels
   cancelRequest: (requestId: string) =>

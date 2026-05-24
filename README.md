@@ -1,6 +1,6 @@
-# Ride and Park Backend
+# Gleezip Backend
 
-A backend API for the Ride and Park application built with [NestJS](https://nestjs.com/) - a progressive Node.js framework for building efficient and scalable server-side applications.
+A backend API for the Gleezip application built with [NestJS](https://nestjs.com/) - a progressive Node.js framework for building efficient and scalable server-side applications.
 
 ## Table of Contents
 
@@ -11,7 +11,7 @@ A backend API for the Ride and Park application built with [NestJS](https://nest
 - [Running the Application](#running-the-application)
 - [Project Structure](#project-structure)
 - [Available Scripts](#available-scripts)
-- [Testing](#testing)
+- [Testing](#Testing)
 - [Technology Stack](#technology-stack)
 - [Modules Documentation](#modules-documentation)
 - [Troubleshooting](#troubleshooting)
@@ -19,7 +19,7 @@ A backend API for the Ride and Park application built with [NestJS](https://nest
 
 ## Description
 
-This is the backend API for the Ride and Park application. It provides RESTful endpoints for managing users, authentication, and other core functionalities.
+This is the backend API for the Gleezip application. It provides RESTful endpoints for managing users, authentication, and other core functionalities.
 
 ## Prerequisites
 

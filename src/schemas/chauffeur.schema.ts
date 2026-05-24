@@ -30,6 +30,28 @@ export class Chauffeur {
   @Prop({ type: String, unique: true, sparse: true })
   driverNumber?: string;
 
+  // ── Individual Document URLs ──
+  // Driver requirements
+  @Prop() natInsuranceUrl?: string;
+  @Prop() vatCertUrl?: string;
+  @Prop() dvlaLicenceUrl?: string;
+  @Prop() bankStatementUrl?: string;
+  @Prop() dvlaCheckCodeUrl?: string;
+  @Prop() phvDriverLicenceUrl?: string;
+  @Prop() profilePhotoUrl?: string;
+
+  // Vehicle requirements
+  @Prop() phvlUrl?: string;
+  @Prop() v5cUrl?: string;
+  @Prop() insuranceUrl?: string;
+  @Prop() vehicleInspectionUrl?: string;
+
+  // Per-document status tracking
+  // e.g. { dvlaLicenceUrl: 'uploaded', bankStatementUrl: 'verified', ... }
+  @Prop({ type: Object, default: {} })
+  documentStatuses?: Record<string, string>;
+
+  // Legacy generic documents (kept for backward compatibility)
   @Prop({ type: Object })
   documents?: any;
 
@@ -63,3 +85,4 @@ ChauffeurSchema.index({ user: 1 });
 ChauffeurSchema.index({ isActive: 1 });
 ChauffeurSchema.index({ availability: 1 });
 ChauffeurSchema.index({ driverNumber: 1 });
+ChauffeurSchema.index({ status: 1 });

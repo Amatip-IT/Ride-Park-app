@@ -136,6 +136,34 @@ export class TaxiBookingsController {
   }
 
   /**
+   * PATCH /taxi-bookings/:id/status
+   * Driver updates the status of a ride request (e.g. arrived, in_progress, completed)
+   */
+  @Patch(':id/status')
+  async updateStatus(
+    @Param('id') id: string,
+    @Body() body: { status: string; rideId?: string },
+  ) {
+    if (!body.status) {
+      throw new HttpException(
+        { success: false, message: 'Status is required' },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const result = await this.taxiBookingsService.updateRequestStatus(
+      id,
+      body.status,
+      body.rideId,
+    );
+
+    if (!result.success) {
+      throw new HttpException(result, HttpStatus.BAD_REQUEST);
+    }
+    return result;
+  }
+
+  /**
    * PATCH /taxi-bookings/:id/cancel
    * Passenger cancels their ride request
    */

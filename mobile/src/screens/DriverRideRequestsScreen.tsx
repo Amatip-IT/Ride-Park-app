@@ -2,27 +2,26 @@ import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Platform, SafeAreaView, ActivityIndicator, Alert, TextInput,
-  RefreshControl,
+  RefreshControl, Modal
 } from 'react-native';
 import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, NavigationProp, useFocusEffect } from '@react-navigation/native';
 import { taxiBookingsApi } from '@/api';
+import { AmazonMap } from '@/components/AmazonMap';
 
 export function DriverRideRequestsScreen() {
   const navigation = useNavigation<NavigationProp<any>>();
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  
+  // Selected request for the map modal
+  const [selectedRequest, setSelectedRequest] = useState<any>(null);
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
 
-  // Accept form state
-  const [showAcceptForm, setShowAcceptForm] = useState<string | null>(null);
-  const [vehicleMake, setVehicleMake] = useState('');
-  const [vehicleModel, setVehicleModel] = useState('');
-  const [vehicleColor, setVehicleColor] = useState('');
-  const [plateNumber, setPlateNumber] = useState('');
-  const [etaMinutes, setEtaMinutes] = useState('');
+  // Accept form state (ETA)
+  const [etaMinutes, setEtaMinutes] = useState('5');
 
   const fetchRequests = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -50,36 +49,36 @@ export function DriverRideRequestsScreen() {
     }, [])
   );
 
-  const handleAccept = async (requestId: string) => {
+  const handleAccept = async () => {
+    if (!selectedRequest) return;
+    
     if (!etaMinutes || isNaN(Number(etaMinutes))) {
-      Alert.alert('ETA Required', 'Please enter your estimated arrival time in minutes.');
+      Alert.alert('ETA Required', 'Please select an estimated arrival time.');
       return;
     }
 
-    setAcceptingId(requestId);
+    setAcceptingId(selectedRequest._id);
 
     try {
-      const res = await taxiBookingsApi.acceptRequest(requestId, {
-        vehicleMake: vehicleMake || undefined,
-        vehicleModel: vehicleModel || undefined,
-        vehicleColor: vehicleColor || undefined,
-        plateNumber: plateNumber || undefined,
+      const res = await taxiBookingsApi.acceptRequest(selectedRequest._id, {
         etaMinutes: Number(etaMinutes),
       });
 
       if (res.data?.success) {
+        // Success
+        const reqId = selectedRequest._id;
+        setSelectedRequest(null);
         Alert.alert('✅ Ride Accepted!', 'The passenger has been notified. Head to the pickup location.');
-        setShowAcceptForm(null);
         // Navigate straight to the active journey tracker!
         navigation.navigate('ProviderActiveJourney', {
-          requestId: requestId,
-          serviceType: 'taxi' // or 'driver', but let's assume it maps properly
+          requestId: reqId,
+          serviceType: 'taxi'
         });
       } else {
         Alert.alert('Error', res.data?.message || 'Failed to accept ride');
       }
     } catch (error: any) {
-      const msg = error?.response?.data?.message || error?.message || 'Failed to accept';
+      const msg = error?.message || error?.response?.data?.message || 'Failed to accept';
       Alert.alert('Error', msg);
     } finally {
       setAcceptingId(null);
@@ -99,7 +98,6 @@ export function DriverRideRequestsScreen() {
 
   const renderRequest = (req: any) => {
     const passenger = req.passenger || {};
-    const isExpanded = showAcceptForm === req._id;
 
     return (
       <View key={req._id} style={styles.requestCard}>
@@ -162,85 +160,14 @@ export function DriverRideRequestsScreen() {
           </Text>
         </View>
 
-        {/* Accept button / form */}
-        {!isExpanded ? (
-          <TouchableOpacity
-            style={styles.acceptBtn}
-            onPress={() => setShowAcceptForm(req._id)}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="checkmark-circle" size={20} color="#FFF" />
-            <Text style={styles.acceptBtnText}>Accept Ride</Text>
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.acceptForm}>
-            <Text style={styles.formTitle}>Your Vehicle Details</Text>
-
-            <View style={styles.formRow}>
-              <TextInput
-                style={[styles.formInput, { flex: 1 }]}
-                placeholder="Make (e.g. Toyota)"
-                placeholderTextColor={COLORS.textTertiary}
-                value={vehicleMake}
-                onChangeText={setVehicleMake}
-              />
-              <TextInput
-                style={[styles.formInput, { flex: 1 }]}
-                placeholder="Model (e.g. Prius)"
-                placeholderTextColor={COLORS.textTertiary}
-                value={vehicleModel}
-                onChangeText={setVehicleModel}
-              />
-            </View>
-
-            <View style={styles.formRow}>
-              <TextInput
-                style={[styles.formInput, { flex: 1 }]}
-                placeholder="Color (e.g. Silver)"
-                placeholderTextColor={COLORS.textTertiary}
-                value={vehicleColor}
-                onChangeText={setVehicleColor}
-              />
-              <TextInput
-                style={[styles.formInput, { flex: 1 }]}
-                placeholder="Plate Number"
-                placeholderTextColor={COLORS.textTertiary}
-                value={plateNumber}
-                onChangeText={(t) => setPlateNumber(t.toUpperCase())}
-                autoCapitalize="characters"
-              />
-            </View>
-
-            <TextInput
-              style={styles.formInput}
-              placeholder="ETA in minutes (e.g. 5) *"
-              placeholderTextColor={COLORS.textTertiary}
-              value={etaMinutes}
-              onChangeText={setEtaMinutes}
-              keyboardType="numeric"
-            />
-
-            <View style={styles.formActions}>
-              <TouchableOpacity
-                style={styles.formCancelBtn}
-                onPress={() => setShowAcceptForm(null)}
-              >
-                <Text style={styles.formCancelText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.formSubmitBtn, acceptingId === req._id && { opacity: 0.6 }]}
-                onPress={() => handleAccept(req._id)}
-                disabled={acceptingId === req._id}
-              >
-                {acceptingId === req._id ? (
-                  <ActivityIndicator size="small" color="#FFF" />
-                ) : (
-                  <Text style={styles.formSubmitText}>Confirm & Accept</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
+        <TouchableOpacity
+          style={styles.acceptBtn}
+          onPress={() => setSelectedRequest(req)}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="map-outline" size={20} color="#FFF" />
+          <Text style={styles.acceptBtnText}>View on Map</Text>
+        </TouchableOpacity>
       </View>
     );
   };
@@ -289,6 +216,85 @@ export function DriverRideRequestsScreen() {
           </ScrollView>
         )}
       </View>
+
+      {/* MATCH MODAL (Uber-Style UI) */}
+      <Modal
+        visible={!!selectedRequest}
+        animationType="slide"
+        transparent={false}
+      >
+        <View style={styles.modalContainer}>
+          {/* Map Background */}
+          {selectedRequest && (
+            <AmazonMap
+              pickupLat={selectedRequest.pickupLat}
+              pickupLng={selectedRequest.pickupLng}
+              destinationLat={selectedRequest.destinationLat}
+              destinationLng={selectedRequest.destinationLng}
+            />
+          )}
+
+          {/* Dark Overlay Info Card (Uber style) */}
+          <View style={styles.matchCard}>
+            <View style={styles.matchCardHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Ionicons name="person" size={16} color="#FFF" />
+                <Text style={styles.matchCardTitle}>UberX Request</Text>
+              </View>
+              <TouchableOpacity onPress={() => setSelectedRequest(null)} style={styles.closeBtn}>
+                <Ionicons name="close" size={24} color="#FFF" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10 }}>
+              <Text style={styles.matchPrice}>£{selectedRequest?.estimatedCost?.toFixed(2) || '0.00'}</Text>
+            </View>
+            
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+              <Ionicons name="star" size={14} color={COLORS.amber} />
+              <Text style={styles.matchRating}>4.91</Text>
+            </View>
+
+            <View style={styles.feeBadge}>
+              <Text style={styles.feeText}>£0.77 est. holiday entitlement included</Text>
+            </View>
+
+            <View style={styles.matchRoute}>
+              {/* Pickup Line */}
+              <View style={styles.matchRouteItem}>
+                <View style={styles.matchNode} />
+                <Text style={styles.matchRouteText} numberOfLines={1}>
+                  5 min (1.4 mi) {selectedRequest?.pickupAddress || selectedRequest?.pickupPostcode || 'Current Location'}
+                </Text>
+              </View>
+              
+              <View style={styles.matchRouteLine} />
+              
+              {/* Dropoff Line */}
+              <View style={styles.matchRouteItem}>
+                <View style={[styles.matchNode, { backgroundColor: '#FFF' }]} />
+                <Text style={styles.matchRouteText} numberOfLines={2}>
+                  {Math.round(selectedRequest?.estimatedDurationMinutes || 12)} mins ({selectedRequest?.estimatedDistanceMiles?.toFixed(1) || 4.3} mi){'\n'}
+                  {selectedRequest?.destinationAddress || selectedRequest?.destinationPostcode}
+                </Text>
+              </View>
+            </View>
+
+            <TouchableOpacity 
+              style={[styles.matchBtn, acceptingId === selectedRequest?._id && { opacity: 0.6 }]}
+              onPress={handleAccept}
+              disabled={acceptingId === selectedRequest?._id}
+              activeOpacity={0.8}
+            >
+              {acceptingId === selectedRequest?._id ? (
+                <ActivityIndicator size="small" color="#000" />
+              ) : (
+                <Text style={styles.matchBtnText}>Match</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -311,7 +317,6 @@ const styles = StyleSheet.create({
 
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   loadingText: { color: COLORS.textSecondary, marginTop: SPACING.md },
-
   scrollContent: { padding: SPACING.lg, paddingBottom: 100 },
 
   // Count badge
@@ -380,40 +385,12 @@ const styles = StyleSheet.create({
   metaText: { color: COLORS.textSecondary, fontSize: 11, fontWeight: FONT_WEIGHTS.medium },
   timeAgo: { color: COLORS.textTertiary, fontSize: 11, marginLeft: 'auto' },
 
-  // Accept button
   acceptBtn: {
     backgroundColor: COLORS.electricTeal, borderRadius: BORDER_RADIUS.md,
     paddingVertical: SPACING.md, flexDirection: 'row',
     justifyContent: 'center', alignItems: 'center', gap: SPACING.sm,
   },
   acceptBtnText: { color: '#FFF', fontSize: FONT_SIZES.body, fontWeight: FONT_WEIGHTS.bold },
-
-  // Accept form
-  acceptForm: {
-    backgroundColor: COLORS.surfaceAlt, borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.md,
-  },
-  formTitle: {
-    color: COLORS.textPrimary, fontSize: FONT_SIZES.label,
-    fontWeight: FONT_WEIGHTS.semibold, marginBottom: SPACING.sm,
-  },
-  formRow: { flexDirection: 'row', gap: SPACING.sm },
-  formInput: {
-    backgroundColor: COLORS.background, borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.md, color: COLORS.textPrimary, fontSize: FONT_SIZES.label,
-    borderWidth: 1, borderColor: COLORS.border, marginBottom: SPACING.sm,
-  },
-  formActions: { flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.sm },
-  formCancelBtn: {
-    flex: 1, paddingVertical: SPACING.md, borderRadius: BORDER_RADIUS.md,
-    borderWidth: 1, borderColor: COLORS.border, alignItems: 'center',
-  },
-  formCancelText: { color: COLORS.textSecondary, fontWeight: FONT_WEIGHTS.semibold },
-  formSubmitBtn: {
-    flex: 2, backgroundColor: COLORS.electricTeal, paddingVertical: SPACING.md,
-    borderRadius: BORDER_RADIUS.md, alignItems: 'center',
-  },
-  formSubmitText: { color: '#FFF', fontWeight: FONT_WEIGHTS.bold },
 
   // Empty state
   emptyState: { alignItems: 'center', marginTop: 80 },
@@ -425,4 +402,28 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary, fontSize: 14, textAlign: 'center',
     maxWidth: '80%', lineHeight: 20,
   },
+
+  // MODAL UBER UI
+  modalContainer: { flex: 1, backgroundColor: '#1C1C1E' },
+  matchCard: {
+    position: 'absolute', bottom: 20, left: 16, right: 16,
+    backgroundColor: 'rgba(30,30,30,0.95)',
+    borderRadius: 24, padding: 24,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.5, shadowRadius: 20, elevation: 15,
+  },
+  matchCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  matchCardTitle: { color: '#B0B0B0', fontSize: 15, fontWeight: 'bold' as any },
+  closeBtn: { padding: 4 },
+  matchPrice: { color: '#FFF', fontSize: 44, fontWeight: 'bold' as any, letterSpacing: -1 },
+  matchRating: { color: '#FFF', fontSize: 15, fontWeight: 'bold' as any, marginLeft: 4 },
+  feeBadge: { backgroundColor: 'rgba(255,255,255,0.1)', alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, marginTop: 12, marginBottom: 20 },
+  feeText: { color: '#B0B0B0', fontSize: 12, fontWeight: 'bold' as any },
+  matchRoute: { marginBottom: 24, paddingLeft: 4 },
+  matchRouteItem: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  matchNode: { width: 8, height: 8, borderRadius: 4, backgroundColor: 'transparent', borderWidth: 2, borderColor: '#FFF', marginTop: 6 },
+  matchRouteText: { color: '#FFF', fontSize: 14, fontWeight: '500' as any, lineHeight: 20, flex: 1 },
+  matchRouteLine: { width: 2, height: 24, backgroundColor: '#555', marginLeft: 3, marginVertical: 4 },
+  
+  matchBtn: { backgroundColor: '#FFF', paddingVertical: 18, borderRadius: 100, alignItems: 'center', justifyContent: 'center' },
+  matchBtnText: { color: '#000', fontSize: 18, fontWeight: 'bold' as any },
 });
