@@ -9,7 +9,14 @@
     "userInterfaceStyle": "dark",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.gleezip.app"
+      "bundleIdentifier": "com.gleezip.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Gleezip uses your location to provide nearby ride services.",
+        "NSUserNotificationsUsageDescription": "Gleezip sends ride updates and important notifications.",
+        "NSCameraUsageDescription": "Gleezip uses the camera for profile photos and verification.",
+        "NSPhotoLibraryUsageDescription": "Gleezip accesses your photo library for profile uploads.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.gleezip.app",
