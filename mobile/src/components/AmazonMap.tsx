@@ -61,7 +61,7 @@ export function AmazonMap({
 
             const map = new maplibregl.Map({
               container: "map",
-              style: \`https://maps.geo.\${region}.amazonaws.com/v2/styles/\${style}/descriptor?key=\${apiKey}&color-scheme=\${colorScheme}\`,
+              style: "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
               center: [${centerLng}, ${centerLat}],
               zoom: 15.5,
               pitch: 60,

@@ -162,6 +162,28 @@ export const providerApi = {
   // Get my driver number
   getMyDriverNumber: () =>
     api.get<ApiResponse>('/provider/my-driver-number'),
+
+  // Upload a document to S3 using native fetch to avoid React Native Axios FormData timeout bugs
+  uploadDocument: async (formData: any) => {
+    const { useAuthStore } = require('@/store/authStore');
+    const token = useAuthStore.getState().token;
+    const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000/api';
+    
+    const response = await fetch(`${API_BASE_URL}/provider/upload-document`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: formData,
+    });
+    
+    const data = await response.json();
+    if (!response.ok) {
+      throw { response: { data } };
+    }
+    return { data };
+  },
 };
 
 export const chatApi = {
@@ -303,11 +325,14 @@ export const paymentsApi = {
     api.get<ApiResponse>('/payments/methods'),
 };
 
-// ── Wallet API (Provider Earnings) ──
+// ── Wallet API (Provider Earnings & Balance) ──
 export const walletApi = {
   getWalletInfo: () =>
     api.get<ApiResponse>('/wallet'),
     
+  topUp: (amount: number) =>
+    api.post<ApiResponse>('/wallet/top-up', { amount }),
+
   updateBankDetails: (data: { accountName: string; accountNumber: string; sortCode: string }) =>
     api.post<ApiResponse>('/wallet/bank-details', data),
     
