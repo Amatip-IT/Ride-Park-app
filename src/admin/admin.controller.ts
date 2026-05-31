@@ -237,4 +237,56 @@ export class AdminController {
     if (!result.success) throw new HttpException(result, HttpStatus.BAD_REQUEST);
     return result;
   }
+
+  // ── User Account Management (Suspend/Ban) ──
+
+  @Post('users/:id/suspend')
+  async suspendUser(
+    @Param('id') userId: string,
+    @Body('reason') reason: string,
+    @Body('durationDays') durationDays?: number,
+  ) {
+    if (!reason) {
+      throw new HttpException('Suspension reason is required', HttpStatus.BAD_REQUEST);
+    }
+    const result = await this.adminService.suspendUser(userId, reason, durationDays);
+    if (!result.success) {
+      throw new HttpException(result, HttpStatus.BAD_REQUEST);
+    }
+    return result;
+  }
+
+  @Post('users/:id/unsuspend')
+  async unsuspendUser(@Param('id') userId: string) {
+    const result = await this.adminService.unsuspendUser(userId);
+    if (!result.success) {
+      throw new HttpException(result, HttpStatus.BAD_REQUEST);
+    }
+    return result;
+  }
+
+  @Post('users/:id/ban')
+  async banUser(
+    @Param('id') userId: string,
+    @Body('reason') reason: string,
+  ) {
+    if (!reason) {
+      throw new HttpException('Ban reason is required', HttpStatus.BAD_REQUEST);
+    }
+    const result = await this.adminService.banUser(userId, reason);
+    if (!result.success) {
+      throw new HttpException(result, HttpStatus.BAD_REQUEST);
+    }
+    return result;
+  }
+
+  @Post('users/:id/unban')
+  async unbanUser(@Param('id') userId: string) {
+    const result = await this.adminService.unbanUser(userId);
+    if (!result.success) {
+      throw new HttpException(result, HttpStatus.BAD_REQUEST);
+    }
+    return result;
+  }
 }
+

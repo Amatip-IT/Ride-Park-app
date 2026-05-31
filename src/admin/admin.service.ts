@@ -953,4 +953,192 @@ export class AdminService {
       return { success: false, message: `Failed to reject withdrawal: ${error instanceof Error ? error.message : 'Unknown error'}` };
     }
   }
+
+  // ══════════════════════════════════════════════
+  // ── User Account Management (Suspend/Ban) ──
+  // ══════════════════════════════════════════════
+
+  /**
+   * Temporarily suspend a user account
+   */
+  async suspendUser(
+    userId: string,
+    reason: string,
+    durationDays?: number,
+    adminUserId?: string,
+  ): Promise<Response> {
+    try {
+      const user = await this.userModel.findById(userId).exec();
+      if (!user) {
+        return { success: false, message: 'User not found' };
+      }
+
+      const suspensionEndDate = durationDays
+        ? new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000)
+        : undefined;
+
+      user.accountStatus = 'suspended';
+      user.suspensionReason = reason;
+      user.suspensionEndDate = suspensionEndDate;
+      user.suspendedBy = adminUserId;
+      user.suspendedAt = new Date();
+      await user.save();
+
+      // Send notification
+      try {
+        const subject = durationDays
+          ? `Your account has been suspended for ${durationDays} days`
+          : 'Your account has been suspended';
+
+        await this.notificationsService.sendNotification(
+          userId,
+          '⚠️ Account Suspended',
+          `Your account has been suspended. Reason: ${reason}`,
+          'system'
+        );
+      } catch (notifErr) {
+        this.logger.warn(`Failed to send suspension notification: ${notifErr}`);
+      }
+
+      return {
+        success: true,
+        data: { userId, status: 'suspended', suspensionEndDate },
+        message: `User suspended${durationDays ? ` for ${durationDays} days` : ''}.`,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: `Failed to suspend user: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      };
+    }
+  }
+
+  /**
+   * Unsuspend a user account
+   */
+  async unsuspendUser(userId: string): Promise<Response> {
+    try {
+      const user = await this.userModel.findById(userId).exec();
+      if (!user) {
+        return { success: false, message: 'User not found' };
+      }
+
+      user.accountStatus = 'active';
+      user.suspensionReason = undefined;
+      user.suspensionEndDate = undefined;
+      await user.save();
+
+      // Send notification
+      try {
+        await this.notificationsService.sendNotification(
+          userId,
+          '✅ Account Restored',
+          'Your account suspension has been lifted. Welcome back!',
+          'system'
+        );
+      } catch (notifErr) {
+        this.logger.warn(`Failed to send unsuspend notification: ${notifErr}`);
+      }
+
+      return {
+        success: true,
+        message: 'User account restored to active status.',
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: `Failed to unsuspend user: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      };
+    }
+  }
+
+  /**
+   * Permanently ban a user account
+   */
+  async banUser(
+    userId: string,
+    reason: string,
+    adminUserId?: string,
+  ): Promise<Response> {
+    try {
+      const user = await this.userModel.findById(userId).exec();
+      if (!user) {
+        return { success: false, message: 'User not found' };
+      }
+
+      user.accountStatus = 'banned';
+      user.suspensionReason = reason;
+      user.suspendedBy = adminUserId;
+      user.suspendedAt = new Date();
+      await user.save();
+
+      // Send notification
+      try {
+        await this.notificationsService.sendNotification(
+          userId,
+          '🚫 Account Banned',
+          `Your account has been permanently banned. Reason: ${reason}`,
+          'system'
+        );
+      } catch (notifErr) {
+        this.logger.warn(`Failed to send ban notification: ${notifErr}`);
+      }
+
+      return {
+        success: true,
+        data: { userId, status: 'banned' },
+        message: 'User account has been permanently banned.',
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: `Failed to ban user: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      };
+    }
+  }
+
+  /**
+   * Unban a user account
+   */
+  async unbanUser(userId: string): Promise<Response> {
+    try {
+      const user = await this.userModel.findById(userId).exec();
+      if (!user) {
+        return { success: false, message: 'User not found' };
+      }
+
+      if (user.accountStatus !== 'banned') {
+        return { success: false, message: 'User is not banned' };
+      }
+
+      user.accountStatus = 'active';
+      user.suspensionReason = undefined;
+      user.suspendedBy = undefined;
+      user.suspendedAt = undefined;
+      await user.save();
+
+      // Send notification
+      try {
+        await this.notificationsService.sendNotification(
+          userId,
+          '✅ Ban Lifted',
+          'Your account ban has been lifted. You may now use the platform again.',
+          'system'
+        );
+      } catch (notifErr) {
+        this.logger.warn(`Failed to send unban notification: ${notifErr}`);
+      }
+
+      return {
+        success: true,
+        message: 'User ban has been lifted and account is now active.',
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: `Failed to unban user: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      };
+    }
+  }
 }
+

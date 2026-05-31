@@ -128,7 +128,12 @@ export class UsersController {
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.usersService.remove(+id);
+  @UseGuards(AuthGuard, AdminGuard)
+  async remove(@Param('id') id: string) {
+    const result = await this.usersService.remove(id);
+    if (!result.success) {
+      throw new HttpException({ message: result.message }, HttpStatus.BAD_REQUEST);
+    }
+    return result;
   }
 }

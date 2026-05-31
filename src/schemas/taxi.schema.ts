@@ -109,9 +109,16 @@ export class Taxi {
   @Prop() insuranceUrl?: string;
   @Prop() vehicleInspectionUrl?: string;
 
-  // Per-document status tracking
+  // Per-document status tracking with detailed info
+  // Structure: { fieldName: { status, rejectionReason, uploadedAt, reviewedAt, reviewedBy } }
   @Prop({ type: Object, default: {} })
-  documentStatuses?: Record<string, string>;
+  documentStatuses?: Record<string, {
+    status?: 'not_submitted' | 'uploaded' | 'verified' | 'rejected';
+    rejectionReason?: string;
+    uploadedAt?: Date;
+    reviewedAt?: Date;
+    reviewedBy?: string; // Admin user ID
+  }>;
 
   // Legacy generic documents (kept for backward compatibility)
   @Prop({ type: Object })

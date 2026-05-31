@@ -4,15 +4,27 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '@/navigation/RootNavigator';
 import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS } from '@/constants/theme';
+import { useAuthStore } from '@/store/authStore';
+import { secureStorage } from '@/utils/secureStorage';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Onboarding'>;
 
 export function OnboardingScreen() {
   const navigation = useNavigation<NavigationProp>();
+  const { setIsOnboarded } = useAuthStore();
   const [showProviderOptions, setShowProviderOptions] = useState(false);
 
-  const navigateToAuth = (isLogin: boolean, role?: 'user' | 'parking_provider' | 'driver' | 'taxi_driver') => {
-    navigation.navigate('Auth', { isLogin, role });
+  const navigateToAuth = async (isLogin: boolean, role?: 'user' | 'parking_provider' | 'driver' | 'taxi_driver') => {
+    try {
+      // Mark as onboarded
+      await secureStorage.setItem('onboarded', 'true');
+      setIsOnboarded(true);
+      navigation.navigate('Auth', { isLogin, role });
+    } catch (error) {
+      console.log('Error marking onboarding complete:', error);
+      // Still navigate even if storage fails
+      navigation.navigate('Auth', { isLogin, role });
+    }
   };
 
   return (

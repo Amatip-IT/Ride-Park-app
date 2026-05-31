@@ -7,12 +7,14 @@ interface AuthStore {
   token: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  isOnboarded: boolean;
   error: string | null;
 
   // Actions
   setUser: (user: User | null) => void;
   setToken: (token: string | null) => void;
   setIsLoading: (loading: boolean) => void;
+  setIsOnboarded: (onboarded: boolean) => void;
   setError: (error: string | null) => void;
   login: (user: User, token: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -24,11 +26,13 @@ export const useAuthStore = create<AuthStore>((set) => ({
   token: null,
   isLoading: false,
   isAuthenticated: false,
+  isOnboarded: false,
   error: null,
 
   setUser: (user: User | null) => set({ user, isAuthenticated: !!user }),
   setToken: (token: string | null) => set({ token }),
   setIsLoading: (loading: boolean) => set({ isLoading: loading }),
+  setIsOnboarded: (onboarded: boolean) => set({ isOnboarded: onboarded }),
   setError: (error: string | null) => set({ error }),
 
   login: async (user: User, token: string) => {
@@ -63,9 +67,13 @@ export const useAuthStore = create<AuthStore>((set) => ({
   restoreToken: async () => {
     try {
       const token = await secureStorage.getItem('authToken');
+      const onboarded = await secureStorage.getItem('onboarded');
       if (token) {
         set({ token });
         // In a real app, validate token with backend here
+      }
+      if (onboarded === 'true') {
+        set({ isOnboarded: true });
       }
     } catch (error) {
       set({ error: 'Failed to restore authentication' });

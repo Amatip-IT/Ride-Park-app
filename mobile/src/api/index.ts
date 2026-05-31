@@ -256,6 +256,19 @@ export const adminApi = {
 
   rejectWithdrawal: (id: string, reason: string) =>
     api.post<ApiResponse>(`/admin/verifications/withdrawals/${id}/reject`, { reason }),
+
+  // ── User Account Management ──
+  suspendUser: (userId: string, reason: string, durationDays?: number) =>
+    api.post<ApiResponse>(`/admin/users/${userId}/suspend`, { reason, durationDays }),
+
+  unsuspendUser: (userId: string) =>
+    api.post<ApiResponse>(`/admin/users/${userId}/unsuspend`),
+
+  banUser: (userId: string, reason: string) =>
+    api.post<ApiResponse>(`/admin/users/${userId}/ban`, { reason }),
+
+  unbanUser: (userId: string) =>
+    api.post<ApiResponse>(`/admin/users/${userId}/unban`),
 };
 
 // ── Reviews API ──

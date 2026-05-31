@@ -1,43 +1,40 @@
 import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
-import { Platform } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useAuthStore } from '@/store/authStore';
 import { UserRole } from '@/types';
+import { Ionicons } from '@expo/vector-icons';
 
 // Screen imports
 import { AuthScreen } from '@/screens/AuthScreen';
 import { OnboardingScreen } from '@/screens/OnboardingScreen';
 import { SplashScreen } from '@/screens/SplashScreen';
-import { AnimatedSplashScreen } from '@/screens/AnimatedSplashScreen';
-import { Ionicons } from '@expo/vector-icons';
-import { EditProfileScreen } from '@/screens/EditProfileScreen';
-import { NotificationsScreen } from '@/screens/NotificationsScreen';
-import { DriverVerificationScreen } from '@/screens/DriverVerificationScreen';
-import { LegalDocumentScreen } from '@/screens/LegalDocumentScreen';
-import { DocumentUploadScreen } from '@/screens/DocumentUploadScreen';
 import { ForgotPasswordScreen } from '@/screens/ForgotPasswordScreen';
+import { LegalDocumentScreen } from '@/screens/LegalDocumentScreen';
 import { ConsumerHomeScreen } from '@/screens/ConsumerHomeScreen';
 import { SearchScreen } from '@/screens/SearchScreen';
 import { BookingsScreen } from '@/screens/BookingsScreen';
 import { WalletScreen } from '@/screens/WalletScreen';
 import { ProfileScreen } from '@/screens/ProfileScreen';
+import { EditProfileScreen } from '@/screens/EditProfileScreen';
+import { NotificationsScreen } from '@/screens/NotificationsScreen';
 import { ServiceChoiceScreen } from '@/screens/ServiceChoiceScreen';
-import { TaxiBookingScreen } from '@/screens/TaxiBookingScreen';
 import { DriverRequestScreen } from '@/screens/DriverRequestScreen';
-import { PassengerTrackingScreen } from '@/screens/PassengerTrackingScreen';
+import { TaxiBookingScreen } from '@/screens/TaxiBookingScreen';
 import { ParkingDetailScreen } from '@/screens/ParkingDetailScreen';
+import { PassengerTrackingScreen } from '@/screens/PassengerTrackingScreen';
+import { MapPreviewScreen } from '@/screens/MapPreviewScreen';
 import { ChatListScreen } from '@/screens/ChatListScreen';
 import { ChatScreen } from '@/screens/ChatScreen';
-import { MapPreviewScreen } from '@/screens/MapPreviewScreen';
 import { ProviderHomeScreen } from '@/screens/ProviderHomeScreen';
 import { ProviderRequestsScreen } from '@/screens/ProviderRequestsScreen';
 import { ProviderEarningsScreen } from '@/screens/ProviderEarningsScreen';
-import { ProviderVerificationScreen } from '@/screens/ProviderVerificationScreen';
 import { ProviderSpaceManagementScreen } from '@/screens/ProviderSpaceManagementScreen';
+import { DriverVerificationScreen } from '@/screens/DriverVerificationScreen';
 import { DriverRideRequestsScreen } from '@/screens/DriverRideRequestsScreen';
 import { ProviderActiveJourneyScreen } from '@/screens/ProviderActiveJourneyScreen';
+import { DocumentUploadScreen } from '@/screens/DocumentUploadScreen';
 import { AdminDashboardScreen } from '@/screens/AdminDashboardScreen';
 import { AdminUsersScreen } from '@/screens/AdminUsersScreen';
 import { AdminVerificationQueueScreen } from '@/screens/AdminVerificationQueueScreen';
@@ -55,23 +52,21 @@ try { AdminPlatformSettingsScreen = require('@/screens/AdminPlatformSettingsScre
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
+const AuthStack = createNativeStackNavigator();
 const AdminStack = createNativeStackNavigator();
 const ProviderStack = createNativeStackNavigator();
+const ConsumerStack = createNativeStackNavigator();
 
-// Consumer Navigation (Home, Search, Bookings, Wallet, Profile)
-const ConsumerNavigator = () => (
+// Consumer Tabs (Home, Search, Bookings, Wallet, Profile)
+const ConsumerTabs = () => (
   <Tab.Navigator
     screenOptions={{
       headerShown: false,
       tabBarActiveTintColor: '#00C2A8',
-      tabBarInactiveTintColor: '#8899BB',
+      tabBarInactiveTintColor: '#999999',
       tabBarStyle: {
         backgroundColor: '#FFFFFF',
-        borderTopColor: '#F0F2F5',
-        borderTopWidth: 1,
-        height: Platform.OS === 'ios' ? 85 : 70,
-        paddingBottom: Platform.OS === 'ios' ? 25 : 12,
-        paddingTop: 8,
+        borderTopColor: '#EEEEEE',
       },
     }}
   >
@@ -81,8 +76,8 @@ const ConsumerNavigator = () => (
       options={{
         title: 'Home',
         tabBarLabel: 'Home',
-        tabBarIcon: ({ focused, color }) => (
-          <Ionicons name={focused ? "home" : "home-outline"} size={22} color={color} />
+        tabBarIcon: ({ color, size }) => (
+          <Ionicons name="home" size={size} color={color} />
         ),
       }}
     />
@@ -92,8 +87,8 @@ const ConsumerNavigator = () => (
       options={{
         title: 'Search',
         tabBarLabel: 'Search',
-        tabBarIcon: ({ focused, color }) => (
-          <Ionicons name={focused ? "search" : "search-outline"} size={22} color={color} />
+        tabBarIcon: ({ color, size }) => (
+          <Ionicons name="search" size={size} color={color} />
         ),
       }}
     />
@@ -103,8 +98,8 @@ const ConsumerNavigator = () => (
       options={{
         title: 'My Bookings',
         tabBarLabel: 'Bookings',
-        tabBarIcon: ({ focused, color }) => (
-          <Ionicons name={focused ? "calendar" : "calendar-outline"} size={22} color={color} />
+        tabBarIcon: ({ color, size }) => (
+          <Ionicons name="calendar" size={size} color={color} />
         ),
       }}
     />
@@ -114,8 +109,8 @@ const ConsumerNavigator = () => (
       options={{
         title: 'Wallet',
         tabBarLabel: 'Wallet',
-        tabBarIcon: ({ focused, color }) => (
-          <Ionicons name={focused ? "wallet" : "wallet-outline"} size={22} color={color} />
+        tabBarIcon: ({ color, size }) => (
+          <Ionicons name="wallet" size={size} color={color} />
         ),
       }}
     />
@@ -125,12 +120,28 @@ const ConsumerNavigator = () => (
       options={{
         title: 'Profile',
         tabBarLabel: 'Profile',
-        tabBarIcon: ({ focused, color }) => (
-          <Ionicons name={focused ? "person" : "person-outline"} size={22} color={color} />
+        tabBarIcon: ({ color, size }) => (
+          <Ionicons name="person" size={size} color={color} />
         ),
       }}
     />
   </Tab.Navigator>
+);
+
+// Consumer Navigation — Stack wrapping tabs so sub-screens can push on top
+const ConsumerNavigator = () => (
+  <ConsumerStack.Navigator screenOptions={{ headerShown: false }}>
+    <ConsumerStack.Screen name="ConsumerTabs" component={ConsumerTabs} />
+    {/* Service flows */}
+    <ConsumerStack.Screen name="ServiceChoice" component={ServiceChoiceScreen} />
+    <ConsumerStack.Screen name="DriverRequest" component={DriverRequestScreen} />
+    <ConsumerStack.Screen name="TaxiBooking" component={TaxiBookingScreen} />
+    {/* Search result details */}
+    <ConsumerStack.Screen name="ParkingDetail" component={ParkingDetailScreen} />
+    {/* Tracking */}
+    <ConsumerStack.Screen name="PassengerTracking" component={PassengerTrackingScreen} />
+    <ConsumerStack.Screen name="MapPreview" component={MapPreviewScreen} />
+  </ConsumerStack.Navigator>
 );
 
 // Provider Tabs (inner tab navigation)
@@ -139,14 +150,10 @@ const ProviderTabs = () => (
     screenOptions={{
       headerShown: false,
       tabBarActiveTintColor: '#00C2A8',
-      tabBarInactiveTintColor: '#8899BB',
+      tabBarInactiveTintColor: '#999999',
       tabBarStyle: {
         backgroundColor: '#FFFFFF',
-        borderTopColor: '#F0F2F5',
-        borderTopWidth: 1,
-        height: Platform.OS === 'ios' ? 85 : 70,
-        paddingBottom: Platform.OS === 'ios' ? 25 : 12,
-        paddingTop: 8,
+        borderTopColor: '#EEEEEE',
       },
     }}
   >
@@ -156,8 +163,8 @@ const ProviderTabs = () => (
       options={{
         title: 'Home',
         tabBarLabel: 'Home',
-        tabBarIcon: ({ focused, color }) => (
-          <Ionicons name={focused ? "home" : "home-outline"} size={22} color={color} />
+        tabBarIcon: ({ color, size }) => (
+          <Ionicons name="home" size={size} color={color} />
         ),
       }}
     />
@@ -167,8 +174,8 @@ const ProviderTabs = () => (
       options={{
         title: 'Requests',
         tabBarLabel: 'Requests',
-        tabBarIcon: ({ focused, color }) => (
-          <Ionicons name={focused ? "notifications" : "notifications-outline"} size={22} color={color} />
+        tabBarIcon: ({ color, size }) => (
+          <Ionicons name="document-text" size={size} color={color} />
         ),
       }}
     />
@@ -178,8 +185,8 @@ const ProviderTabs = () => (
       options={{
         title: 'Earnings',
         tabBarLabel: 'Earnings',
-        tabBarIcon: ({ focused, color }) => (
-          <Ionicons name={focused ? "cash" : "cash-outline"} size={22} color={color} />
+        tabBarIcon: ({ color, size }) => (
+          <Ionicons name="cash" size={size} color={color} />
         ),
       }}
     />
@@ -189,8 +196,8 @@ const ProviderTabs = () => (
       options={{
         title: 'Profile',
         tabBarLabel: 'Profile',
-        tabBarIcon: ({ focused, color }) => (
-          <Ionicons name={focused ? "person" : "person-outline"} size={22} color={color} />
+        tabBarIcon: ({ color, size }) => (
+          <Ionicons name="person" size={size} color={color} />
         ),
       }}
     />
@@ -202,8 +209,11 @@ const ProviderNavigator = () => (
   <ProviderStack.Navigator screenOptions={{ headerShown: false }}>
     <ProviderStack.Screen name="ProviderTabs" component={ProviderTabs} />
     <ProviderStack.Screen name="ProviderSpaceManagement" component={ProviderSpaceManagementScreen} />
+    {/* Driver/Taxi specific screens */}
     <ProviderStack.Screen name="DriverRideRequests" component={DriverRideRequestsScreen} />
     <ProviderStack.Screen name="ProviderActiveJourney" component={ProviderActiveJourneyScreen} />
+    <ProviderStack.Screen name="DriverVerification" component={DriverVerificationScreen} />
+    <ProviderStack.Screen name="DocumentUpload" component={DocumentUploadScreen} />
   </ProviderStack.Navigator>
 );
 
@@ -243,10 +253,9 @@ const AdminNavigator = () => (
 
 // Root Navigator with authentication flow
 export const RootNavigator = () => {
-  const { isAuthenticated, restoreToken, user } = useAuthStore();
+  const { isAuthenticated, isOnboarded, restoreToken, user } = useAuthStore();
   const userRole = user?.role || 'user';
   const [isLoading, setIsLoading] = React.useState(true);
-  const [showSplash, setShowSplash] = React.useState(true);
 
   useEffect(() => {
     bootstrapAsync();
@@ -262,25 +271,52 @@ export const RootNavigator = () => {
     }
   };
 
-  if (isLoading || showSplash) {
-    return <AnimatedSplashScreen onAnimationComplete={() => setShowSplash(false)} />;
+  // Show Splash while restoring session
+  if (isLoading) {
+    return <SplashScreen />;
   }
+
+  console.log('🔍 DEBUG - RootNavigator State:', { isOnboarded, isAuthenticated, userRole });
 
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {!isAuthenticated ? (
-          // Auth Stack
+        {/* Onboarding Flow - Always show first */}
+        <Stack.Group
+          screenOptions={{
+            contentStyle: { backgroundColor: '#0D1B2A' },
+          }}
+        >
+          <Stack.Screen name="Onboarding" component={OnboardingScreen} />
+        </Stack.Group>
+
+        {/* Authentication Flow - Show if not authenticated (after onboarding) */}
+        {!isAuthenticated && isOnboarded && (
           <Stack.Group
             screenOptions={{
               contentStyle: { backgroundColor: '#0D1B2A' },
             }}
           >
-            <Stack.Screen name="Onboarding" component={OnboardingScreen} />
             <Stack.Screen name="Auth" component={AuthScreen} />
           </Stack.Group>
-        ) : (
-          // App Stack - Role-based
+        )}
+
+        {/* Auth Modal Screens - Overlay on top of Auth flow */}
+        {!isAuthenticated && isOnboarded && (
+          <Stack.Group
+            screenOptions={{
+              presentation: 'modal',
+              headerShown: false,
+              contentStyle: { backgroundColor: '#0D1B2A' },
+            }}
+          >
+            <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+            <Stack.Screen name="LegalDocument" component={LegalDocumentScreen} />
+          </Stack.Group>
+        )}
+
+        {/* Application Flow - Show if authenticated */}
+        {isAuthenticated && (
           <Stack.Group
             screenOptions={{
               contentStyle: { backgroundColor: '#0D1B2A' },
@@ -295,47 +331,64 @@ export const RootNavigator = () => {
             )}
           </Stack.Group>
         )}
-        <Stack.Screen name="LegalDocument" component={LegalDocumentScreen} />
-        <Stack.Screen name="EditProfile" component={EditProfileScreen} />
-        <Stack.Screen name="Notifications" component={NotificationsScreen} />
-        <Stack.Screen name="DriverVerification" component={DriverVerificationScreen} />
-        <Stack.Screen name="ProviderVerification" component={ProviderVerificationScreen} />
-        <Stack.Screen name="DocumentUpload" component={DocumentUploadScreen} />
-        <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
-        
-        {/* Passenger / Global Screens */}
-        <Stack.Screen name="ServiceChoice" component={ServiceChoiceScreen} />
-        <Stack.Screen name="TaxiBooking" component={TaxiBookingScreen} />
-        <Stack.Screen name="DriverRequest" component={DriverRequestScreen} />
-        <Stack.Screen name="PassengerTracking" component={PassengerTrackingScreen} />
-        <Stack.Screen name="ParkingDetail" component={ParkingDetailScreen} />
-        <Stack.Screen name="ChatList" component={ChatListScreen} />
-        <Stack.Screen name="ChatScreen" component={ChatScreen} />
-        <Stack.Screen name="MapPreview" component={MapPreviewScreen} />
+
+        {/* Shared Modal Screens - Accessible from any authenticated context */}
+        {isAuthenticated && (
+          <Stack.Group
+            screenOptions={{
+              presentation: 'modal',
+              headerShown: false,
+              contentStyle: { backgroundColor: '#0D1B2A' },
+            }}
+          >
+            <Stack.Screen name="ChatList" component={ChatListScreen} />
+            <Stack.Screen name="Chat" component={ChatScreen} />
+            <Stack.Screen name="EditProfile" component={EditProfileScreen} />
+            <Stack.Screen name="Notifications" component={NotificationsScreen} />
+          </Stack.Group>
+        )}
       </Stack.Navigator>
     </NavigationContainer>
   );
 };
 
 export type RootStackParamList = {
-  Auth: { isLogin?: boolean; role?: 'user' | 'driver' | 'taxi_driver' | 'parking_provider' } | undefined;
+  // Auth Flow
   Onboarding: undefined;
+  Auth: { isLogin?: boolean; role?: 'user' | 'parking_provider' | 'driver' | 'taxi_driver' } | undefined;
+  ForgotPassword: undefined;
+  LegalDocument: undefined;
+  // App Navigators
   ConsumerApp: undefined;
   ProviderApp: undefined;
   AdminApp: undefined;
-  LegalDocument: { documentType: 'terms' | 'privacy' | 'help' };
+  // Consumer Stack (nested)
+  ConsumerTabs: undefined;
+  ServiceChoice: { mode: 'driver' | 'taxi' };
+  DriverRequest: undefined;
+  TaxiBooking: undefined;
+  ParkingDetail: { parkingId: string };
+  PassengerTracking: { bookingId: string };
+  MapPreview: { latitude?: number; longitude?: number } | undefined;
+  // Provider Stack (nested)
+  ProviderTabs: undefined;
+  ProviderSpaceManagement: undefined;
+  DriverRideRequests: undefined;
+  ProviderActiveJourney: { journeyId: string };
+  DriverVerification: undefined;
+  DocumentUpload: undefined;
+  // Admin Stack (nested)
+  AdminDashboard: undefined;
+  AdminVerificationQueue: undefined;
+  AdminDriverQueue: undefined;
+  AdminIdentityQueue: undefined;
+  AdminUsers: undefined;
+  AdminProviderDetail: { providerId: string };
+  AdminPayoutsQueue: undefined;
+  AdminPlatformSettings: undefined;
+  // Shared Modals (accessible from any stack)
+  ChatList: undefined;
+  Chat: { conversationId: string };
   EditProfile: undefined;
   Notifications: undefined;
-  DriverVerification: undefined;
-  ProviderVerification: undefined;
-  DocumentUpload: { docId: string; docTitle: string; docStatus: string };
-  ForgotPassword: { isLogin: boolean } | undefined;
-  ServiceChoice: { mode: 'driver' | 'taxi' };
-  TaxiBooking: { serviceId: string; prefilledName?: string };
-  DriverRequest: { serviceId: string; prefilledName?: string };
-  PassengerTracking: { bookingId: string };
-  ParkingDetail: { spaceId: string; space?: any };
-  ChatList: undefined;
-  ChatScreen: { otherUserId: string; otherUserName: string; bookingId?: string };
-  MapPreview: undefined;
 };

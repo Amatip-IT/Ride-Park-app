@@ -1,6 +1,6 @@
 # Users Module Documentation
 
-This directory contains the Users module for the Ride and Park backend, including controllers, services, DTOs, entities, and database operations.
+This directory contains the Users module for the Gleezip backend, including controllers, services, DTOs, entities, and database operations.
 
 # Module Overview
 

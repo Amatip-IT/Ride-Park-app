@@ -1,6 +1,6 @@
 # Taxi (Driver) Verification Documentation
 
-This module handles driver verification for the Ride and Park application using **DVLA API** (vehicle tax check), **MOT API** (MOT history check), and **manual insurance verification** by admins.
+This module handles driver verification for the Gleezip application using **DVLA API** (vehicle tax check), **MOT API** (MOT history check), and **manual insurance verification** by admins.
 
 ## Table of Contents
 
@@ -1605,7 +1605,7 @@ _Prices as of December 2025. Check official pricing for current rates._
 - Support: https://console.aws.amazon.com/support
 - Documentation: https://docs.aws.amazon.com/s3
 
-**Ride and Park Issues:**
+**Gleezip Issues:**
 
 - Email: info@amatip.co.uk
 - GitHub: [Issue Tracker](https://github.com/war-riz/ride_and_park_backend/issues)

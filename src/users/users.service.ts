@@ -391,7 +391,38 @@ export class UsersService {
     return `This action updates a #${updateUserDto.firstName} user`;
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} user`;
+  async remove(id: string): Promise<Response> {
+    try {
+      // Check if user exists
+      const user = await this.userModel.findById(id);
+      if (!user) {
+        return {
+          success: false,
+          message: 'User not found',
+        };
+      }
+
+      // If user is a taxi driver, delete associated taxi record
+      if (user.role === 'taxi_driver') {
+        await this.taxiModel.deleteMany({ user: id });
+      }
+
+      // Delete user settings if any
+      await this.userSettingsModel.deleteOne({ userId: id });
+
+      // Delete the user
+      await this.userModel.findByIdAndDelete(id);
+
+      return {
+        success: true,
+        message: `User ${user.email} has been successfully deleted`,
+        data: { deletedUserId: id, email: user.email },
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: `An error occurred while deleting the user: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      };
+    }
   }
 }

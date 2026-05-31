@@ -1,6 +1,6 @@
 # Guards Documentation
 
-Authentication and authorization guards used across the Ride and Park backend.
+Authentication and authorization guards used across the Gleezip backend.
 
 ## Guard Catalog
 

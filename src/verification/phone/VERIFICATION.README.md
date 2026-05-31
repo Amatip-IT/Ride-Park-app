@@ -1,6 +1,6 @@
 # Phone Verification Documentation
 
-Phone verification for Ride and Park using Twilio SMS and 6-digit OTP codes.
+Phone verification for Gleezip using Twilio SMS and 6-digit OTP codes.
 
 ## Overview
 
@@ -171,7 +171,7 @@ Phone verification for Ride and Park using Twilio SMS and 6-digit OTP codes.
 ### OTP SMS
 
 ```
-Your Ride and Park verification code is: 123456
+Your Gleezip verification code is: 123456
 
 This code expires in 10 minutes.
 
@@ -181,7 +181,7 @@ Never share this code with anyone.
 ### Welcome SMS
 
 ```
-Welcome to Ride and Park, John! 🎉
+Welcome to Gleezip, John! 🎉
 
 Your phone number has been verified. You're all set to start using our platform.
 

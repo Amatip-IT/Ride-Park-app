@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Ride & Park",
-    "slug": "ride-and-park-mobile",
+    "name": "Gleezip",
+    "slug": "gleezip-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",

@@ -43,10 +43,11 @@ const VEHICLE_DOCS = [
 export function DriverVerificationScreen() {
   const navigation = useNavigation<any>();
   const { user } = useAuthStore();
-  
-  const [docStatuses, setDocStatuses] = useState<Record<string, { status: string; expiry?: Date }>>({});
+
+  const [docStatuses, setDocStatuses] = useState<Record<string, { status: string; expiry?: Date; rejectionReason?: string }>>({});
   const [loading, setLoading] = useState(true);
   const [overallStatus, setOverallStatus] = useState<string>('not_applied');
+  const [rejectionReason, setRejectionReason] = useState<string>('');
 
   useFocusEffect(
     useCallback(() => {
@@ -59,12 +60,13 @@ export function DriverVerificationScreen() {
             const data = res.data.data;
             const backendStatus = data?.status || 'not_applied';
             setOverallStatus(backendStatus);
-            
+            setRejectionReason(data?.rejectionReason || '');
+
             const docs = data?.documents || {};
             const perDocStatuses = data?.documentStatuses || {};
 
-            const newStatuses: Record<string, { status: string }> = {};
-            
+            const newStatuses: Record<string, { status: string; rejectionReason?: string }> = {};
+
             // Map each document field to its UI doc ID with per-document status
             Object.entries(DOC_TO_FIELD).forEach(([uiId, fieldName]) => {
               if (docs[fieldName]) {
@@ -73,7 +75,7 @@ export function DriverVerificationScreen() {
                 if (docStatus === 'verified') {
                   newStatuses[uiId] = { status: 'Verified' };
                 } else if (docStatus === 'rejected') {
-                  newStatuses[uiId] = { status: 'Rejected' };
+                  newStatuses[uiId] = { status: 'Rejected', rejectionReason: perDocStatuses[fieldName]?.rejectionReason };
                 } else if (docStatus === 'uploaded') {
                   newStatuses[uiId] = { status: 'Uploaded, Await Review' };
                 } else {
@@ -81,7 +83,7 @@ export function DriverVerificationScreen() {
                   if (backendStatus === 'approved') {
                     newStatuses[uiId] = { status: 'Verified' };
                   } else if (backendStatus === 'rejected') {
-                    newStatuses[uiId] = { status: 'Rejected' };
+                    newStatuses[uiId] = { status: 'Rejected', rejectionReason: data?.rejectionReason };
                   } else {
                     newStatuses[uiId] = { status: 'Uploaded, Await Review' };
                   }
@@ -135,6 +137,11 @@ export function DriverVerificationScreen() {
         <View style={styles.docInfo}>
           <Text style={styles.docTitle}>{item.title}</Text>
           <Text style={[styles.docStatus, { color: statusColor }]}>{statusText}</Text>
+          {docData?.rejectionReason && (
+            <Text style={styles.rejectionReason}>
+              Reason: {docData.rejectionReason}
+            </Text>
+          )}
         </View>
         <Ionicons name="chevron-forward" size={20} color={COLORS.textTertiary} />
       </TouchableOpacity>
@@ -174,9 +181,19 @@ export function DriverVerificationScreen() {
         {overallStatus === 'rejected' && (
           <View style={[styles.alertBox, { backgroundColor: '#FEF2F2', borderColor: COLORS.error }]}>
             <Ionicons name="warning" size={24} color={COLORS.error} />
-            <Text style={[styles.alertText, { color: COLORS.error }]}>
-              Your documents were rejected. Please review and resubmit.
-            </Text>
+            <View style={{ flex: 1, marginLeft: SPACING.sm }}>
+              <Text style={[styles.alertText, { color: COLORS.error }]}>
+                Your documents were rejected.
+              </Text>
+              {rejectionReason && (
+                <Text style={[styles.rejectionReasonText, { color: COLORS.error }]}>
+                  Reason: {rejectionReason}
+                </Text>
+              )}
+              <Text style={[styles.alertText, { color: COLORS.error, marginTop: SPACING.sm }]}>
+                Please review the feedback and resubmit your documents.
+              </Text>
+            </View>
           </View>
         )}
         {overallStatus === 'not_applied' && (
@@ -249,4 +266,17 @@ const styles = StyleSheet.create({
   docInfo: { flex: 1, marginRight: SPACING.sm },
   docTitle: { color: COLORS.textPrimary, fontSize: 15, marginBottom: 4 },
   docStatus: { fontSize: 13, fontWeight: FONT_WEIGHTS.medium },
+  rejectionReason: {
+    fontSize: 12,
+    fontWeight: FONT_WEIGHTS.medium,
+    color: COLORS.error,
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  rejectionReasonText: {
+    fontSize: 13,
+    fontWeight: FONT_WEIGHTS.semibold,
+    marginTop: SPACING.sm,
+    lineHeight: 18,
+  },
 });

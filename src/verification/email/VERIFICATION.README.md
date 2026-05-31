@@ -1,6 +1,6 @@
 # Verification Module Documentation
 
-This module handles all user verification processes for the Ride and Park application, including email, phone, identity, driver, and parking space verification.
+This module handles all user verification processes for the Gleezip application, including email, phone, identity, driver, and parking space verification.
 
 ## Table of Contents
 
@@ -411,7 +411,7 @@ GMAIL_APP_PASSWORD=your-16-char-app-password
 2. Enable **2-Step Verification** (if not already enabled)
 3. Go to **App passwords** (search for it in settings)
 4. Select **Mail** and **Other (Custom name)**
-5. Enter "Ride and Park Backend"
+5. Enter "Gleezip Backend"
 6. Copy the 16-character password
 7. Paste into `.env` as `GMAIL_APP_PASSWORD`
 
@@ -465,7 +465,7 @@ All emails use the same layout (`main.hbs`) which includes:
 ```typescript
 {
   otp: "123456",
-  subject: "Email Verification - Ride and Park",
+  subject: "Email Verification - Gleezip",
   headerGradient: "linear-gradient(...)",
   year: 2025,
   contactEmail: "support@rideandpark.com"
@@ -486,7 +486,7 @@ All emails use the same layout (`main.hbs`) which includes:
 ```typescript
 {
   firstName: "John",
-  subject: "Welcome to Ride and Park! 🎉",
+  subject: "Welcome to Gleezip! 🎉",
   year: 2025
 }
 ```
