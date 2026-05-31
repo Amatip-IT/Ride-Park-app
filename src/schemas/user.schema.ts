@@ -1,6 +1,6 @@
 import * as bcrypt from 'bcrypt';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import type { HydratedDocument, Schema as MongooseSchema } from 'mongoose';
+import { HydratedDocument, Schema as MongooseSchema } from 'mongoose';
 import { VerifiedStatus, VerifiedStatusSchema } from './verified-status.schema';
 import { OtpStorage, OtpStorageSchema } from './otp.schema';
 

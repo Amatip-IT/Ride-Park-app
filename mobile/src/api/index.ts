@@ -259,23 +259,23 @@ export const adminApi = {
 
   // ── User Account Management ──
   suspendUser: (userId: string, reason: string, durationDays?: number) =>
-    api.post<ApiResponse>(`/admin/users/${userId}/suspend`, { reason, durationDays }),
+    api.post<ApiResponse>(`/admin/verifications/users/${userId}/suspend`, { reason, durationDays }),
 
   unsuspendUser: (userId: string) =>
-    api.post<ApiResponse>(`/admin/users/${userId}/unsuspend`),
+    api.post<ApiResponse>(`/admin/verifications/users/${userId}/unsuspend`),
 
   banUser: (userId: string, reason: string) =>
-    api.post<ApiResponse>(`/admin/users/${userId}/ban`, { reason }),
+    api.post<ApiResponse>(`/admin/verifications/users/${userId}/ban`, { reason }),
 
   unbanUser: (userId: string) =>
-    api.post<ApiResponse>(`/admin/users/${userId}/unban`),
+    api.post<ApiResponse>(`/admin/verifications/users/${userId}/unban`),
 
   // ── Document Expiry Management ──
   getExpiringDocuments: (alertLevel?: 'all' | '30_day' | '7_day' | 'expired') =>
-    api.get<ApiResponse>(`/admin/documents/expiring${alertLevel ? `?alertLevel=${alertLevel}` : ''}`),
+    api.get<ApiResponse>(`/admin/verifications/documents/expiring${alertLevel ? `?alertLevel=${alertLevel}` : ''}`),
 
   renewDocument: (recordId: string, providerType: string, docField: string, newExpiryDate: string) =>
-    api.post<ApiResponse>(`/admin/documents/${recordId}/renew`, { providerType, docField, newExpiryDate }),
+    api.post<ApiResponse>(`/admin/verifications/documents/${recordId}/renew`, { providerType, docField, newExpiryDate }),
 };
 
 // ── Reviews API ──

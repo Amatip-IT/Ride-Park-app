@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { User, UserRole } from '@/types';
 import { secureStorage } from '@/utils/secureStorage';
+import { authService } from '@/api/authService';
 
 interface AuthStore {
   user: User | null;
@@ -21,10 +22,12 @@ interface AuthStore {
   restoreToken: () => Promise<void>;
 }
 
-export const useAuthStore = create<AuthStore>((set) => ({
+const AUTH_USER_KEY = 'authUser';
+
+export const useAuthStore = create<AuthStore>((set, get) => ({
   user: null,
   token: null,
-  isLoading: false,
+  isLoading: true,
   isAuthenticated: false,
   isOnboarded: false,
   error: null,
@@ -37,8 +40,8 @@ export const useAuthStore = create<AuthStore>((set) => ({
 
   login: async (user: User, token: string) => {
     try {
-      // Store token securely
       await secureStorage.setItem('authToken', token);
+      await secureStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
       set({
         user,
         token,
@@ -53,6 +56,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
   logout: async () => {
     try {
       await secureStorage.removeItem('authToken');
+      await secureStorage.removeItem(AUTH_USER_KEY);
       set({
         user: null,
         token: null,
@@ -65,18 +69,66 @@ export const useAuthStore = create<AuthStore>((set) => ({
   },
 
   restoreToken: async () => {
+    set({ isLoading: true, error: null });
+
     try {
       const token = await secureStorage.getItem('authToken');
       const onboarded = await secureStorage.getItem('onboarded');
-      if (token) {
-        set({ token });
-        // In a real app, validate token with backend here
-      }
+      const cachedUserJson = await secureStorage.getItem(AUTH_USER_KEY);
+
       if (onboarded === 'true') {
         set({ isOnboarded: true });
       }
+
+      if (!token) {
+        set({ isLoading: false });
+        return;
+      }
+
+      set({ token });
+
+      if (cachedUserJson) {
+        try {
+          const cachedUser = JSON.parse(cachedUserJson) as User;
+          set({ user: cachedUser, isAuthenticated: true });
+        } catch {
+          // Ignore invalid cache
+        }
+      }
+
+      const profile = await authService.getProfile();
+      if (profile.success && profile.data) {
+        const user = profile.data as User;
+        await secureStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
+        set({
+          user,
+          token,
+          isAuthenticated: true,
+          error: null,
+        });
+      } else {
+        await secureStorage.removeItem('authToken');
+        await secureStorage.removeItem(AUTH_USER_KEY);
+        set({
+          user: null,
+          token: null,
+          isAuthenticated: false,
+        });
+      }
     } catch (error) {
-      set({ error: 'Failed to restore authentication' });
+      const hasSession = get().isAuthenticated;
+      if (!hasSession) {
+        await secureStorage.removeItem('authToken');
+        await secureStorage.removeItem(AUTH_USER_KEY);
+        set({
+          user: null,
+          token: null,
+          isAuthenticated: false,
+          error: 'Failed to restore authentication',
+        });
+      }
+    } finally {
+      set({ isLoading: false });
     }
   },
 }));

@@ -1194,8 +1194,13 @@ export class AdminService {
     thirtyDaysFromNow: Date,
     sevenDaysFromNow: Date,
     alertLevel?: string
-  ): Array<{docField: string; expiryDate: Date; daysRemaining: number; alertLevel: string}> {
-    const expiring = [];
+  ): Array<{ docField: string; expiryDate: Date; daysRemaining: number; alertLevel: string }> {
+    const expiring: Array<{
+      docField: string;
+      expiryDate: Date;
+      daysRemaining: number;
+      alertLevel: string;
+    }> = [];
 
     for (const [docField, expiry] of Object.entries(documentExpiries)) {
       if (!expiry || !expiry.expiryDate) continue;

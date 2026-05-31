@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, SafeAreaView, ActivityIndicator, Alert, Modal, TextInput } from 'react-native';
 import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
-import { useStripe, StripeProvider } from '@stripe/stripe-react-native';
+import { useStripe } from '@stripe/stripe-react-native';
 import { paymentsApi, walletApi } from '@/api';
 
 export function WalletScreenContent() {

@@ -27,9 +27,9 @@ export class DocumentExpiryTask {
   private readonly logger = new Logger(DocumentExpiryTask.name);
 
   constructor(
-    @InjectModel('Chauffeur') private chauffeurModel: Model<ChauffeurDocument>,
-    @InjectModel('Taxi') private taxiModel: Model<TaxiDocument>,
-    @InjectModel('User') private userModel: Model<UserDocument>,
+    @InjectModel(Chauffeur.name) private chauffeurModel: Model<ChauffeurDocument>,
+    @InjectModel(Taxi.name) private taxiModel: Model<TaxiDocument>,
+    @InjectModel(User.name) private userModel: Model<UserDocument>,
     private notificationsService: NotificationsService,
   ) {}
 

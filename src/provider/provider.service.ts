@@ -239,7 +239,10 @@ export class ProviderService {
 
       // Set per-document status to 'uploaded'
       if (!record.documentStatuses) record.documentStatuses = {};
-      record.documentStatuses[docField] = 'uploaded';
+      record.documentStatuses[docField] = {
+        status: 'uploaded',
+        uploadedAt: new Date(),
+      };
       record.markModified('documentStatuses');
 
       // Update overall status to pending_admin_review if not already approved
@@ -304,7 +307,10 @@ export class ProviderService {
 
       // Set per-document status to 'uploaded'
       if (!record.documentStatuses) record.documentStatuses = {};
-      record.documentStatuses[docField] = 'uploaded';
+      record.documentStatuses[docField] = {
+        status: 'uploaded',
+        uploadedAt: new Date(),
+      };
       record.markModified('documentStatuses');
 
       // Update vehicle info if provided

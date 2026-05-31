@@ -34,7 +34,7 @@ export function OnboardingScreen() {
         <View style={styles.header}>
           {/* Logo placeholder - replace mobile/assets/images/logo.png with custom screenshot */}
           <Image
-            source={require('../../assets/images/logo.jpg')}
+            source={require('../../assets/images/logo.png')}
             style={styles.logoImage}
             resizeMode="contain"
           />

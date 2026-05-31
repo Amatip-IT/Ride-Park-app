@@ -202,6 +202,40 @@ export class EmailService {
   }
 
   /**
+   * Send a plain HTML email (used by admin notifications)
+   */
+  async sendMail(options: {
+    to: string;
+    subject: string;
+    html: string;
+    text?: string;
+  }): Promise<boolean> {
+    if (!this.transporter) {
+      console.warn(`Email not sent to ${options.to}: transporter not configured`);
+      return false;
+    }
+
+    try {
+      const mailOptions = {
+        from: `"Gleezip" <${this.configService.get<string>('GMAIL_USER')}>`,
+        to: options.to,
+        subject: options.subject,
+        html: options.html,
+        text: options.text,
+      };
+
+      const info = (await this.transporter.sendMail(
+        mailOptions,
+      )) as NodemailerInfo;
+      console.log(`Email sent to ${options.to}: ${info.messageId}`);
+      return true;
+    } catch (error) {
+      console.error(`Failed to send email to ${options.to}:`, error);
+      return false;
+    }
+  }
+
+  /**
    * Generic method to send any templated email
    */
   async sendTemplateEmail(

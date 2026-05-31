@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -35,6 +35,7 @@ import { DriverVerificationScreen } from '@/screens/DriverVerificationScreen';
 import { DriverRideRequestsScreen } from '@/screens/DriverRideRequestsScreen';
 import { ProviderActiveJourneyScreen } from '@/screens/ProviderActiveJourneyScreen';
 import { DocumentUploadScreen } from '@/screens/DocumentUploadScreen';
+import { ProviderVerificationScreen } from '@/screens/ProviderVerificationScreen';
 import { AdminDashboardScreen } from '@/screens/AdminDashboardScreen';
 import { AdminUsersScreen } from '@/screens/AdminUsersScreen';
 import { AdminVerificationQueueScreen } from '@/screens/AdminVerificationQueueScreen';
@@ -209,6 +210,7 @@ const ProviderNavigator = () => (
   <ProviderStack.Navigator screenOptions={{ headerShown: false }}>
     <ProviderStack.Screen name="ProviderTabs" component={ProviderTabs} />
     <ProviderStack.Screen name="ProviderSpaceManagement" component={ProviderSpaceManagementScreen} />
+    <ProviderStack.Screen name="ProviderVerification" component={ProviderVerificationScreen} />
     {/* Driver/Taxi specific screens */}
     <ProviderStack.Screen name="DriverRideRequests" component={DriverRideRequestsScreen} />
     <ProviderStack.Screen name="ProviderActiveJourney" component={ProviderActiveJourneyScreen} />
@@ -253,100 +255,104 @@ const AdminNavigator = () => (
 
 // Root Navigator with authentication flow
 export const RootNavigator = () => {
-  const { isAuthenticated, isOnboarded, restoreToken, user } = useAuthStore();
+  const { isAuthenticated, isOnboarded, user, isLoading } = useAuthStore();
   const userRole = user?.role || 'user';
-  const [isLoading, setIsLoading] = React.useState(true);
 
-  useEffect(() => {
-    bootstrapAsync();
-  }, []);
-
-  const bootstrapAsync = async () => {
-    try {
-      await restoreToken();
-    } catch (e) {
-      console.log('Failed to restore token:', e);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Show Splash while restoring session
   if (isLoading) {
     return <SplashScreen />;
   }
 
-  console.log('🔍 DEBUG - RootNavigator State:', { isOnboarded, isAuthenticated, userRole });
+  const initialRouteName = !isOnboarded
+    ? 'Onboarding'
+    : !isAuthenticated
+      ? 'Auth'
+      : userRole === 'admin'
+        ? 'AdminApp'
+        : userRole === 'user'
+          ? 'ConsumerApp'
+          : 'ProviderApp';
 
   return (
     <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {/* Onboarding Flow - Always show first */}
-        <Stack.Group
-          screenOptions={{
+      <Stack.Navigator
+        screenOptions={{ headerShown: false }}
+        initialRouteName={initialRouteName}
+      >
+        <Stack.Screen name="Onboarding" component={OnboardingScreen} />
+
+        {/* Authentication Flow */}
+        <Stack.Screen
+          name="Auth"
+          component={AuthScreen}
+          options={{ contentStyle: { backgroundColor: '#0D1B2A' } }}
+        />
+        <Stack.Screen
+          name="ForgotPassword"
+          component={ForgotPasswordScreen}
+          options={{
+            presentation: 'modal',
             contentStyle: { backgroundColor: '#0D1B2A' },
           }}
-        >
-          <Stack.Screen name="Onboarding" component={OnboardingScreen} />
-        </Stack.Group>
+        />
+        <Stack.Screen
+          name="LegalDocument"
+          component={LegalDocumentScreen}
+          options={{
+            presentation: 'modal',
+            contentStyle: { backgroundColor: '#0D1B2A' },
+          }}
+        />
 
-        {/* Authentication Flow - Show if not authenticated (after onboarding) */}
-        {!isAuthenticated && isOnboarded && (
-          <Stack.Group
-            screenOptions={{
-              contentStyle: { backgroundColor: '#0D1B2A' },
-            }}
-          >
-            <Stack.Screen name="Auth" component={AuthScreen} />
-          </Stack.Group>
-        )}
+        {/* Application Flow */}
+        <Stack.Screen
+          name="AdminApp"
+          component={AdminNavigator}
+          options={{ contentStyle: { backgroundColor: '#0D1B2A' } }}
+        />
+        <Stack.Screen
+          name="ConsumerApp"
+          component={ConsumerNavigator}
+          options={{ contentStyle: { backgroundColor: '#0D1B2A' } }}
+        />
+        <Stack.Screen
+          name="ProviderApp"
+          component={ProviderNavigator}
+          options={{ contentStyle: { backgroundColor: '#0D1B2A' } }}
+        />
 
-        {/* Auth Modal Screens - Overlay on top of Auth flow */}
-        {!isAuthenticated && isOnboarded && (
-          <Stack.Group
-            screenOptions={{
-              presentation: 'modal',
-              headerShown: false,
-              contentStyle: { backgroundColor: '#0D1B2A' },
-            }}
-          >
-            <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
-            <Stack.Screen name="LegalDocument" component={LegalDocumentScreen} />
-          </Stack.Group>
-        )}
-
-        {/* Application Flow - Show if authenticated */}
-        {isAuthenticated && (
-          <Stack.Group
-            screenOptions={{
-              contentStyle: { backgroundColor: '#0D1B2A' },
-            }}
-          >
-            {userRole === 'admin' ? (
-              <Stack.Screen name="AdminApp" component={AdminNavigator} />
-            ) : userRole === 'user' ? (
-              <Stack.Screen name="ConsumerApp" component={ConsumerNavigator} />
-            ) : (
-              <Stack.Screen name="ProviderApp" component={ProviderNavigator} />
-            )}
-          </Stack.Group>
-        )}
-
-        {/* Shared Modal Screens - Accessible from any authenticated context */}
-        {isAuthenticated && (
-          <Stack.Group
-            screenOptions={{
-              presentation: 'modal',
-              headerShown: false,
-              contentStyle: { backgroundColor: '#0D1B2A' },
-            }}
-          >
-            <Stack.Screen name="ChatList" component={ChatListScreen} />
-            <Stack.Screen name="Chat" component={ChatScreen} />
-            <Stack.Screen name="EditProfile" component={EditProfileScreen} />
-            <Stack.Screen name="Notifications" component={NotificationsScreen} />
-          </Stack.Group>
-        )}
+        {/* Shared Modal Screens */}
+        <Stack.Screen
+          name="ChatList"
+          component={ChatListScreen}
+          options={{
+            presentation: 'modal',
+            contentStyle: { backgroundColor: '#0D1B2A' },
+          }}
+        />
+        <Stack.Screen
+          name="Chat"
+          component={ChatScreen}
+          options={{
+            presentation: 'modal',
+            contentStyle: { backgroundColor: '#0D1B2A' },
+          }}
+        />
+        <Stack.Screen
+          name="EditProfile"
+          component={EditProfileScreen}
+          options={{
+            presentation: 'modal',
+            contentStyle: { backgroundColor: '#0D1B2A' },
+          }}
+        />
+        <Stack.Screen
+          name="Notifications"
+          component={NotificationsScreen}
+          options={{
+            presentation: 'modal',
+            contentStyle: { backgroundColor: '#0D1B2A' },
+          }}
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );
@@ -357,7 +363,7 @@ export type RootStackParamList = {
   Onboarding: undefined;
   Auth: { isLogin?: boolean; role?: 'user' | 'parking_provider' | 'driver' | 'taxi_driver' } | undefined;
   ForgotPassword: undefined;
-  LegalDocument: undefined;
+  LegalDocument: { documentType?: 'terms' | 'privacy' | 'help' } | undefined;
   // App Navigators
   ConsumerApp: undefined;
   ProviderApp: undefined;
@@ -373,6 +379,7 @@ export type RootStackParamList = {
   // Provider Stack (nested)
   ProviderTabs: undefined;
   ProviderSpaceManagement: undefined;
+  ProviderVerification: undefined;
   DriverRideRequests: undefined;
   ProviderActiveJourney: { journeyId: string };
   DriverVerification: undefined;

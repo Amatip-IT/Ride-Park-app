@@ -10,7 +10,7 @@ import { User, UserDocument } from '../schemas/user.schema';
 
 @Injectable()
 export class AccountStatusGuard implements CanActivate {
-  constructor(@InjectModel('User') private userModel: Model<UserDocument>) {}
+  constructor(@InjectModel(User.name) private userModel: Model<UserDocument>) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();

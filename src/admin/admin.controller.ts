@@ -7,14 +7,14 @@ import {
   Query,
   HttpException,
   HttpStatus,
+  UseGuards,
 } from '@nestjs/common';
 import { AdminService } from './admin.service';
-
-// NOTE: In production, you would attach authentication and role-based guards 
-// (@UseGuards(JwtAuthGuard, RolesGuard)) to ensure only "admin" can hit these routes.
-// For testing purposes right now, we are leaving them open.
+import { AuthGuard } from 'src/guards/auth.guard';
+import { AdminGuard } from 'src/guards/admin.guard';
 
 @Controller('admin/verifications')
+@UseGuards(AuthGuard, AdminGuard)
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 

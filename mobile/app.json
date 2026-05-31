@@ -8,16 +8,32 @@
     "scheme": "rideandpark",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
+    "extra": {
+      "eas": {
+        "projectId": "133474a7-8ff5-4d49-8688-e83a4a9ae76c"
+      }
+    },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.gleezip.mobile",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Gleezip uses your location to find nearby parking and track rides.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Gleezip uses your location to provide ride tracking for drivers and passengers."
+      }
     },
     "android": {
+      "package": "com.gleezip.mobile",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "POST_NOTIFICATIONS"
+      ],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
@@ -36,6 +52,19 @@
           "dark": {
             "backgroundColor": "#000000"
           }
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#00C2A8"
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow Gleezip to use your location to find parking and rides nearby."
         }
       ]
     ],

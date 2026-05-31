@@ -383,12 +383,52 @@ export class UsersService {
     return this.userModel.findById(id).exec();
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} user`;
+  async getProfile(userId: string): Promise<Response> {
+    try {
+      const user = await this.userModel.findById(userId).select('-password -refreshToken').exec();
+      if (!user) {
+        return { success: false, message: 'User not found' };
+      }
+      return { success: true, data: user, message: 'Profile fetched successfully' };
+    } catch (error) {
+      return {
+        success: false,
+        message: `An error occurred while fetching profile: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      };
+    }
   }
 
-  update(id: number, updateUserDto: User) {
-    return `This action updates a #${updateUserDto.firstName} user`;
+  async findOneById(id: string): Promise<Response> {
+    try {
+      const user = await this.userModel.findById(id).select('-password -refreshToken').exec();
+      if (!user) {
+        return { success: false, message: 'User not found' };
+      }
+      return { success: true, data: user, message: 'User fetched successfully' };
+    } catch (error) {
+      return {
+        success: false,
+        message: `An error occurred while fetching user: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      };
+    }
+  }
+
+  async updateById(id: string, updateUserDto: Partial<User>): Promise<Response> {
+    try {
+      const user = await this.userModel
+        .findByIdAndUpdate(id, updateUserDto, { new: true, runValidators: true })
+        .select('-password -refreshToken')
+        .exec();
+      if (!user) {
+        return { success: false, message: 'User not found' };
+      }
+      return { success: true, data: user, message: 'User updated successfully' };
+    } catch (error) {
+      return {
+        success: false,
+        message: `An error occurred while updating user: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      };
+    }
   }
 
   async remove(id: string): Promise<Response> {

@@ -180,6 +180,21 @@ class AuthService {
   }
 
   /**
+   * Fetch current user profile (requires valid JWT)
+   */
+  async getProfile(): Promise<ApiResponse<User>> {
+    try {
+      const response = await this.api.get('/users/profile');
+      return response.data;
+    } catch (error) {
+      return {
+        success: false,
+        message: this.extractErrorMessage(error, 'Failed to fetch profile'),
+      };
+    }
+  }
+
+  /**
    * Update User Profile
    */
   async updateProfile(data: any): Promise<ApiResponse<any>> {

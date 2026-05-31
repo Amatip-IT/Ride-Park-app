@@ -95,9 +95,25 @@ export class UsersController {
     return this.usersService.findAll(role, username, firstName, lastName);
   }
 
+  @Get('profile')
+  @UseGuards(AuthGuard)
+  async getProfile(@Req() req: any) {
+    const userId = req.user._id?.toString() || req.user.id;
+    const result = await this.usersService.getProfile(userId);
+    if (!result.success) {
+      throw new HttpException({ message: result.message }, HttpStatus.NOT_FOUND);
+    }
+    return result;
+  }
+
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.usersService.findOne(+id);
+  @UseGuards(AuthGuard, AdminGuard)
+  async findOne(@Param('id') id: string) {
+    const result = await this.usersService.findOneById(id);
+    if (!result.success) {
+      throw new HttpException({ message: result.message }, HttpStatus.NOT_FOUND);
+    }
+    return result;
   }
 
   // Update own profile (or save push tokens)
@@ -123,8 +139,13 @@ export class UsersController {
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateUserDto: User) {
-    return this.usersService.update(+id, updateUserDto);
+  @UseGuards(AuthGuard, AdminGuard)
+  async update(@Param('id') id: string, @Body() updateUserDto: Partial<User>) {
+    const result = await this.usersService.updateById(id, updateUserDto);
+    if (!result.success) {
+      throw new HttpException({ message: result.message }, HttpStatus.BAD_REQUEST);
+    }
+    return result;
   }
 
   @Delete(':id')

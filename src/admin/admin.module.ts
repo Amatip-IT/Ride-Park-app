@@ -11,6 +11,10 @@ import { PlatformSettings, PlatformSettingsSchema } from 'src/schemas/platform-s
 import { Chauffeur, ChauffeurSchema } from 'src/schemas/chauffeur.schema';
 import { Taxi, TaxiSchema } from 'src/schemas/taxi.schema';
 import { UtilityModule } from 'src/utility/utility.module';
+import { NotificationsModule } from 'src/notifications/notifications.module';
+import { VerificationModule } from 'src/verification/verification.module';
+import { AuthGuard } from 'src/guards/auth.guard';
+import { AdminGuard } from 'src/guards/admin.guard';
 
 @Module({
   imports: [
@@ -25,9 +29,11 @@ import { UtilityModule } from 'src/utility/utility.module';
       { name: Taxi.name, schema: TaxiSchema },
     ]),
     UtilityModule,
+    NotificationsModule,
+    VerificationModule,
   ],
   controllers: [AdminController],
-  providers: [AdminService],
+  providers: [AdminService, AuthGuard, AdminGuard],
   exports: [AdminService],
 })
 export class AdminModule {}

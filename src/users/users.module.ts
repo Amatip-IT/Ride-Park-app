@@ -9,6 +9,8 @@ import { Taxi, TaxiSchema } from 'src/schemas/taxi.schema';
 import { UsersService } from './users.service';
 import { UsersController } from './users.controller';
 import { VerificationModule } from 'src/verification/verification.module';
+import { AdminGuard } from 'src/guards/admin.guard';
+import { AuthGuard } from 'src/guards/auth.guard';
 
 @Module({
   imports: [
@@ -20,6 +22,6 @@ import { VerificationModule } from 'src/verification/verification.module';
     VerificationModule,
   ],
   controllers: [UsersController],
-  providers: [UsersService],
+  providers: [UsersService, AuthGuard, AdminGuard],
 })
 export class UsersModule {}
