@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { APP_GUARD } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -19,12 +20,14 @@ import { PaymentsModule } from './payments/payments.module';
 import { WalletModule } from './wallet/wallet.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { AccountStatusGuard } from './guards/account-status.guard';
+import { DocumentExpiryTask } from './tasks/document-expiry.task';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true, // Makes ConfigService available globally
     }),
+    ScheduleModule.forRoot(),
     DatabaseModule,
     UsersModule,
     VerificationModule,
@@ -44,6 +47,7 @@ import { AccountStatusGuard } from './guards/account-status.guard';
   controllers: [AppController],
   providers: [
     AppService,
+    DocumentExpiryTask,
     {
       provide: APP_GUARD,
       useClass: AccountStatusGuard,

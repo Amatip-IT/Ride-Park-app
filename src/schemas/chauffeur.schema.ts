@@ -79,6 +79,17 @@ export class Chauffeur {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User' })
   approvedBy?: string;
 
+  // Document expiry tracking
+  @Prop({ type: Object, default: {} })
+  documentExpiries?: Record<string, {
+    expiryDate: Date;
+    renewalNotificationSent?: Date;
+    renewalReminderLevel?: '30_day' | '7_day' | 'expired';
+  }>;
+
+  @Prop({ default: true })
+  canAcceptRides: boolean;
+
   createdAt?: Date;
   updatedAt?: Date;
 }

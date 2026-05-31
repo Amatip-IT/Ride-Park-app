@@ -1097,6 +1097,211 @@ export class AdminService {
     }
   }
 
+  // ══════════════════════════════════════════════
+  // ── Document Expiry Management ──
+  // ══════════════════════════════════════════════
+
+  /**
+   * Get drivers with expiring or expired documents
+   */
+  async getExpiringDocuments(alertLevel?: 'all' | '30_day' | '7_day' | 'expired'): Promise<Response> {
+    try {
+      const now = new Date();
+      const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+      const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+      const expiringChauffeurs: any[] = [];
+      const expiringTaxis: any[] = [];
+
+      // Check Chauffeur documents
+      const chauffeurs = await this.chauffeurModel
+        .find({ isActive: true, status: 'approved' })
+        .populate('user', 'firstName lastName email')
+        .exec();
+
+      for (const chauffeur of chauffeurs) {
+        const expiringDocs = this.getExpiringDocsForDriver(
+          chauffeur.documentExpiries || {},
+          now,
+          thirtyDaysFromNow,
+          sevenDaysFromNow,
+          alertLevel
+        );
+
+        if (expiringDocs.length > 0) {
+          expiringChauffeurs.push({
+            _id: chauffeur._id,
+            providerType: 'driver',
+            user: chauffeur.user,
+            expiringDocuments: expiringDocs,
+            canAcceptRides: chauffeur.canAcceptRides,
+          });
+        }
+      }
+
+      // Check Taxi documents
+      const taxis = await this.taxiModel
+        .find({ isActive: true, status: 'approved' })
+        .populate('user', 'firstName lastName email')
+        .exec();
+
+      for (const taxi of taxis) {
+        const expiringDocs = this.getExpiringDocsForDriver(
+          taxi.documentExpiries || {},
+          now,
+          thirtyDaysFromNow,
+          sevenDaysFromNow,
+          alertLevel
+        );
+
+        if (expiringDocs.length > 0) {
+          expiringTaxis.push({
+            _id: taxi._id,
+            providerType: 'taxi_driver',
+            user: taxi.user,
+            expiringDocuments: expiringDocs,
+            canAcceptRides: taxi.canAcceptRides,
+          });
+        }
+      }
+
+      const allExpiring = [...expiringChauffeurs, ...expiringTaxis];
+
+      return {
+        success: true,
+        data: {
+          total: allExpiring.length,
+          chauffeurs: expiringChauffeurs,
+          taxis: expiringTaxis,
+          all: allExpiring,
+        },
+        message: `Found ${allExpiring.length} drivers with expiring documents`,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: `Failed to fetch expiring documents: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      };
+    }
+  }
+
+  /**
+   * Helper: Extract expiring documents based on alert level
+   */
+  private getExpiringDocsForDriver(
+    documentExpiries: Record<string, any>,
+    now: Date,
+    thirtyDaysFromNow: Date,
+    sevenDaysFromNow: Date,
+    alertLevel?: string
+  ): Array<{docField: string; expiryDate: Date; daysRemaining: number; alertLevel: string}> {
+    const expiring = [];
+
+    for (const [docField, expiry] of Object.entries(documentExpiries)) {
+      if (!expiry || !expiry.expiryDate) continue;
+
+      const expiryDate = new Date(expiry.expiryDate);
+      const daysRemaining = Math.floor((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+      let level = '';
+      if (daysRemaining < 0) {
+        level = 'expired';
+      } else if (daysRemaining <= 7) {
+        level = '7_day';
+      } else if (daysRemaining <= 30) {
+        level = '30_day';
+      } else {
+        continue; // Not expiring soon
+      }
+
+      // Filter by alert level if specified
+      if (alertLevel && alertLevel !== 'all' && level !== alertLevel) {
+        continue;
+      }
+
+      expiring.push({
+        docField,
+        expiryDate,
+        daysRemaining,
+        alertLevel: level,
+      });
+    }
+
+    return expiring;
+  }
+
+  /**
+   * Manually approve document renewal
+   */
+  async renewDocument(
+    recordId: string,
+    providerType: string,
+    docField: string,
+    newExpiryDate: Date,
+  ): Promise<Response> {
+    try {
+      let record: any = null;
+
+      if (providerType === 'driver') {
+        record = await this.chauffeurModel.findById(recordId).exec();
+      } else if (providerType === 'taxi_driver') {
+        record = await this.taxiModel.findById(recordId).exec();
+      }
+
+      if (!record) {
+        return { success: false, message: 'Driver record not found' };
+      }
+
+      if (!record.documentExpiries) {
+        record.documentExpiries = {};
+      }
+
+      // Update expiry date and reset notification level
+      record.documentExpiries[docField] = {
+        expiryDate: newExpiryDate,
+        renewalNotificationSent: undefined,
+        renewalReminderLevel: undefined,
+      };
+
+      // Re-enable rides if all docs are now valid
+      const allDocsValid = Object.values(record.documentExpiries).every(
+        (doc: any) => !doc.expiryDate || new Date(doc.expiryDate) > new Date()
+      );
+      if (allDocsValid) {
+        record.canAcceptRides = true;
+      }
+
+      record.markModified('documentExpiries');
+      await record.save();
+
+      // Notify user
+      const user = await this.userModel.findById(record.user).exec();
+      if (user) {
+        try {
+          await this.notificationsService.sendNotification(
+            user._id.toString(),
+            '✅ Document Renewed',
+            `Your ${docField} has been approved for renewal. New expiry date: ${newExpiryDate.toLocaleDateString()}`,
+            'system'
+          );
+        } catch (notifErr) {
+          this.logger.warn(`Failed to send renewal notification: ${notifErr}`);
+        }
+      }
+
+      return {
+        success: true,
+        data: { docField, newExpiryDate },
+        message: `Document ${docField} renewed successfully.`,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: `Failed to renew document: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      };
+    }
+  }
+
   /**
    * Unban a user account
    */

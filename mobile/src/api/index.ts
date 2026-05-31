@@ -269,6 +269,13 @@ export const adminApi = {
 
   unbanUser: (userId: string) =>
     api.post<ApiResponse>(`/admin/users/${userId}/unban`),
+
+  // ── Document Expiry Management ──
+  getExpiringDocuments: (alertLevel?: 'all' | '30_day' | '7_day' | 'expired') =>
+    api.get<ApiResponse>(`/admin/documents/expiring${alertLevel ? `?alertLevel=${alertLevel}` : ''}`),
+
+  renewDocument: (recordId: string, providerType: string, docField: string, newExpiryDate: string) =>
+    api.post<ApiResponse>(`/admin/documents/${recordId}/renew`, { providerType, docField, newExpiryDate }),
 };
 
 // ── Reviews API ──

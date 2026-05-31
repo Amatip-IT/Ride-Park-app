@@ -288,5 +288,52 @@ export class AdminController {
     }
     return result;
   }
+
+  // ── Document Expiry Management ──
+
+  @Get('documents/expiring')
+  async getExpiringDocuments(@Query('alertLevel') alertLevel?: string) {
+    if (alertLevel && !['all', '30_day', '7_day', 'expired'].includes(alertLevel)) {
+      throw new HttpException(
+        { success: false, message: 'alertLevel must be one of: all, 30_day, 7_day, expired' },
+        HttpStatus.BAD_REQUEST
+      );
+    }
+    const result = await this.adminService.getExpiringDocuments(alertLevel as any);
+    if (!result.success) {
+      throw new HttpException(result, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+    return result;
+  }
+
+  @Post('documents/:id/renew')
+  async renewDocument(
+    @Param('id') recordId: string,
+    @Body('providerType') providerType: string,
+    @Body('docField') docField: string,
+    @Body('newExpiryDate') newExpiryDate: string,
+  ) {
+    if (!providerType || !['driver', 'taxi_driver'].includes(providerType)) {
+      throw new HttpException({ success: false, message: 'providerType is required' }, HttpStatus.BAD_REQUEST);
+    }
+    if (!docField) {
+      throw new HttpException({ success: false, message: 'docField is required' }, HttpStatus.BAD_REQUEST);
+    }
+    if (!newExpiryDate) {
+      throw new HttpException({ success: false, message: 'newExpiryDate is required' }, HttpStatus.BAD_REQUEST);
+    }
+
+    const expiryDate = new Date(newExpiryDate);
+    if (isNaN(expiryDate.getTime())) {
+      throw new HttpException({ success: false, message: 'Invalid date format' }, HttpStatus.BAD_REQUEST);
+    }
+
+    const result = await this.adminService.renewDocument(recordId, providerType, docField, expiryDate);
+    if (!result.success) {
+      throw new HttpException(result, HttpStatus.BAD_REQUEST);
+    }
+    return result;
+  }
 }
+
 
