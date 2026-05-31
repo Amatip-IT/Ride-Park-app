@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   ActivityIndicator, Alert, SafeAreaView, Platform, Linking,
+  Modal, TextInput,
 } from 'react-native';
 import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
 import { adminApi } from '@/api';
@@ -30,6 +31,8 @@ export function AdminDriverQueueScreen() {
   const [records, setRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const [rejectModal, setRejectModal] = useState<{id: string; providerType: string; name: string; docField?: string} | null>(null);
+  const [rejectionReason, setRejectionReason] = useState('');
 
   useEffect(() => {
     fetchRecords();
@@ -47,6 +50,28 @@ export function AdminDriverQueueScreen() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleApproveDoc = async (id: string, providerType: string, docField: string, docLabel: string) => {
+    try {
+      setProcessingId(`${id}-${docField}`);
+      const res = await adminApi.approveDocumentField(id, providerType, docField);
+      if (res.data?.success) {
+        Alert.alert('Success!', `${docLabel} approved.`);
+        fetchRecords();
+      } else {
+        Alert.alert('Error', res.data?.message || 'Failed to approve document');
+      }
+    } catch (err) {
+      Alert.alert('Error', 'Failed to approve document');
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleRejectDoc = (id: string, providerType: string, docField: string, docLabel: string) => {
+    setRejectModal({ id, providerType, name: docLabel, docField });
+    setRejectionReason('');
   };
 
   const handleApprove = (id: string, providerType: string, name: string) => {
@@ -80,29 +105,48 @@ export function AdminDriverQueueScreen() {
   };
 
   const handleReject = (id: string, providerType: string, name: string) => {
-    Alert.alert(
-      'Reject Driver',
-      `Are you sure you want to reject ${name}'s documents?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Reject',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              setProcessingId(id);
-              await adminApi.rejectDriverVerification(id, providerType, 'Documents did not meet requirements');
-              Alert.alert('Done', 'Verification rejected.');
-              fetchRecords();
-            } catch (err) {
-              Alert.alert('Error', 'Failed to reject.');
-            } finally {
-              setProcessingId(null);
-            }
-          },
-        },
-      ],
-    );
+    setRejectModal({ id, providerType, name });
+    setRejectionReason('');
+  };
+
+  const submitRejection = async () => {
+    if (!rejectModal || !rejectionReason.trim()) {
+      Alert.alert('Error', 'Please provide a rejection reason');
+      return;
+    }
+
+    try {
+      setProcessingId(rejectModal.docField ? `${rejectModal.id}-${rejectModal.docField}` : rejectModal.id);
+
+      if (rejectModal.docField) {
+        // Per-document rejection
+        const res = await adminApi.rejectDocumentField(
+          rejectModal.id,
+          rejectModal.providerType,
+          rejectModal.docField,
+          rejectionReason
+        );
+        if (res.data?.success) {
+          Alert.alert('Done', `${rejectModal.name} has been rejected and driver notified.`);
+        } else {
+          Alert.alert('Error', res.data?.message || 'Failed to reject document');
+        }
+      } else {
+        // Overall driver rejection
+        await adminApi.rejectDriverVerification(
+          rejectModal.id,
+          rejectModal.providerType,
+          rejectionReason
+        );
+        Alert.alert('Done', 'Driver has been rejected and notified via email and push notification.');
+      }
+      setRejectModal(null);
+      fetchRecords();
+    } catch (err) {
+      Alert.alert('Error', 'Failed to reject.');
+    } finally {
+      setProcessingId(null);
+    }
   };
 
   const openDocument = (url: string) => {
@@ -159,48 +203,75 @@ export function AdminDriverQueueScreen() {
           </Text>
         </View>
 
-        {/* Document grid */}
-        <View style={styles.docsGrid}>
-          {ALL_DOC_FIELDS.map(field => {
-            const hasDoc = !!item[field];
-            const docStatus = item.documentStatuses?.[field] || 'not_submitted';
-            const label = DOC_LABELS[field] || field;
+        {/* Individual documents section */}
+        <Text style={styles.documentsSectionTitle}>Documents</Text>
+        {ALL_DOC_FIELDS.map(field => {
+          const hasDoc = !!item[field];
+          const docStatus = item.documentStatuses?.[field];
+          const label = DOC_LABELS[field] || field;
+          const isProcessingDoc = processingId === `${item._id}-${field}`;
 
+          if (!hasDoc) {
             return (
-              <TouchableOpacity
-                key={field}
-                style={[
-                  styles.docChip,
-                  hasDoc ? styles.docChipUploaded : styles.docChipMissing,
-                ]}
-                disabled={!hasDoc}
-                onPress={() => hasDoc && openDocument(item[field])}
-              >
-                <Ionicons
-                  name={hasDoc ? 'document-attach' : 'close-circle-outline'}
-                  size={14}
-                  color={hasDoc ? COLORS.info : COLORS.textTertiary}
-                />
-                <Text
-                  style={[
-                    styles.docChipText,
-                    { color: hasDoc ? COLORS.info : COLORS.textTertiary },
-                  ]}
-                  numberOfLines={1}
-                >
-                  {label}
-                </Text>
-              </TouchableOpacity>
+              <View key={field} style={[styles.docRow, styles.docRowMissing]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.docLabel}>{label}</Text>
+                  <Text style={styles.docMissingText}>Not uploaded</Text>
+                </View>
+              </View>
             );
-          })}
-        </View>
+          }
+
+          return (
+            <View key={field} style={[styles.docRow, styles.docRowUploaded]}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.docLabel}>{label}</Text>
+                {docStatus?.status && (
+                  <Text style={[
+                    styles.docStatusText,
+                    docStatus.status === 'verified' && { color: COLORS.success },
+                    docStatus.status === 'rejected' && { color: COLORS.error },
+                    docStatus.status === 'uploaded' && { color: COLORS.amber },
+                  ]}>
+                    Status: {docStatus.status}
+                  </Text>
+                )}
+                {docStatus?.rejectionReason && (
+                  <Text style={styles.docRejectionText}>
+                    Reason: {docStatus.rejectionReason}
+                  </Text>
+                )}
+              </View>
+              <TouchableOpacity
+                style={[styles.docViewBtn, isProcessingDoc && styles.btnDisabled]}
+                onPress={() => openDocument(item[field])}
+              >
+                <Ionicons name="eye-outline" size={16} color={COLORS.info} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.docApproveBtn, isProcessingDoc && styles.btnDisabled]}
+                disabled={isProcessingDoc}
+                onPress={() => handleApproveDoc(item._id, providerType, field, label)}
+              >
+                <Ionicons name="checkmark" size={16} color={COLORS.success} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.docRejectBtn, isProcessingDoc && styles.btnDisabled]}
+                disabled={isProcessingDoc}
+                onPress={() => handleRejectDoc(item._id, providerType, field, label)}
+              >
+                <Ionicons name="close" size={16} color={COLORS.error} />
+              </TouchableOpacity>
+            </View>
+          );
+        })}
 
         {/* Date */}
         <Text style={styles.dateText}>
           Last updated: {item.updatedAt ? new Date(item.updatedAt).toLocaleDateString() : 'N/A'}
         </Text>
 
-        {/* Action buttons */}
+        {/* Overall action buttons */}
         <View style={styles.actionRow}>
           <TouchableOpacity
             style={[styles.rejectBtn, isProcessing && styles.btnDisabled]}
@@ -208,7 +279,7 @@ export function AdminDriverQueueScreen() {
             onPress={() => handleReject(item._id, providerType, fullName)}
           >
             <Ionicons name="close" size={18} color={COLORS.error} />
-            <Text style={styles.rejectBtnText}>Reject</Text>
+            <Text style={styles.rejectBtnText}>Reject All</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -221,7 +292,7 @@ export function AdminDriverQueueScreen() {
             ) : (
               <>
                 <Ionicons name="checkmark" size={18} color="#FFF" />
-                <Text style={styles.approveBtnText}>Approve</Text>
+                <Text style={styles.approveBtnText}>Approve All</Text>
               </>
             )}
           </TouchableOpacity>
@@ -262,6 +333,52 @@ export function AdminDriverQueueScreen() {
           showsVerticalScrollIndicator={false}
         />
       )}
+
+      {/* Rejection Reason Modal */}
+      <Modal visible={!!rejectModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Rejection Reason</Text>
+              <TouchableOpacity onPress={() => setRejectModal(null)}>
+                <Ionicons name="close" size={24} color={COLORS.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.modalSubtitle}>
+              Provide detailed feedback for {rejectModal?.name}
+              {rejectModal?.docField && ' document'}
+            </Text>
+
+            <TextInput
+              style={styles.reasonInput}
+              placeholder="e.g., DVLA license is expired, photo quality is poor, documents don't match..."
+              placeholderTextColor={COLORS.textTertiary}
+              value={rejectionReason}
+              onChangeText={setRejectionReason}
+              multiline
+              numberOfLines={5}
+              textAlignVertical="top"
+            />
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.cancelBtn}
+                onPress={() => setRejectModal(null)}
+              >
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.submitBtn, !rejectionReason.trim() && styles.submitBtnDisabled]}
+                onPress={submitRejection}
+                disabled={!rejectionReason.trim()}
+              >
+                <Text style={styles.submitBtnText}>Send Rejection</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -337,23 +454,43 @@ const styles = StyleSheet.create({
     color: COLORS.electricTeal, fontSize: 13, fontWeight: FONT_WEIGHTS.medium, marginLeft: 6,
   },
 
-  // Documents grid
-  docsGrid: {
-    flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: SPACING.sm,
+  // Documents section
+  documentsSectionTitle: {
+    fontSize: 13, fontWeight: FONT_WEIGHTS.semibold, color: COLORS.textPrimary,
+    marginTop: SPACING.md, marginBottom: SPACING.sm,
   },
-  docChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 8, paddingVertical: 5,
-    borderRadius: BORDER_RADIUS.sm, borderWidth: 1,
+  docRow: {
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
+    paddingVertical: SPACING.sm, paddingHorizontal: SPACING.sm,
+    marginBottom: 4, borderRadius: BORDER_RADIUS.sm,
+    borderWidth: 1, borderColor: COLORS.border,
   },
-  docChipUploaded: {
-    borderColor: COLORS.info, backgroundColor: `${COLORS.info}08`,
+  docRowUploaded: {
+    backgroundColor: `${COLORS.info}08`, borderColor: COLORS.info,
   },
-  docChipMissing: {
-    borderColor: COLORS.border, backgroundColor: COLORS.surfaceAlt,
+  docRowMissing: {
+    backgroundColor: COLORS.surfaceAlt, borderColor: COLORS.border, opacity: 0.6,
   },
-  docChipText: {
-    fontSize: 11, fontWeight: FONT_WEIGHTS.medium, maxWidth: 100,
+  docLabel: {
+    fontSize: 13, fontWeight: FONT_WEIGHTS.medium, color: COLORS.textPrimary,
+  },
+  docStatusText: {
+    fontSize: 11, fontWeight: FONT_WEIGHTS.medium, marginTop: 2,
+  },
+  docMissingText: {
+    fontSize: 11, color: COLORS.textTertiary, marginTop: 2,
+  },
+  docRejectionText: {
+    fontSize: 10, color: COLORS.error, fontStyle: 'italic', marginTop: 2,
+  },
+  docViewBtn: {
+    padding: SPACING.xs, marginRight: SPACING.xs,
+  },
+  docApproveBtn: {
+    padding: SPACING.xs, marginRight: SPACING.xs,
+  },
+  docRejectBtn: {
+    padding: SPACING.xs,
   },
 
   dateText: {
@@ -382,4 +519,49 @@ const styles = StyleSheet.create({
     color: '#FFF', fontWeight: FONT_WEIGHTS.bold, fontSize: 13,
   },
   btnDisabled: { opacity: 0.5 },
+
+  // Modal styles
+  modalOverlay: {
+    flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  modalContent: {
+    backgroundColor: COLORS.background, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    padding: SPACING.xl, paddingBottom: 40, minHeight: 400,
+  },
+  modalHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    marginBottom: SPACING.lg,
+  },
+  modalTitle: {
+    fontSize: FONT_SIZES.section, fontWeight: FONT_WEIGHTS.bold, color: COLORS.textPrimary,
+  },
+  modalSubtitle: {
+    color: COLORS.textSecondary, fontSize: FONT_SIZES.label, marginBottom: SPACING.lg,
+  },
+  reasonInput: {
+    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.md, padding: SPACING.md,
+    color: COLORS.textPrimary, fontSize: FONT_SIZES.body,
+    borderWidth: 1, borderColor: COLORS.border,
+    minHeight: 120, textAlignVertical: 'top', marginBottom: SPACING.xl,
+  },
+  modalActions: {
+    flexDirection: 'row', gap: SPACING.md,
+  },
+  cancelBtn: {
+    flex: 1, paddingVertical: SPACING.lg, borderRadius: BORDER_RADIUS.md,
+    backgroundColor: `${COLORS.textTertiary}15`, alignItems: 'center',
+  },
+  cancelBtnText: {
+    color: COLORS.textSecondary, fontWeight: FONT_WEIGHTS.bold, fontSize: FONT_SIZES.label,
+  },
+  submitBtn: {
+    flex: 1, paddingVertical: SPACING.lg, borderRadius: BORDER_RADIUS.md,
+    backgroundColor: COLORS.error, alignItems: 'center',
+  },
+  submitBtnDisabled: {
+    opacity: 0.5,
+  },
+  submitBtnText: {
+    color: '#FFF', fontWeight: FONT_WEIGHTS.bold, fontSize: FONT_SIZES.label,
+  },
 });

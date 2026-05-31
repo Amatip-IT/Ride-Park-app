@@ -11,6 +11,8 @@ import { Chauffeur, ChauffeurDocument } from 'src/schemas/chauffeur.schema';
 import { Taxi, TaxiDocument } from 'src/schemas/taxi.schema';
 import { Response } from 'src/common/interfaces/response.interface';
 import { What3WordsService } from 'src/utility/what3words.service';
+import { NotificationsService } from 'src/notifications/notifications.service';
+import { EmailService } from 'src/verification/services/email/email.service';
 import Stripe from 'stripe';
 
 // All valid document field names
@@ -58,6 +60,8 @@ export class AdminService {
     @InjectModel(Chauffeur.name) private chauffeurModel: Model<ChauffeurDocument>,
     @InjectModel(Taxi.name) private taxiModel: Model<TaxiDocument>,
     private what3wordsService: What3WordsService,
+    private notificationsService: NotificationsService,
+    private emailService: EmailService,
   ) {
     this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_mock');
   }
@@ -231,10 +235,54 @@ export class AdminService {
       verification.rejectionReason = reason;
       await verification.save();
 
+      // Fetch user and send notifications
+      const user = await this.userModel.findById(verification.user).exec();
+      if (user) {
+        try {
+          // Send push notification
+          await this.notificationsService.sendNotification(
+            user._id.toString(),
+            '❌ Parking Verification Rejected',
+            `Your parking space verification was not approved. Check your email for details.`,
+            'system',
+            { verificationId: id, reason }
+          );
+        } catch (notifErr) {
+          this.logger.warn(`Failed to send push notification for parking rejection: ${notifErr}`);
+        }
+
+        try {
+          // Send email with rejection reason
+          const emailHtml = `
+            <h2>Parking Space Verification Rejected</h2>
+            <p>Hi ${user.firstName},</p>
+            <p>Unfortunately, your parking space verification application was not approved.</p>
+            <h3>Reason for Rejection:</h3>
+            <p><strong>${reason}</strong></p>
+            <h3>Next Steps:</h3>
+            <ol>
+              <li>Review the rejection reason carefully</li>
+              <li>Address any issues mentioned</li>
+              <li>Resubmit your application with updated information</li>
+            </ol>
+            <p>If you have any questions, please contact our support team.</p>
+            <p>Best regards,<br/>Gleezip Admin Team</p>
+          `;
+
+          await this.emailService.sendMail({
+            to: user.email,
+            subject: `Parking Verification Rejected - Please Resubmit`,
+            html: emailHtml,
+          });
+        } catch (emailErr) {
+          this.logger.warn(`Failed to send parking rejection email: ${emailErr}`);
+        }
+      }
+
       return {
         success: true,
         data: null,
-        message: 'Parking verification rejected.',
+        message: 'Parking verification rejected. Provider has been notified.',
       };
     } catch (error) {
       return {
@@ -440,15 +488,241 @@ export class AdminService {
 
       await record.save();
 
+      // Fetch user and send notifications
+      const user = await this.userModel.findById(record.user).exec();
+      if (user) {
+        try {
+          // Send push notification
+          await this.notificationsService.sendNotification(
+            user._id.toString(),
+            '❌ Verification Rejected',
+            `Your ${providerType === 'taxi_driver' ? 'taxi driver' : 'driver'} verification was not approved. Check your email for details.`,
+            'system',
+            { recordId, reason }
+          );
+        } catch (notifErr) {
+          this.logger.warn(`Failed to send push notification for rejection: ${notifErr}`);
+        }
+
+        try {
+          // Send email with rejection reason and next steps
+          const roleLabel = providerType === 'taxi_driver' ? 'Taxi Driver' : 'Private Driver';
+          const emailHtml = `
+            <h2>Verification Rejected</h2>
+            <p>Hi ${user.firstName},</p>
+            <p>Unfortunately, your ${roleLabel} verification application was not approved.</p>
+            <h3>Reason for Rejection:</h3>
+            <p><strong>${reason}</strong></p>
+            <h3>Next Steps:</h3>
+            <ol>
+              <li>Review the rejection reason carefully</li>
+              <li>Gather the correct or updated documents</li>
+              <li>Resubmit your application through the app</li>
+            </ol>
+            <p>If you have any questions, please contact our support team.</p>
+            <p>Best regards,<br/>Gleezip Admin Team</p>
+          `;
+
+          await this.emailService.sendMail({
+            to: user.email,
+            subject: `Verification Rejected - Action Required`,
+            html: emailHtml,
+          });
+        } catch (emailErr) {
+          this.logger.warn(`Failed to send rejection email: ${emailErr}`);
+        }
+      }
+
       return {
         success: true,
         data: null,
-        message: 'Verification rejected.',
+        message: `Verification rejected. Driver has been notified.`,
       };
     } catch (error) {
       return {
         success: false,
         message: `Failed to reject verification: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      };
+    }
+  }
+
+  // ══════════════════════════════════════════════
+  // ── Per-Document Approval/Rejection ──
+  // ══════════════════════════════════════════════
+
+  /**
+   * Approve a single document field for a driver/taxi
+   */
+  async approveDocumentField(
+    recordId: string,
+    providerType: string,
+    docField: string,
+    adminUserId?: string,
+  ): Promise<Response> {
+    try {
+      if (!VALID_DOC_FIELDS.includes(docField as any)) {
+        return { success: false, message: `Invalid document field: ${docField}` };
+      }
+
+      let record: any = null;
+
+      if (providerType === 'driver') {
+        record = await this.chauffeurModel.findById(recordId).exec();
+      } else if (providerType === 'taxi_driver') {
+        record = await this.taxiModel.findById(recordId).exec();
+      }
+
+      if (!record) {
+        return { success: false, message: 'Verification record not found' };
+      }
+
+      if (!record[docField]) {
+        return { success: false, message: `No document uploaded for ${docField}` };
+      }
+
+      // Update document status
+      if (!record.documentStatuses) {
+        record.documentStatuses = {};
+      }
+
+      record.documentStatuses[docField] = {
+        status: 'verified',
+        reviewedAt: new Date(),
+        reviewedBy: adminUserId,
+      };
+
+      record.markModified('documentStatuses');
+      await record.save();
+
+      // Check if ALL documents are now verified
+      const allVerified = VALID_DOC_FIELDS.every(field => {
+        return !record[field] || record.documentStatuses?.[field]?.status === 'verified';
+      });
+
+      if (allVerified) {
+        // Auto-approve overall status
+        record.status = 'approved';
+        record.isVerified = true;
+        record.isActive = true;
+        if (adminUserId) record.approvedBy = adminUserId;
+        await record.save();
+      }
+
+      return {
+        success: true,
+        data: { docField, status: 'verified', allDocsVerified: allVerified },
+        message: `Document ${docField} approved.${allVerified ? ' All documents verified - driver approved!' : ''}`,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: `Failed to approve document: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      };
+    }
+  }
+
+  /**
+   * Reject a single document field for a driver/taxi
+   */
+  async rejectDocumentField(
+    recordId: string,
+    providerType: string,
+    docField: string,
+    reason: string,
+    adminUserId?: string,
+  ): Promise<Response> {
+    try {
+      if (!VALID_DOC_FIELDS.includes(docField as any)) {
+        return { success: false, message: `Invalid document field: ${docField}` };
+      }
+
+      if (!reason?.trim()) {
+        return { success: false, message: 'Rejection reason is required' };
+      }
+
+      let record: any = null;
+
+      if (providerType === 'driver') {
+        record = await this.chauffeurModel.findById(recordId).exec();
+      } else if (providerType === 'taxi_driver') {
+        record = await this.taxiModel.findById(recordId).exec();
+      }
+
+      if (!record) {
+        return { success: false, message: 'Verification record not found' };
+      }
+
+      if (!record[docField]) {
+        return { success: false, message: `No document uploaded for ${docField}` };
+      }
+
+      // Update document status
+      if (!record.documentStatuses) {
+        record.documentStatuses = {};
+      }
+
+      record.documentStatuses[docField] = {
+        status: 'rejected',
+        rejectionReason: reason,
+        reviewedAt: new Date(),
+        reviewedBy: adminUserId,
+      };
+
+      record.markModified('documentStatuses');
+      await record.save();
+
+      // Fetch user and send notification
+      const user = await this.userModel.findById(record.user).exec();
+      if (user) {
+        try {
+          const docLabel = DOC_LABELS[docField as keyof typeof DOC_LABELS] || docField;
+          await this.notificationsService.sendNotification(
+            user._id.toString(),
+            '❌ Document Rejected',
+            `Your ${docLabel} document was rejected. Please resubmit.`,
+            'system',
+            { docField, reason }
+          );
+        } catch (notifErr) {
+          this.logger.warn(`Failed to send document rejection notification: ${notifErr}`);
+        }
+
+        try {
+          const docLabel = DOC_LABELS[docField as keyof typeof DOC_LABELS] || docField;
+          const emailHtml = `
+            <h2>Document Rejected</h2>
+            <p>Hi ${user.firstName},</p>
+            <p>Your document "<strong>${docLabel}</strong>" was rejected and needs to be resubmitted.</p>
+            <h3>Reason:</h3>
+            <p><strong>${reason}</strong></p>
+            <h3>What to do:</h3>
+            <ol>
+              <li>Review the rejection reason above</li>
+              <li>Gather a new or updated document</li>
+              <li>Resubmit through the verification section in the app</li>
+            </ol>
+            <p>Best regards,<br/>Gleezip Admin Team</p>
+          `;
+
+          await this.emailService.sendMail({
+            to: user.email,
+            subject: `Document Rejected: ${docLabel}`,
+            html: emailHtml,
+          });
+        } catch (emailErr) {
+          this.logger.warn(`Failed to send document rejection email: ${emailErr}`);
+        }
+      }
+
+      return {
+        success: true,
+        data: { docField, status: 'rejected', reason },
+        message: `Document ${docField} rejected. Driver has been notified.`,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: `Failed to reject document: ${error instanceof Error ? error.message : 'Unknown error'}`,
       };
     }
   }
@@ -529,10 +803,50 @@ export class AdminService {
       (user as any).identityStatus = 'rejected';
       await user.save();
 
+      try {
+        // Send push notification
+        await this.notificationsService.sendNotification(
+          userId,
+          '❌ Identity Verification Rejected',
+          `Your identity verification was not approved. Check your email for details.`,
+          'system',
+          { reason }
+        );
+      } catch (notifErr) {
+        this.logger.warn(`Failed to send push notification for identity rejection: ${notifErr}`);
+      }
+
+      try {
+        // Send email with rejection reason
+        const emailHtml = `
+          <h2>Identity Verification Rejected</h2>
+          <p>Hi ${user.firstName},</p>
+          <p>Unfortunately, your identity verification was not approved.</p>
+          <h3>Reason for Rejection:</h3>
+          <p><strong>${reason}</strong></p>
+          <h3>Next Steps:</h3>
+          <ol>
+            <li>Review the rejection reason carefully</li>
+            <li>Ensure your documents are clear and valid</li>
+            <li>Resubmit your identity verification through the app</li>
+          </ol>
+          <p>If you have any questions, please contact our support team.</p>
+          <p>Best regards,<br/>Gleezip Admin Team</p>
+        `;
+
+        await this.emailService.sendMail({
+          to: user.email,
+          subject: `Identity Verification Rejected - Please Resubmit`,
+          html: emailHtml,
+        });
+      } catch (emailErr) {
+        this.logger.warn(`Failed to send identity rejection email: ${emailErr}`);
+      }
+
       return {
         success: true,
         data: null,
-        message: `Identity verification rejected for ${user.firstName} ${user.lastName}. Reason: ${reason}`,
+        message: `Identity verification rejected for ${user.firstName} ${user.lastName}. User has been notified.`,
       };
     } catch (error) {
       return {

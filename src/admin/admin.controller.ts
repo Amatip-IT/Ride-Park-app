@@ -115,6 +115,50 @@ export class AdminController {
     return result;
   }
 
+  @Post('drivers/:id/documents/:docField/approve')
+  async approveDocumentField(
+    @Param('id') id: string,
+    @Param('docField') docField: string,
+    @Body('providerType') providerType: string,
+  ) {
+    if (!providerType || !['driver', 'taxi_driver'].includes(providerType)) {
+      throw new HttpException({ success: false, message: 'providerType must be "driver" or "taxi_driver"' }, HttpStatus.BAD_REQUEST);
+    }
+    if (!docField) {
+      throw new HttpException({ success: false, message: 'docField is required' }, HttpStatus.BAD_REQUEST);
+    }
+
+    const result = await this.adminService.approveDocumentField(id, providerType, docField);
+    if (!result.success) {
+      throw new HttpException(result, HttpStatus.BAD_REQUEST);
+    }
+    return result;
+  }
+
+  @Post('drivers/:id/documents/:docField/reject')
+  async rejectDocumentField(
+    @Param('id') id: string,
+    @Param('docField') docField: string,
+    @Body('providerType') providerType: string,
+    @Body('reason') reason: string,
+  ) {
+    if (!providerType || !['driver', 'taxi_driver'].includes(providerType)) {
+      throw new HttpException({ success: false, message: 'providerType must be "driver" or "taxi_driver"' }, HttpStatus.BAD_REQUEST);
+    }
+    if (!docField) {
+      throw new HttpException({ success: false, message: 'docField is required' }, HttpStatus.BAD_REQUEST);
+    }
+    if (!reason) {
+      throw new HttpException({ success: false, message: 'Rejection reason is required' }, HttpStatus.BAD_REQUEST);
+    }
+
+    const result = await this.adminService.rejectDocumentField(id, providerType, docField, reason);
+    if (!result.success) {
+      throw new HttpException(result, HttpStatus.BAD_REQUEST);
+    }
+    return result;
+  }
+
   // ── Provider Identity Verifications ──
 
   @Get('identity')

@@ -224,6 +224,12 @@ export const adminApi = {
   rejectDriverVerification: (recordId: string, providerType: string, reason: string) =>
     api.post<ApiResponse>(`/admin/verifications/drivers/${recordId}/reject`, { providerType, reason }),
 
+  approveDocumentField: (recordId: string, providerType: string, docField: string) =>
+    api.post<ApiResponse>(`/admin/verifications/drivers/${recordId}/documents/${docField}/approve`, { providerType }),
+
+  rejectDocumentField: (recordId: string, providerType: string, docField: string, reason: string) =>
+    api.post<ApiResponse>(`/admin/verifications/drivers/${recordId}/documents/${docField}/reject`, { providerType, reason }),
+
   // ── Provider Identity Verifications ──
   getPendingIdentityVerifications: () =>
     api.get<ApiResponse>('/admin/verifications/identity'),
