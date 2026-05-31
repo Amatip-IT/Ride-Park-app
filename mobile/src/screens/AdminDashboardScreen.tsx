@@ -158,7 +158,23 @@ export function AdminDashboardScreen() {
           </View>
           <View style={styles.cardContent}>
             <Text style={styles.cardTitle}>Users</Text>
-            <Text style={styles.cardDesc}>View and manage all registered users.</Text>
+            <Text style={styles.cardDesc}>View, suspend, or ban platform users.</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={22} color={COLORS.textTertiary} />
+        </TouchableOpacity>
+
+        {/* Expiring Documents */}
+        <TouchableOpacity
+          style={styles.card}
+          onPress={() => navigation.navigate('AdminExpiringDocuments')}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.iconContainer, { backgroundColor: `${COLORS.warning}12` }]}>
+            <Ionicons name="alert-circle-outline" size={28} color={COLORS.warning} />
+          </View>
+          <View style={styles.cardContent}>
+            <Text style={styles.cardTitle}>Expiring Documents</Text>
+            <Text style={styles.cardDesc}>Review driver licence and insurance renewals.</Text>
           </View>
           <Ionicons name="chevron-forward" size={22} color={COLORS.textTertiary} />
         </TouchableOpacity>

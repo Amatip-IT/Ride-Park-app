@@ -7,8 +7,9 @@ import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/cons
 import { AmazonMap } from '@/components/AmazonMap';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, NavigationProp, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
-import { taxiBookingsApi } from '@/api';
+import { taxiBookingsApi, ridesApi } from '@/api';
 import * as Location from 'expo-location';
+import { haversineDistanceMiles, estimateDurationMinutes } from '@/utils/helpers';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 type TimingType = 'now' | 'leave_at' | 'arrive_by';
@@ -53,6 +54,7 @@ export function TaxiBookingScreen() {
 
   // Submission
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [calculatingEstimate, setCalculatingEstimate] = useState(false);
   const [activeRequest, setActiveRequest] = useState<any>(null);
   const [loadingActiveRequest, setLoadingActiveRequest] = useState(true);
   const [isCancelling, setIsCancelling] = useState(false);
@@ -120,8 +122,24 @@ export function TaxiBookingScreen() {
     }
   }, []);
 
-  const handleCalculatePreview = () => {
-    // Validation
+  const resolveCoordinates = async (): Promise<{ lat: number; lng: number } | null> => {
+    if (pickupCoords) return pickupCoords;
+
+    const query = pickupPostcode || pickupAddress;
+    if (!query) return null;
+
+    try {
+      const results = await Location.geocodeAsync(query);
+      if (results[0]) {
+        return { lat: results[0].latitude, lng: results[0].longitude };
+      }
+    } catch {
+      // fall through
+    }
+    return null;
+  };
+
+  const handleCalculatePreview = async () => {
     if (pickupMethod === 'manual' && !pickupAddress && !pickupPostcode) {
       Alert.alert('Missing Pickup', 'Please enter your pickup address or postcode, or use GPS.');
       return;
@@ -134,18 +152,52 @@ export function TaxiBookingScreen() {
       Alert.alert('Missing Time', 'Please select your travel time.');
       return;
     }
-    
-    // In a real app we'd geocode destination and use routing API here
-    // For now we simulate generating a realistic estimate
-    const randomMiles = (Math.random() * 8 + 2).toFixed(1);
-    const randomMins = Math.round(Number(randomMiles) * 3);
-    const cost = Number(randomMiles) * 1.10 + randomMins * 0.20;
-    
-    setEstimatedMiles(Number(randomMiles));
-    setEstimatedDuration(randomMins);
-    setEstimatedCost(Math.round(cost * 100) / 100);
-    
-    setShowPreviewModal(true);
+
+    setCalculatingEstimate(true);
+    try {
+      let miles = 4;
+      let mins = 12;
+
+      const pickup = await resolveCoordinates();
+      const destQuery = destinationPostcode || destinationAddress;
+
+      if (pickup && destQuery) {
+        try {
+          const destResults = await Location.geocodeAsync(destQuery);
+          if (destResults[0]) {
+            miles = haversineDistanceMiles(
+              pickup.lat,
+              pickup.lng,
+              destResults[0].latitude,
+              destResults[0].longitude,
+            );
+            mins = estimateDurationMinutes(miles);
+          }
+        } catch {
+          // keep defaults
+        }
+      }
+
+      miles = Math.max(0.5, Math.round(miles * 10) / 10);
+      mins = Math.max(5, mins);
+
+      const res = await ridesApi.getEstimate('taxi', miles, mins);
+      if (res.data?.success && res.data.data) {
+        setEstimatedMiles(res.data.data.distanceMiles ?? miles);
+        setEstimatedDuration(res.data.data.durationMinutes ?? mins);
+        setEstimatedCost(res.data.data.totalCost ?? 0);
+      } else {
+        setEstimatedMiles(miles);
+        setEstimatedDuration(mins);
+        setEstimatedCost(Math.round((miles * 1.1 + mins * 0.2) * 100) / 100);
+      }
+
+      setShowPreviewModal(true);
+    } catch {
+      Alert.alert('Error', 'Could not calculate fare estimate. Please try again.');
+    } finally {
+      setCalculatingEstimate(false);
+    }
   };
 
   const confirmAndRequest = useCallback(async () => {
@@ -530,10 +582,12 @@ export function TaxiBookingScreen() {
           <TouchableOpacity
             style={[styles.submitBtn, isSubmitting && { opacity: 0.6 }]}
             onPress={handleCalculatePreview}
-            disabled={isSubmitting}
+            disabled={isSubmitting || calculatingEstimate}
             activeOpacity={0.7}
           >
-            {isSubmitting ? (
+            {calculatingEstimate ? (
+              <ActivityIndicator size="small" color="#FFF" />
+            ) : isSubmitting ? (
               <ActivityIndicator size="small" color="#FFF" />
             ) : (
               <>

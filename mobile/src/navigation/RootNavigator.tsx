@@ -41,6 +41,7 @@ import { AdminUsersScreen } from '@/screens/AdminUsersScreen';
 import { AdminVerificationQueueScreen } from '@/screens/AdminVerificationQueueScreen';
 import { AdminDriverQueueScreen } from '@/screens/AdminDriverQueueScreen';
 import { AdminIdentityQueueScreen } from '@/screens/AdminIdentityQueueScreen';
+import { AdminExpiringDocumentsScreen } from '@/screens/AdminExpiringDocumentsScreen';
 
 // Lazy-loaded admin sub-screens (may or may not exist yet)
 let AdminProviderDetailScreen: any = null;
@@ -238,6 +239,7 @@ const AdminNavigator = () => (
     <AdminStack.Screen name="AdminDriverQueue" component={AdminDriverQueueScreen} />
     <AdminStack.Screen name="AdminIdentityQueue" component={AdminIdentityQueueScreen} />
     <AdminStack.Screen name="AdminUsers" component={AdminUsersScreen} />
+    <AdminStack.Screen name="AdminExpiringDocuments" component={AdminExpiringDocumentsScreen} />
     <AdminStack.Screen
       name="AdminProviderDetail"
       component={AdminProviderDetailScreen || PlaceholderScreen}
@@ -373,8 +375,8 @@ export type RootStackParamList = {
   ServiceChoice: { mode: 'driver' | 'taxi' };
   DriverRequest: undefined;
   TaxiBooking: undefined;
-  ParkingDetail: { parkingId: string };
-  PassengerTracking: { bookingId: string };
+  ParkingDetail: { spaceId: string; space?: any };
+  PassengerTracking: { requestId: string };
   MapPreview: { latitude?: number; longitude?: number } | undefined;
   // Provider Stack (nested)
   ProviderTabs: undefined;
@@ -390,6 +392,7 @@ export type RootStackParamList = {
   AdminDriverQueue: undefined;
   AdminIdentityQueue: undefined;
   AdminUsers: undefined;
+  AdminExpiringDocuments: undefined;
   AdminProviderDetail: { providerId: string };
   AdminPayoutsQueue: undefined;
   AdminPlatformSettings: undefined;

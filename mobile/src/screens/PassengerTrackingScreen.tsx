@@ -10,17 +10,20 @@ import { taxiBookingsApi } from '@/api';
 import { AmazonMap } from '@/components/AmazonMap';
 import { useTaxiStore } from '@/store/taxiStore';
 import { useAuthStore } from '@/store/authStore';
+import { RatingModal } from '@/components/RatingModal';
 
 type ParamList = {
-  PassengerTrackingScreen: { requestId: string };
+  PassengerTracking: { requestId: string };
 };
 
 export function PassengerTrackingScreen() {
   const navigation = useNavigation<any>();
-  const route = useRoute<RouteProp<ParamList, 'PassengerTrackingScreen'>>();
+  const route = useRoute<RouteProp<ParamList, 'PassengerTracking'>>();
   const { requestId } = route.params;
 
   const [loading, setLoading] = useState(true);
+  const [showRating, setShowRating] = useState(false);
+  const [ratingDismissed, setRatingDismissed] = useState(false);
   
   const { user } = useAuthStore();
   const {
@@ -70,6 +73,22 @@ export function PassengerTrackingScreen() {
       return () => clearInterval(interval);
     }, [requestId])
   );
+
+  useEffect(() => {
+    if (
+      request?.status === 'completed' &&
+      !ratingDismissed &&
+      request.acceptedDriver?._id
+    ) {
+      setShowRating(true);
+    }
+  }, [request?.status, request?.acceptedDriver?._id, ratingDismissed]);
+
+  const driver = request?.acceptedDriver;
+  const driverId = driver?._id || driver?.id;
+  const driverName = driver
+    ? `${driver.firstName || ''} ${driver.lastName || ''}`.trim() || 'Your driver'
+    : 'Your driver';
 
   const getStatusText = () => {
     if (!request) return '';
@@ -250,6 +269,21 @@ export function PassengerTrackingScreen() {
           )}
         </View>
       </View>
+
+      {driverId && (
+        <RatingModal
+          visible={showRating}
+          onClose={() => {
+            setShowRating(false);
+            setRatingDismissed(true);
+          }}
+          subjectName={driverName}
+          subjectId={driverId}
+          bookingId={requestId}
+          serviceType="taxi"
+          title="Rate Your Ride"
+        />
+      )}
     </SafeAreaView>
   );
 }

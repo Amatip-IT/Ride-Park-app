@@ -115,3 +115,24 @@ export const calculateBookingPrice = (hourlyRate: number, startDate: string, end
   const { hours } = calculateDuration(startDate, endDate);
   return hourlyRate * Math.max(hours, 1);
 };
+
+/** Great-circle distance between two coordinates in miles */
+export const haversineDistanceMiles = (
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number,
+): number => {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const R = 3958.8;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
+
+/** Rough trip duration from distance (urban driving ~25 mph average) */
+export const estimateDurationMinutes = (distanceMiles: number): number =>
+  Math.max(5, Math.round((distanceMiles / 25) * 60));
