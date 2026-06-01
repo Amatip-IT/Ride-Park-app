@@ -276,6 +276,152 @@ export const adminApi = {
 
   renewDocument: (recordId: string, providerType: string, docField: string, newExpiryDate: string) =>
     api.post<ApiResponse>(`/admin/verifications/documents/${recordId}/renew`, { providerType, docField, newExpiryDate }),
+
+  // ── Audit Logs ──
+  getAuditLogs: (params?: {
+    action?: string;
+    adminId?: string;
+    targetId?: string;
+    from?: string;
+    to?: string;
+    page?: number;
+    limit?: number;
+  }) => {
+    const query = new URLSearchParams();
+    if (params?.action) query.set('action', params.action);
+    if (params?.adminId) query.set('adminId', params.adminId);
+    if (params?.targetId) query.set('targetId', params.targetId);
+    if (params?.from) query.set('from', params.from);
+    if (params?.to) query.set('to', params.to);
+    if (params?.page) query.set('page', String(params.page));
+    if (params?.limit) query.set('limit', String(params.limit));
+    const qs = query.toString();
+    return api.get<ApiResponse>(`/admin/verifications/audit-logs${qs ? `?${qs}` : ''}`);
+  },
+
+  exportAuditLogs: (params?: { action?: string; from?: string; to?: string }) => {
+    const query = new URLSearchParams();
+    if (params?.action) query.set('action', params.action);
+    if (params?.from) query.set('from', params.from);
+    if (params?.to) query.set('to', params.to);
+    const qs = query.toString();
+    return api.get<ApiResponse>(`/admin/verifications/audit-logs/export${qs ? `?${qs}` : ''}`);
+  },
+
+  // ── Driver Search & Bulk Ops ──
+  searchDriverVerifications: (params?: {
+    q?: string;
+    status?: string;
+    providerType?: string;
+    days?: number;
+    sort?: string;
+  }) => {
+    const query = new URLSearchParams();
+    if (params?.q) query.set('q', params.q);
+    if (params?.status) query.set('status', params.status);
+    if (params?.providerType) query.set('providerType', params.providerType);
+    if (params?.days) query.set('days', String(params.days));
+    if (params?.sort) query.set('sort', params.sort);
+    const qs = query.toString();
+    return api.get<ApiResponse>(`/admin/verifications/drivers/search${qs ? `?${qs}` : ''}`);
+  },
+
+  bulkApproveDrivers: (items: Array<{ recordId: string; providerType: string }>) =>
+    api.post<ApiResponse>('/admin/verifications/drivers/bulk-approve', { items }),
+
+  bulkRejectDrivers: (items: Array<{ recordId: string; providerType: string }>, reason: string) =>
+    api.post<ApiResponse>('/admin/verifications/drivers/bulk-reject', { items, reason }),
+
+  bulkMessageDrivers: (items: Array<{ recordId: string; providerType: string }>, message: string) =>
+    api.post<ApiResponse>('/admin/verifications/drivers/bulk-message', { items, message }),
+
+  // ── Admin Messaging ──
+  getMessageTemplates: () =>
+    api.get<ApiResponse>('/admin/messages/templates'),
+
+  createMessageTemplate: (data: { name: string; category: string; subject: string; body: string }) =>
+    api.post<ApiResponse>('/admin/messages/templates', data),
+
+  sendAdminMessage: (data: {
+    userId: string;
+    message: string;
+    subject?: string;
+    type?: 'system' | 'email' | 'push' | 'all';
+    templateId?: string;
+  }) =>
+    api.post<ApiResponse>('/admin/messages/send', data),
+
+  getMessageHistory: (userId: string, params?: { q?: string; page?: number; limit?: number }) => {
+    const query = new URLSearchParams();
+    if (params?.q) query.set('q', params.q);
+    if (params?.page) query.set('page', String(params.page));
+    if (params?.limit) query.set('limit', String(params.limit));
+    const qs = query.toString();
+    return api.get<ApiResponse>(`/admin/messages/history/${userId}${qs ? `?${qs}` : ''}`);
+  },
+
+  // ── Admin Analytics ──
+  getAnalyticsDashboard: (period?: 'week' | 'month' | 'year' | 'all') =>
+    api.get<ApiResponse>(`/admin/analytics/dashboard${period ? `?period=${period}` : ''}`),
+
+  getRevenueAnalytics: (period?: 'week' | 'month' | 'year' | 'all') =>
+    api.get<ApiResponse>(`/admin/analytics/revenue${period ? `?period=${period}` : ''}`),
+
+  getVerificationAnalytics: (period?: 'week' | 'month' | 'year' | 'all') =>
+    api.get<ApiResponse>(`/admin/analytics/verifications${period ? `?period=${period}` : ''}`),
+
+  getUserAnalytics: (period?: 'week' | 'month' | 'year' | 'all') =>
+    api.get<ApiResponse>(`/admin/analytics/users${period ? `?period=${period}` : ''}`),
+
+  getQueueHealth: () =>
+    api.get<ApiResponse>('/admin/analytics/queue-health'),
+};
+
+// ── Disputes API ──
+export const disputesApi = {
+  fileDispute: (data: {
+    category: string;
+    description: string;
+    complaintAbout?: string;
+    evidenceUrls?: string[];
+    relatedServiceType?: string;
+    relatedServiceId?: string;
+    metadata?: Record<string, unknown>;
+  }) =>
+    api.post<ApiResponse>('/disputes', data),
+
+  getMyDisputes: () =>
+    api.get<ApiResponse>('/disputes/my'),
+
+  getDispute: (id: string) =>
+    api.get<ApiResponse>(`/disputes/${id}`),
+
+  // Admin
+  getAdminDisputes: (params?: { status?: string; category?: string; page?: number }) => {
+    const query = new URLSearchParams();
+    if (params?.status) query.set('status', params.status);
+    if (params?.category) query.set('category', params.category);
+    if (params?.page) query.set('page', String(params.page));
+    const qs = query.toString();
+    return api.get<ApiResponse>(`/admin/disputes${qs ? `?${qs}` : ''}`);
+  },
+
+  getAdminDispute: (id: string) =>
+    api.get<ApiResponse>(`/admin/disputes/${id}`),
+
+  investigateDispute: (id: string, adminNotes?: string) =>
+    api.post<ApiResponse>(`/admin/disputes/${id}/investigate`, { adminNotes }),
+
+  resolveDispute: (id: string, data: {
+    resolution: string;
+    notes?: string;
+    adminNotes?: string;
+    refundAmount?: number;
+    suspendReason?: string;
+    providerType?: string;
+    recordId?: string;
+  }) =>
+    api.post<ApiResponse>(`/admin/disputes/${id}/resolve`, data),
 };
 
 // ── Reviews API ──

@@ -1,13 +1,14 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
-  SafeAreaView, Platform, RefreshControl,
+  SafeAreaView, Platform, RefreshControl, ActivityIndicator, Alert,
 } from 'react-native';
 import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 
 import { notificationsApi } from '@/api';
+import { getApiErrorMessage } from '@/utils/helpers';
 
 interface Notification {
   _id: string;
@@ -30,15 +31,20 @@ export function NotificationsScreen() {
   const navigation = useNavigation<any>();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const fetchNotifications = async () => {
     try {
+      setFetchError(null);
       const res = await notificationsApi.getMyNotifications();
       if (res.data?.success) {
         setNotifications(res.data.data);
       }
     } catch (err) {
-      console.log('Error fetching notifications:', err);
+      setFetchError(getApiErrorMessage(err, 'Could not load notifications.'));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -59,7 +65,7 @@ export function NotificationsScreen() {
       await notificationsApi.markAllAsRead();
       setNotifications(prev => prev.map(n => ({ ...n, read: true })));
     } catch (err) {
-      console.log('Error marking all as read:', err);
+      Alert.alert('Error', getApiErrorMessage(err, 'Could not mark notifications as read.'));
     }
   };
 
@@ -128,7 +134,20 @@ export function NotificationsScreen() {
         )}
       </View>
 
-      {notifications.length === 0 ? (
+      {loading ? (
+        <View style={styles.emptyContainer}>
+          <ActivityIndicator size="large" color={COLORS.electricTeal} />
+        </View>
+      ) : fetchError ? (
+        <View style={styles.emptyContainer}>
+          <Ionicons name="alert-circle-outline" size={64} color={COLORS.coralRed} />
+          <Text style={styles.emptyTitle}>Could not load</Text>
+          <Text style={styles.emptyText}>{fetchError}</Text>
+          <TouchableOpacity style={styles.retryBtn} onPress={fetchNotifications}>
+            <Text style={styles.retryBtnText}>Try again</Text>
+          </TouchableOpacity>
+        </View>
+      ) : notifications.length === 0 ? (
         <View style={styles.emptyContainer}>
           <Ionicons name="notifications-off-outline" size={64} color={COLORS.textTertiary} />
           <Text style={styles.emptyTitle}>No Notifications</Text>
@@ -175,6 +194,18 @@ const styles = StyleSheet.create({
   emptyText: {
     color: COLORS.textSecondary, fontSize: 14, textAlign: 'center', marginTop: SPACING.sm,
     lineHeight: 20,
+  },
+  retryBtn: {
+    marginTop: SPACING.lg,
+    paddingHorizontal: SPACING.xl,
+    paddingVertical: SPACING.md,
+    backgroundColor: COLORS.electricTeal,
+    borderRadius: BORDER_RADIUS.full,
+  },
+  retryBtnText: {
+    color: '#FFF',
+    fontWeight: FONT_WEIGHTS.bold,
+    fontSize: 14,
   },
 
   card: {

@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { bookingsApi, taxiBookingsApi } from '@/api';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { RatingModal } from '@/components/RatingModal';
+import { getApiErrorMessage } from '@/utils/helpers';
 
 type RatingTarget = {
   subjectName: string;
@@ -32,6 +33,7 @@ export function BookingsScreen() {
   const [rideRequests, setRideRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [ratingTarget, setRatingTarget] = useState<RatingTarget | null>(null);
 
   const fetchBookings = async (isRefresh = false) => {
@@ -39,6 +41,7 @@ export function BookingsScreen() {
     else setLoading(true);
 
     try {
+      setFetchError(null);
       const [bookingsRes, ridesRes] = await Promise.all([
         bookingsApi.getMyBookings(),
         taxiBookingsApi.getMyRequests(),
@@ -50,7 +53,7 @@ export function BookingsScreen() {
         setRideRequests(ridesRes.data.data || []);
       }
     } catch (err) {
-      console.log('Failed to fetch bookings:', err);
+      setFetchError(getApiErrorMessage(err, 'Could not load your bookings. Pull down to retry.'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -318,6 +321,13 @@ export function BookingsScreen() {
           </TouchableOpacity>
         </View>
 
+        {fetchError && (
+          <View style={styles.errorBanner}>
+            <Ionicons name="alert-circle" size={18} color={COLORS.coralRed} />
+            <Text style={styles.errorBannerText}>{fetchError}</Text>
+          </View>
+        )}
+
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
@@ -459,5 +469,21 @@ const styles = StyleSheet.create({
   },
   emptyStateSubtext: {
     color: COLORS.textSecondary, fontSize: 16, textAlign: 'center', maxWidth: '85%', lineHeight: 24,
+  },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    marginHorizontal: SPACING.lg,
+    marginBottom: SPACING.sm,
+    padding: SPACING.md,
+    backgroundColor: 'rgba(255, 107, 107, 0.12)',
+    borderRadius: BORDER_RADIUS.md,
+  },
+  errorBannerText: {
+    flex: 1,
+    color: COLORS.coralRed,
+    fontSize: 13,
+    lineHeight: 18,
   },
 });

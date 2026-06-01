@@ -9,6 +9,7 @@ import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/cons
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute, RouteProp, useNavigation, NavigationProp } from '@react-navigation/native';
 import { searchApi } from '@/api';
+import { getApiErrorMessage } from '@/utils/helpers';
 
 type ServiceType = 'parking' | 'driver' | 'taxi';
 
@@ -52,6 +53,7 @@ export function SearchScreen() {
   const [hasSearched, setHasSearched] = useState(false);
   const [resultMessage, setResultMessage] = useState('');
   const [selectedDriver, setSelectedDriver] = useState<any | null>(null);
+  const [searchError, setSearchError] = useState<string | null>(null);
 
   // Update service type if navigating from another tab with a param
   useEffect(() => {
@@ -123,8 +125,15 @@ export function SearchScreen() {
   const handleSearch = useCallback(async () => {
     const query = searchQuery.trim();
 
+    if (serviceType === 'parking' && !query) {
+      setSearchError('Enter a location, town, or postcode — or tap Nearby to find parking near you.');
+      setHasSearched(false);
+      return;
+    }
+
     setIsSearching(true);
     setHasSearched(true);
+    setSearchError(null);
 
     try {
       let response;
@@ -147,10 +156,13 @@ export function SearchScreen() {
       } else {
         setResults([]);
         setResultMessage(data.message || 'Search failed');
+        setSearchError(data.message || 'Search failed');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = getApiErrorMessage(error, 'Failed to search. Please try again.');
       setResults([]);
-      setResultMessage(error?.message || 'Failed to search. Please try again.');
+      setResultMessage(message);
+      setSearchError(message);
     } finally {
       setIsSearching(false);
     }
@@ -160,12 +172,14 @@ export function SearchScreen() {
     setIsSearching(true);
     setHasSearched(true);
     setSearchQuery('');
+    setSearchError(null);
 
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
         setIsSearching(false);
-        Alert.alert('Permission Denied', 'Allow location access to find nearby parking.');
+        setHasSearched(false);
+        Alert.alert('Permission Denied', 'Allow location access to find nearby services.');
         return;
       }
 
@@ -189,18 +203,21 @@ export function SearchScreen() {
       const data = response.data;
       if (data.success) {
         setResults(data.data || []);
-        setResultMessage(data.message || '');
+        setResultMessage(data.message || `Nearby ${config.label.toLowerCase()}`);
       } else {
         setResults([]);
         setResultMessage(data.message || 'Location search failed');
+        setSearchError(data.message || 'Location search failed');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = getApiErrorMessage(error, 'Failed to search by location. Please try again.');
       setResults([]);
-      setResultMessage(error?.message || 'Failed to search by location. Please try again.');
+      setResultMessage(message);
+      setSearchError(message);
     } finally {
       setIsSearching(false);
     }
-  }, [serviceType]);
+  }, [serviceType, config.label]);
 
   const handleServiceChange = (type: ServiceType) => {
     setServiceType(type);
@@ -208,14 +225,10 @@ export function SearchScreen() {
     setResults([]);
     setHasSearched(false);
     setResultMessage('');
+    setSearchError(null);
     setSuggestions([]);
     setShowSuggestions(false);
   };
-
-  // Automatically load all results when tab changes
-  useEffect(() => {
-    handleSearch();
-  }, [serviceType]);
 
   const handleParkingTap = (space: any) => {
     navigation.navigate('ParkingDetail', { spaceId: space._id, space });
@@ -438,16 +451,16 @@ export function SearchScreen() {
               )}
             </TouchableOpacity>
 
-            {serviceType === 'parking' && (
-              <TouchableOpacity
-                style={[styles.locationButton, isSearching && { opacity: 0.6 }]}
-                onPress={handleLocationSearch}
-                disabled={isSearching}
-              >
-                <Ionicons name="location" size={18} color={COLORS.info} style={{ marginRight: 6 }} />
-                <Text style={styles.locationButtonText}>Nearby</Text>
-              </TouchableOpacity>
-            )}
+            <TouchableOpacity
+              style={[styles.locationButton, isSearching && { opacity: 0.6 }]}
+              onPress={handleLocationSearch}
+              disabled={isSearching}
+            >
+              <Ionicons name="location" size={18} color={COLORS.info} style={{ marginRight: 6 }} />
+              <Text style={styles.locationButtonText}>
+                {serviceType === 'parking' ? 'Nearby' : 'Near me'}
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -458,10 +471,16 @@ export function SearchScreen() {
               <Ionicons name="map-outline" size={64} color={COLORS.textTertiary} />
               <Text style={styles.emptyStateTitle}>Where to?</Text>
               <Text style={styles.emptyStateSubtext}>
-                {serviceType !== 'parking'
-                  ? `Enter a location, postcode, or driver number to find ${config.label.toLowerCase()}.`
-                  : `Enter a location or postcode to find available ${config.label.toLowerCase()} near you.`}
+                {serviceType === 'parking'
+                  ? 'Enter a location or postcode, or tap Nearby to find parking near you.'
+                  : `Enter a location, postcode, or driver number — or tap Near me to browse ${config.label.toLowerCase()} nearby.`}
               </Text>
+              {searchError ? (
+                <View style={styles.errorBanner}>
+                  <Ionicons name="alert-circle" size={18} color={COLORS.coralRed} />
+                  <Text style={styles.errorBannerText}>{searchError}</Text>
+                </View>
+              ) : null}
             </View>
           ) : isSearching ? (
             <View style={styles.emptyState}>
@@ -471,8 +490,8 @@ export function SearchScreen() {
           ) : results.length === 0 ? (
             <View style={styles.emptyState}>
               <Ionicons name="alert-circle-outline" size={64} color={COLORS.textTertiary} />
-              <Text style={styles.emptyStateTitle}>No Results</Text>
-              <Text style={styles.emptyStateSubtext}>{config.emptyMsg}</Text>
+              <Text style={styles.emptyStateTitle}>{searchError ? 'Search Failed' : 'No Results'}</Text>
+              <Text style={styles.emptyStateSubtext}>{searchError || config.emptyMsg}</Text>
             </View>
           ) : (
             <>
@@ -730,6 +749,22 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     maxWidth: '80%',
     lineHeight: 20,
+  },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    marginTop: SPACING.lg,
+    padding: SPACING.md,
+    backgroundColor: 'rgba(255, 107, 107, 0.12)',
+    borderRadius: BORDER_RADIUS.md,
+    maxWidth: '90%',
+  },
+  errorBannerText: {
+    flex: 1,
+    color: COLORS.coralRed,
+    fontSize: 13,
+    lineHeight: 18,
   },
   resultsHeader: {
     color: COLORS.textSecondary,

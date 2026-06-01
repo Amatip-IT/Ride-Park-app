@@ -2,6 +2,10 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AdminService } from './admin.service';
 import { AdminController } from './admin.controller';
+import { AdminMessagingController } from './admin-messaging.controller';
+import { AdminAnalyticsController } from './admin-analytics.controller';
+import { AdminMessagingService } from './admin-messaging.service';
+import { AdminAnalyticsService } from './admin-analytics.service';
 import { ParkingVerification, ParkingVerificationSchema } from 'src/schemas/parking-verification.schema';
 import { ParkingSpace, ParkingSpaceSchema } from 'src/schemas/parking-space.schema';
 import { User, UserSchema } from 'src/schemas/user.schema';
@@ -15,6 +19,10 @@ import { NotificationsModule } from 'src/notifications/notifications.module';
 import { VerificationModule } from 'src/verification/verification.module';
 import { AuthGuard } from 'src/guards/auth.guard';
 import { AdminGuard } from 'src/guards/admin.guard';
+import { AdminAuditLog, AdminAuditLogSchema } from 'src/schemas/admin-audit-log.schema';
+import { AdminMessage, AdminMessageSchema } from 'src/schemas/admin-message.schema';
+import { AdminMessageTemplate, AdminMessageTemplateSchema } from 'src/schemas/admin-message-template.schema';
+import { AdminAuditService } from './admin-audit.service';
 
 @Module({
   imports: [
@@ -27,13 +35,23 @@ import { AdminGuard } from 'src/guards/admin.guard';
       { name: PlatformSettings.name, schema: PlatformSettingsSchema },
       { name: Chauffeur.name, schema: ChauffeurSchema },
       { name: Taxi.name, schema: TaxiSchema },
+      { name: AdminAuditLog.name, schema: AdminAuditLogSchema },
+      { name: AdminMessage.name, schema: AdminMessageSchema },
+      { name: AdminMessageTemplate.name, schema: AdminMessageTemplateSchema },
     ]),
     UtilityModule,
     NotificationsModule,
     VerificationModule,
   ],
-  controllers: [AdminController],
-  providers: [AdminService, AuthGuard, AdminGuard],
-  exports: [AdminService],
+  controllers: [AdminController, AdminMessagingController, AdminAnalyticsController],
+  providers: [
+    AdminService,
+    AdminAuditService,
+    AdminMessagingService,
+    AdminAnalyticsService,
+    AuthGuard,
+    AdminGuard,
+  ],
+  exports: [AdminService, AdminAuditService, AdminMessagingService, AdminAnalyticsService],
 })
 export class AdminModule {}

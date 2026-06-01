@@ -8,7 +8,7 @@ export class Transaction {
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   providerId: Types.ObjectId;
 
-  @Prop({ required: true, enum: ['earning', 'withdrawal'] })
+  @Prop({ required: true, enum: ['earning', 'withdrawal', 'deposit'] })
   type: string;
 
   @Prop({ required: true })

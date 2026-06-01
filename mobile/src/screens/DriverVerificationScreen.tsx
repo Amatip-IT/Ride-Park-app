@@ -48,6 +48,7 @@ export function DriverVerificationScreen() {
   const [loading, setLoading] = useState(true);
   const [overallStatus, setOverallStatus] = useState<string>('not_applied');
   const [rejectionReason, setRejectionReason] = useState<string>('');
+  const [recordId, setRecordId] = useState<string>('');
 
   useFocusEffect(
     useCallback(() => {
@@ -61,6 +62,7 @@ export function DriverVerificationScreen() {
             const backendStatus = data?.status || 'not_applied';
             setOverallStatus(backendStatus);
             setRejectionReason(data?.rejectionReason || '');
+            setRecordId(data?._id || '');
 
             const docs = data?.documents || {};
             const perDocStatuses = data?.documentStatuses || {};
@@ -193,6 +195,23 @@ export function DriverVerificationScreen() {
               <Text style={[styles.alertText, { color: COLORS.error, marginTop: SPACING.sm }]}>
                 Please review the feedback and resubmit your documents.
               </Text>
+              <TouchableOpacity
+                style={styles.appealBtn}
+                onPress={() => navigation.navigate('FileDispute', {
+                  category: 'unfair_rejection',
+                  description: rejectionReason
+                    ? `My driver verification was rejected. Reason given: ${rejectionReason}. I believe this decision was unfair and request a review.`
+                    : 'My driver verification was rejected. I believe this decision was unfair and request a review.',
+                  relatedServiceType: 'verification',
+                  relatedServiceId: recordId,
+                  metadata: {
+                    recordId,
+                    providerType: user?.role === 'taxi_driver' ? 'taxi_driver' : 'driver',
+                  },
+                })}
+              >
+                <Text style={styles.appealBtnText}>Appeal This Decision</Text>
+              </TouchableOpacity>
             </View>
           </View>
         )}
@@ -279,4 +298,13 @@ const styles = StyleSheet.create({
     marginTop: SPACING.sm,
     lineHeight: 18,
   },
+  appealBtn: {
+    marginTop: SPACING.md,
+    backgroundColor: COLORS.coralRed,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    alignSelf: 'flex-start',
+  },
+  appealBtnText: { color: '#FFF', fontWeight: FONT_WEIGHTS.semibold, fontSize: FONT_SIZES.small },
 });

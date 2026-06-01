@@ -42,6 +42,14 @@ import { AdminVerificationQueueScreen } from '@/screens/AdminVerificationQueueSc
 import { AdminDriverQueueScreen } from '@/screens/AdminDriverQueueScreen';
 import { AdminIdentityQueueScreen } from '@/screens/AdminIdentityQueueScreen';
 import { AdminExpiringDocumentsScreen } from '@/screens/AdminExpiringDocumentsScreen';
+import { AdminAuditLogsScreen } from '@/screens/AdminAuditLogsScreen';
+import { AdminMessagingScreen } from '@/screens/AdminMessagingScreen';
+import { AdminAnalyticsDashboard } from '@/screens/AdminAnalyticsDashboard';
+import { AdminDisputesScreen } from '@/screens/AdminDisputesScreen';
+import { AdminDisputeDetailScreen } from '@/screens/AdminDisputeDetailScreen';
+import { DisputesScreen } from '@/screens/DisputesScreen';
+import { FileDisputeScreen } from '@/screens/FileDisputeScreen';
+import { DisputeDetailScreen } from '@/screens/DisputeDetailScreen';
 
 // Lazy-loaded admin sub-screens (may or may not exist yet)
 let AdminProviderDetailScreen: any = null;
@@ -240,6 +248,11 @@ const AdminNavigator = () => (
     <AdminStack.Screen name="AdminIdentityQueue" component={AdminIdentityQueueScreen} />
     <AdminStack.Screen name="AdminUsers" component={AdminUsersScreen} />
     <AdminStack.Screen name="AdminExpiringDocuments" component={AdminExpiringDocumentsScreen} />
+    <AdminStack.Screen name="AdminAuditLogs" component={AdminAuditLogsScreen} />
+    <AdminStack.Screen name="AdminMessaging" component={AdminMessagingScreen} />
+    <AdminStack.Screen name="AdminAnalytics" component={AdminAnalyticsDashboard} />
+    <AdminStack.Screen name="AdminDisputes" component={AdminDisputesScreen} />
+    <AdminStack.Screen name="AdminDisputeDetail" component={AdminDisputeDetailScreen} />
     <AdminStack.Screen
       name="AdminProviderDetail"
       component={AdminProviderDetailScreen || PlaceholderScreen}
@@ -355,6 +368,30 @@ export const RootNavigator = () => {
             contentStyle: { backgroundColor: '#0D1B2A' },
           }}
         />
+        <Stack.Screen
+          name="Disputes"
+          component={DisputesScreen}
+          options={{
+            presentation: 'modal',
+            contentStyle: { backgroundColor: '#0D1B2A' },
+          }}
+        />
+        <Stack.Screen
+          name="FileDispute"
+          component={FileDisputeScreen}
+          options={{
+            presentation: 'modal',
+            contentStyle: { backgroundColor: '#0D1B2A' },
+          }}
+        />
+        <Stack.Screen
+          name="DisputeDetail"
+          component={DisputeDetailScreen}
+          options={{
+            presentation: 'modal',
+            contentStyle: { backgroundColor: '#0D1B2A' },
+          }}
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );
@@ -393,6 +430,20 @@ export type RootStackParamList = {
   AdminIdentityQueue: undefined;
   AdminUsers: undefined;
   AdminExpiringDocuments: undefined;
+  AdminAuditLogs: undefined;
+  AdminMessaging: { userId?: string; userName?: string } | undefined;
+  AdminAnalytics: undefined;
+  AdminDisputes: undefined;
+  AdminDisputeDetail: { disputeId: string };
+  Disputes: undefined;
+  FileDispute: {
+    category?: string;
+    description?: string;
+    relatedServiceType?: string;
+    relatedServiceId?: string;
+    metadata?: Record<string, unknown>;
+  } | undefined;
+  DisputeDetail: { disputeId: string };
   AdminProviderDetail: { providerId: string };
   AdminPayoutsQueue: undefined;
   AdminPlatformSettings: undefined;

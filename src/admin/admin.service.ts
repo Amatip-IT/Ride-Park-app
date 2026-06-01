@@ -13,6 +13,8 @@ import { Response } from 'src/common/interfaces/response.interface';
 import { What3WordsService } from 'src/utility/what3words.service';
 import { NotificationsService } from 'src/notifications/notifications.service';
 import { EmailService } from 'src/verification/services/email/email.service';
+import { AdminAuditService } from './admin-audit.service';
+import { AdminAuditContext } from './admin-audit.types';
 import Stripe from 'stripe';
 
 // All valid document field names
@@ -62,6 +64,7 @@ export class AdminService {
     private what3wordsService: What3WordsService,
     private notificationsService: NotificationsService,
     private emailService: EmailService,
+    private auditService: AdminAuditService,
   ) {
     this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_mock');
   }
@@ -96,7 +99,7 @@ export class AdminService {
   /**
    * Approve a parking provider, creating their official Parking Space and fetching geo-location
    */
-  async approveParkingVerification(id: string, customHourlyRate = 5): Promise<Response> {
+  async approveParkingVerification(id: string, customHourlyRate = 5, audit?: AdminAuditContext): Promise<Response> {
     try {
       const verification = await this.parkingVerifModel.findById(id).exec();
 
@@ -203,6 +206,13 @@ export class AdminService {
       };
       await verification.save();
 
+      await this.auditService.log(audit, {
+        action: 'approve_parking',
+        targetType: 'parking_verification',
+        targetId: id,
+        newValue: { status: 'approved', parkingSpaceId: newSpace._id.toString() },
+      });
+
       return {
         success: true,
         data: {
@@ -224,7 +234,7 @@ export class AdminService {
   /**
    * Reject a parking verification request
    */
-  async rejectParkingVerification(id: string, reason: string): Promise<Response> {
+  async rejectParkingVerification(id: string, reason: string, audit?: AdminAuditContext): Promise<Response> {
     try {
       const verification = await this.parkingVerifModel.findById(id).exec();
       if (!verification) {
@@ -278,6 +288,14 @@ export class AdminService {
           this.logger.warn(`Failed to send parking rejection email: ${emailErr}`);
         }
       }
+
+      await this.auditService.log(audit, {
+        action: 'reject_parking',
+        targetType: 'parking_verification',
+        targetId: id,
+        newValue: { status: 'rejected', reason },
+        reason,
+      });
 
       return {
         success: true,
@@ -399,7 +417,12 @@ export class AdminService {
   /**
    * Approve a driver/taxi verification — sets status to 'approved' and isVerified to true
    */
-  async approveDriverVerification(recordId: string, providerType: string, adminUserId?: string): Promise<Response> {
+  async approveDriverVerification(
+    recordId: string,
+    providerType: string,
+    adminUserId?: string,
+    audit?: AdminAuditContext,
+  ): Promise<Response> {
     try {
       let record: any = null;
 
@@ -435,6 +458,14 @@ export class AdminService {
 
       await record.save();
 
+      await this.auditService.log(audit, {
+        action: 'approve_driver',
+        targetType: 'driver_verification',
+        targetId: recordId,
+        oldValue: { status: 'pending_admin_review' },
+        newValue: { status: 'approved', providerType },
+      });
+
       // Get user info for the response
       const user = await this.userModel.findById(record.user).exec();
 
@@ -458,7 +489,12 @@ export class AdminService {
   /**
    * Reject a driver/taxi verification
    */
-  async rejectDriverVerification(recordId: string, providerType: string, reason: string): Promise<Response> {
+  async rejectDriverVerification(
+    recordId: string,
+    providerType: string,
+    reason: string,
+    audit?: AdminAuditContext,
+  ): Promise<Response> {
     try {
       let record: any = null;
 
@@ -472,6 +508,7 @@ export class AdminService {
         return { success: false, message: 'Verification record not found' };
       }
 
+      const previousStatus = record.status;
       record.status = 'rejected';
       record.isVerified = false;
       record.rejectionReason = reason;
@@ -533,6 +570,17 @@ export class AdminService {
         }
       }
 
+      if (audit) {
+        await this.auditService.log(audit, {
+          action: 'reject_driver',
+          targetType: providerType === 'driver' ? 'chauffeur' : 'taxi',
+          targetId: recordId,
+          oldValue: { status: previousStatus },
+          newValue: { status: 'rejected', reason },
+          reason,
+        });
+      }
+
       return {
         success: true,
         data: null,
@@ -558,6 +606,7 @@ export class AdminService {
     providerType: string,
     docField: string,
     adminUserId?: string,
+    audit?: AdminAuditContext,
   ): Promise<Response> {
     try {
       if (!VALID_DOC_FIELDS.includes(docField as any)) {
@@ -608,6 +657,13 @@ export class AdminService {
         await record.save();
       }
 
+      await this.auditService.log(audit, {
+        action: 'approve_document',
+        targetType: providerType === 'driver' ? 'chauffeur' : 'taxi',
+        targetId: recordId,
+        newValue: { docField, status: 'verified', allDocsVerified: allVerified },
+      });
+
       return {
         success: true,
         data: { docField, status: 'verified', allDocsVerified: allVerified },
@@ -630,6 +686,7 @@ export class AdminService {
     docField: string,
     reason: string,
     adminUserId?: string,
+    audit?: AdminAuditContext,
   ): Promise<Response> {
     try {
       if (!VALID_DOC_FIELDS.includes(docField as any)) {
@@ -714,6 +771,14 @@ export class AdminService {
         }
       }
 
+      await this.auditService.log(audit, {
+        action: 'reject_document',
+        targetType: providerType === 'driver' ? 'chauffeur' : 'taxi',
+        targetId: recordId,
+        newValue: { docField, status: 'rejected', reason },
+        reason,
+      });
+
       return {
         success: true,
         data: { docField, status: 'rejected', reason },
@@ -758,7 +823,7 @@ export class AdminService {
   /**
    * Approve a provider's identity verification
    */
-  async approveIdentityVerification(userId: string): Promise<Response> {
+  async approveIdentityVerification(userId: string, audit?: AdminAuditContext): Promise<Response> {
     try {
       const user = await this.userModel.findById(userId).exec();
 
@@ -772,6 +837,13 @@ export class AdminService {
 
       (user as any).identityStatus = 'verified';
       await user.save();
+
+      await this.auditService.log(audit, {
+        action: 'approve_identity',
+        targetType: 'user',
+        targetId: userId,
+        newValue: { identityStatus: 'verified' },
+      });
 
       return {
         success: true,
@@ -792,7 +864,7 @@ export class AdminService {
   /**
    * Reject a provider's identity verification
    */
-  async rejectIdentityVerification(userId: string, reason: string): Promise<Response> {
+  async rejectIdentityVerification(userId: string, reason: string, audit?: AdminAuditContext): Promise<Response> {
     try {
       const user = await this.userModel.findById(userId).exec();
 
@@ -843,6 +915,14 @@ export class AdminService {
         this.logger.warn(`Failed to send identity rejection email: ${emailErr}`);
       }
 
+      await this.auditService.log(audit, {
+        action: 'reject_identity',
+        targetType: 'user',
+        targetId: userId,
+        newValue: { identityStatus: 'rejected', reason },
+        reason,
+      });
+
       return {
         success: true,
         data: null,
@@ -868,14 +948,23 @@ export class AdminService {
     return { success: true, data: settings, message: 'Settings retrieved' };
   }
 
-  async updatePlatformFee(percentage: number): Promise<Response> {
+  async updatePlatformFee(percentage: number, audit?: AdminAuditContext): Promise<Response> {
     let settings = await this.platformSettingsModel.findOne();
+    const oldPercentage = settings?.platformFeePercentage;
     if (!settings) {
       settings = new this.platformSettingsModel({ platformFeePercentage: percentage });
     } else {
       settings.platformFeePercentage = percentage;
     }
     await settings.save();
+
+    await this.auditService.log(audit, {
+      action: 'update_platform_fee',
+      targetType: 'platform_settings',
+      oldValue: { platformFeePercentage: oldPercentage ?? null },
+      newValue: { platformFeePercentage: percentage },
+    });
+
     return { success: true, data: settings, message: `Platform fee updated to ${percentage}%` };
   }
 
@@ -892,7 +981,7 @@ export class AdminService {
     return { success: true, data: pending, message: 'Pending withdrawals retrieved' };
   }
 
-  async approveWithdrawal(transactionId: string): Promise<Response> {
+  async approveWithdrawal(transactionId: string, audit?: AdminAuditContext): Promise<Response> {
     try {
       const transaction = await this.transactionModel.findById(transactionId).exec();
       if (!transaction || transaction.type !== 'withdrawal') {
@@ -920,6 +1009,13 @@ export class AdminService {
       transaction.referenceId = transfer.id;
       await transaction.save();
 
+      await this.auditService.log(audit, {
+        action: 'approve_withdrawal',
+        targetType: 'transaction',
+        targetId: transactionId,
+        newValue: { status: 'completed', stripeTransferId: transfer.id },
+      });
+
       return { success: true, data: transaction, message: 'Withdrawal approved and funds transferred' };
     } catch (e: any) {
       this.logger.error(`Stripe Transfer Failed: ${e.message}`);
@@ -927,7 +1023,7 @@ export class AdminService {
     }
   }
 
-  async rejectWithdrawal(transactionId: string, reason: string): Promise<Response> {
+  async rejectWithdrawal(transactionId: string, reason: string, audit?: AdminAuditContext): Promise<Response> {
     try {
       const transaction = await this.transactionModel.findById(transactionId).exec();
       if (!transaction || transaction.type !== 'withdrawal') {
@@ -948,6 +1044,14 @@ export class AdminService {
         await wallet.save();
       }
 
+      await this.auditService.log(audit, {
+        action: 'reject_withdrawal',
+        targetType: 'transaction',
+        targetId: transactionId,
+        newValue: { status: 'rejected', reason },
+        reason,
+      });
+
       return { success: true, data: transaction, message: 'Withdrawal rejected and funds refunded to provider' };
     } catch (error) {
       return { success: false, message: `Failed to reject withdrawal: ${error instanceof Error ? error.message : 'Unknown error'}` };
@@ -966,6 +1070,7 @@ export class AdminService {
     reason: string,
     durationDays?: number,
     adminUserId?: string,
+    audit?: AdminAuditContext,
   ): Promise<Response> {
     try {
       const user = await this.userModel.findById(userId).exec();
@@ -1000,6 +1105,14 @@ export class AdminService {
         this.logger.warn(`Failed to send suspension notification: ${notifErr}`);
       }
 
+      await this.auditService.log(audit, {
+        action: 'suspend_user',
+        targetType: 'user',
+        targetId: userId,
+        newValue: { accountStatus: 'suspended', reason, durationDays, suspensionEndDate },
+        reason,
+      });
+
       return {
         success: true,
         data: { userId, status: 'suspended', suspensionEndDate },
@@ -1016,7 +1129,7 @@ export class AdminService {
   /**
    * Unsuspend a user account
    */
-  async unsuspendUser(userId: string): Promise<Response> {
+  async unsuspendUser(userId: string, audit?: AdminAuditContext): Promise<Response> {
     try {
       const user = await this.userModel.findById(userId).exec();
       if (!user) {
@@ -1040,6 +1153,13 @@ export class AdminService {
         this.logger.warn(`Failed to send unsuspend notification: ${notifErr}`);
       }
 
+      await this.auditService.log(audit, {
+        action: 'unsuspend_user',
+        targetType: 'user',
+        targetId: userId,
+        newValue: { accountStatus: 'active' },
+      });
+
       return {
         success: true,
         message: 'User account restored to active status.',
@@ -1059,6 +1179,7 @@ export class AdminService {
     userId: string,
     reason: string,
     adminUserId?: string,
+    audit?: AdminAuditContext,
   ): Promise<Response> {
     try {
       const user = await this.userModel.findById(userId).exec();
@@ -1083,6 +1204,14 @@ export class AdminService {
       } catch (notifErr) {
         this.logger.warn(`Failed to send ban notification: ${notifErr}`);
       }
+
+      await this.auditService.log(audit, {
+        action: 'ban_user',
+        targetType: 'user',
+        targetId: userId,
+        newValue: { accountStatus: 'banned', reason },
+        reason,
+      });
 
       return {
         success: true,
@@ -1243,6 +1372,7 @@ export class AdminService {
     providerType: string,
     docField: string,
     newExpiryDate: Date,
+    audit?: AdminAuditContext,
   ): Promise<Response> {
     try {
       let record: any = null;
@@ -1294,6 +1424,13 @@ export class AdminService {
         }
       }
 
+      await this.auditService.log(audit, {
+        action: 'renew_document',
+        targetType: providerType === 'driver' ? 'chauffeur' : 'taxi',
+        targetId: recordId,
+        newValue: { docField, newExpiryDate: newExpiryDate.toISOString() },
+      });
+
       return {
         success: true,
         data: { docField, newExpiryDate },
@@ -1310,7 +1447,7 @@ export class AdminService {
   /**
    * Unban a user account
    */
-  async unbanUser(userId: string): Promise<Response> {
+  async unbanUser(userId: string, audit?: AdminAuditContext): Promise<Response> {
     try {
       const user = await this.userModel.findById(userId).exec();
       if (!user) {
@@ -1339,6 +1476,13 @@ export class AdminService {
         this.logger.warn(`Failed to send unban notification: ${notifErr}`);
       }
 
+      await this.auditService.log(audit, {
+        action: 'unban_user',
+        targetType: 'user',
+        targetId: userId,
+        newValue: { accountStatus: 'active' },
+      });
+
       return {
         success: true,
         message: 'User ban has been lifted and account is now active.',
@@ -1349,6 +1493,262 @@ export class AdminService {
         message: `Failed to unban user: ${error instanceof Error ? error.message : 'Unknown error'}`,
       };
     }
+  }
+
+  // ══════════════════════════════════════════════
+  // ── Phase 2: Search, Bulk Ops ──
+  // ══════════════════════════════════════════════
+
+  async searchDriverVerifications(filters: {
+    q?: string;
+    status?: string;
+    providerType?: string;
+    days?: number;
+    sort?: string;
+  }): Promise<Response> {
+    try {
+      const statusFilter = filters.status || 'pending_admin_review';
+      const statuses =
+        statusFilter === 'all'
+          ? ['pending_admin_review', 'approved', 'rejected', 'pending_auto_check']
+          : [statusFilter];
+
+      const dateCutoff = filters.days
+        ? new Date(Date.now() - filters.days * 24 * 60 * 60 * 1000)
+        : null;
+
+      const fetchCollection = async (model: Model<any>, providerType: string) => {
+        if (filters.providerType && filters.providerType !== providerType) {
+          return [];
+        }
+
+        const query: Record<string, unknown> = { status: { $in: statuses } };
+        if (dateCutoff) {
+          query.createdAt = { $gte: dateCutoff };
+        }
+
+        const records = await model
+          .find(query)
+          .populate('user', 'firstName lastName email phoneNumber role')
+          .exec();
+
+        return records.map((record) => {
+          const obj = record.toObject();
+          return { ...obj, providerType };
+        });
+      };
+
+      let combined: any[] = [
+        ...(await fetchCollection(this.chauffeurModel, 'driver')),
+        ...(await fetchCollection(this.taxiModel, 'taxi_driver')),
+      ];
+
+      if (filters.q?.trim()) {
+        const q = filters.q.trim().toLowerCase();
+        combined = combined.filter((item) => {
+          const user = item.user || {};
+          const searchText = [
+            user.firstName,
+            user.lastName,
+            user.email,
+            user.phoneNumber,
+            item.driverNumber,
+          ]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase();
+          return searchText.includes(q);
+        });
+      }
+
+      const sort = filters.sort || 'newest';
+      const docCompleteness = (item: any) =>
+        VALID_DOC_FIELDS.filter((field) => item[field]).length / VALID_DOC_FIELDS.length;
+
+      combined.sort((a, b) => {
+        if (sort === 'name') {
+          const nameA = `${a.user?.firstName || ''} ${a.user?.lastName || ''}`.trim().toLowerCase();
+          const nameB = `${b.user?.firstName || ''} ${b.user?.lastName || ''}`.trim().toLowerCase();
+          return nameA.localeCompare(nameB);
+        }
+        if (sort === 'oldest') {
+          return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+        }
+        if (sort === 'completeness') {
+          return docCompleteness(b) - docCompleteness(a);
+        }
+        if (sort === 'waiting') {
+          return new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime();
+        }
+        return (
+          new Date(b.updatedAt || b.createdAt).getTime() -
+          new Date(a.updatedAt || a.createdAt).getTime()
+        );
+      });
+
+      return {
+        success: true,
+        data: combined,
+        message: `Found ${combined.length} driver verification record(s)`,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: `Search failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      };
+    }
+  }
+
+  async bulkApproveDrivers(
+    items: Array<{ recordId: string; providerType: string }>,
+    audit?: AdminAuditContext,
+  ): Promise<Response> {
+    const results: Array<{ recordId: string; success: boolean; message?: string }> = [];
+
+    for (const item of items) {
+      const result = await this.approveDriverVerification(
+        item.recordId,
+        item.providerType,
+        audit?.adminId,
+      );
+      results.push({
+        recordId: item.recordId,
+        success: result.success,
+        message: result.message,
+      });
+    }
+
+    const successCount = results.filter((result) => result.success).length;
+
+    await this.auditService.log(audit, {
+      action: 'bulk_approve_drivers',
+      targetType: 'driver_verification',
+      newValue: {
+        count: successCount,
+        total: items.length,
+        recordIds: items.map((item) => item.recordId),
+      },
+    });
+
+    return {
+      success: true,
+      data: { results, successCount, failedCount: items.length - successCount },
+      message: `Bulk approved ${successCount} of ${items.length} driver(s)`,
+    };
+  }
+
+  async bulkRejectDrivers(
+    items: Array<{ recordId: string; providerType: string }>,
+    reason: string,
+    audit?: AdminAuditContext,
+  ): Promise<Response> {
+    const results: Array<{ recordId: string; success: boolean; message?: string }> = [];
+
+    for (const item of items) {
+      const result = await this.rejectDriverVerification(
+        item.recordId,
+        item.providerType,
+        reason,
+      );
+      results.push({
+        recordId: item.recordId,
+        success: result.success,
+        message: result.message,
+      });
+    }
+
+    const successCount = results.filter((result) => result.success).length;
+
+    await this.auditService.log(audit, {
+      action: 'bulk_reject_drivers',
+      targetType: 'driver_verification',
+      newValue: {
+        count: successCount,
+        total: items.length,
+        reason,
+        recordIds: items.map((item) => item.recordId),
+      },
+      reason,
+    });
+
+    return {
+      success: true,
+      data: { results, successCount, failedCount: items.length - successCount },
+      message: `Bulk rejected ${successCount} of ${items.length} driver(s)`,
+    };
+  }
+
+  async bulkMessageDrivers(
+    items: Array<{ recordId: string; providerType: string }>,
+    message: string,
+    audit?: AdminAuditContext,
+  ): Promise<Response> {
+    const results: Array<{ recordId: string; success: boolean; message?: string }> = [];
+
+    for (const item of items) {
+      try {
+        let record: any = null;
+        if (item.providerType === 'driver') {
+          record = await this.chauffeurModel.findById(item.recordId).exec();
+        } else {
+          record = await this.taxiModel.findById(item.recordId).exec();
+        }
+        if (!record) {
+          results.push({ recordId: item.recordId, success: false, message: 'Record not found' });
+          continue;
+        }
+
+        const user = await this.userModel.findById(record.user).exec();
+        if (!user) {
+          results.push({ recordId: item.recordId, success: false, message: 'User not found' });
+          continue;
+        }
+
+        await this.notificationsService.sendNotification(
+          user._id.toString(),
+          'Message from Gleezip Admin',
+          message,
+          'system',
+        );
+
+        try {
+          await this.emailService.sendMail({
+            to: user.email,
+            subject: 'Message from Gleezip Admin',
+            html: `<p>Hi ${user.firstName},</p><p>${message}</p><p>Best regards,<br/>Gleezip Admin Team</p>`,
+          });
+        } catch (emailErr) {
+          this.logger.warn(`Failed to send bulk message email: ${emailErr}`);
+        }
+
+        results.push({ recordId: item.recordId, success: true });
+      } catch (error) {
+        results.push({
+          recordId: item.recordId,
+          success: false,
+          message: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
+    }
+
+    const successCount = results.filter((result) => result.success).length;
+
+    await this.auditService.log(audit, {
+      action: 'bulk_message_drivers',
+      targetType: 'driver_verification',
+      notes: message,
+      newValue: {
+        count: successCount,
+        total: items.length,
+        recordIds: items.map((item) => item.recordId),
+      },
+    });
+
+    return {
+      success: true,
+      data: { results, successCount, failedCount: items.length - successCount },
+      message: `Message sent to ${successCount} of ${items.length} driver(s)`,
+    };
   }
 }
 

@@ -1,3 +1,15 @@
+/** Extract a user-facing message from axios/API errors */
+export const getApiErrorMessage = (err: unknown, fallback = 'Something went wrong. Please try again.'): string => {
+  if (err && typeof err === 'object' && 'response' in err) {
+    const ax = err as { response?: { data?: { message?: string | string[] } }; message?: string };
+    const msg = ax.response?.data?.message;
+    if (Array.isArray(msg)) return msg.join(', ');
+    if (typeof msg === 'string' && msg.trim()) return msg;
+  }
+  if (err instanceof Error && err.message) return err.message;
+  return fallback;
+};
+
 // Email validation
 export const isValidEmail = (email: string): boolean => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

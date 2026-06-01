@@ -20,6 +20,7 @@ import { TaxiBookingsModule } from './taxi-bookings/taxi-bookings.module';
 import { PaymentsModule } from './payments/payments.module';
 import { WalletModule } from './wallet/wallet.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { DisputesModule } from './disputes/disputes.module';
 import { AccountStatusGuard } from './guards/account-status.guard';
 import { DocumentExpiryTask } from './tasks/document-expiry.task';
 import { User, UserSchema } from './schemas/user.schema';
@@ -52,6 +53,7 @@ import { Taxi, TaxiSchema } from './schemas/taxi.schema';
     PaymentsModule,
     WalletModule,
     NotificationsModule,
+    DisputesModule,
   ],
   controllers: [AppController],
   providers: [

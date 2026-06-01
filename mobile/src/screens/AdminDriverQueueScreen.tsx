@@ -26,22 +26,54 @@ const DOC_LABELS: Record<string, string> = {
 
 const ALL_DOC_FIELDS = Object.keys(DOC_LABELS);
 
+const STATUS_FILTERS = [
+  { id: 'pending_admin_review', label: 'Pending' },
+  { id: 'all', label: 'All' },
+  { id: 'approved', label: 'Approved' },
+  { id: 'rejected', label: 'Rejected' },
+];
+
+const SORT_OPTIONS = [
+  { id: 'newest', label: 'Newest' },
+  { id: 'waiting', label: 'Longest Wait' },
+  { id: 'completeness', label: 'Most Complete' },
+  { id: 'name', label: 'Name A-Z' },
+];
+
+const selectionKey = (id: string, providerType: string) => `${id}:${providerType}`;
+
 export function AdminDriverQueueScreen() {
   const navigation = useNavigation<any>();
   const [records, setRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
-  const [rejectModal, setRejectModal] = useState<{id: string; providerType: string; name: string; docField?: string} | null>(null);
+  const [rejectModal, setRejectModal] = useState<{id: string; providerType: string; name: string; docField?: string; bulk?: boolean} | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('pending_admin_review');
+  const [providerFilter, setProviderFilter] = useState('');
+  const [sortBy, setSortBy] = useState('newest');
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
+  const [messageModal, setMessageModal] = useState(false);
+  const [bulkMessage, setBulkMessage] = useState('');
+  const [bulkProcessing, setBulkProcessing] = useState(false);
 
   useEffect(() => {
     fetchRecords();
-  }, []);
+  }, [statusFilter, providerFilter, sortBy]);
 
-  const fetchRecords = async () => {
+  const fetchRecords = async (query = searchQuery) => {
     try {
       setLoading(true);
-      const res = await adminApi.getPendingDriverVerifications();
+      const useSearch = query.trim() || statusFilter !== 'pending_admin_review' || providerFilter || sortBy !== 'newest';
+      const res = useSearch
+        ? await adminApi.searchDriverVerifications({
+            q: query.trim() || undefined,
+            status: statusFilter,
+            providerType: providerFilter || undefined,
+            sort: sortBy,
+          })
+        : await adminApi.getPendingDriverVerifications();
       if (res.data?.success) {
         setRecords(res.data.data || []);
       }
@@ -49,6 +81,82 @@ export function AdminDriverQueueScreen() {
       console.log('Failed to fetch driver verifications:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const toggleSelection = (id: string, providerType: string) => {
+    const key = selectionKey(id, providerType);
+    setSelectedKeys(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const selectAll = () => {
+    setSelectedKeys(new Set(records.map(r => selectionKey(r._id, r.providerType || 'driver'))));
+  };
+
+  const clearSelection = () => setSelectedKeys(new Set());
+
+  const getSelectedItems = () =>
+    records
+      .filter(r => selectedKeys.has(selectionKey(r._id, r.providerType || 'driver')))
+      .map(r => ({ recordId: r._id, providerType: r.providerType || 'driver' }));
+
+  const handleBulkApprove = () => {
+    const items = getSelectedItems();
+    if (!items.length) return;
+
+    Alert.alert(
+      'Bulk Approve',
+      `Approve ${items.length} selected driver(s)?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Approve All',
+          onPress: async () => {
+            try {
+              setBulkProcessing(true);
+              const res = await adminApi.bulkApproveDrivers(items);
+              Alert.alert('Done', res.data?.message || 'Bulk approve complete');
+              clearSelection();
+              fetchRecords();
+            } catch {
+              Alert.alert('Error', 'Bulk approve failed');
+            } finally {
+              setBulkProcessing(false);
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const handleBulkReject = () => {
+    if (!selectedKeys.size) return;
+    setRejectModal({ id: '', providerType: '', name: `${selectedKeys.size} drivers`, bulk: true });
+    setRejectionReason('');
+  };
+
+  const handleBulkMessage = async () => {
+    if (!bulkMessage.trim()) {
+      Alert.alert('Message Required', 'Enter a message to send.');
+      return;
+    }
+    const items = getSelectedItems();
+    try {
+      setBulkProcessing(true);
+      const res = await adminApi.bulkMessageDrivers(items, bulkMessage.trim());
+      Alert.alert('Done', res.data?.message || 'Messages sent');
+      setMessageModal(false);
+      setBulkMessage('');
+      clearSelection();
+    } catch {
+      Alert.alert('Error', 'Failed to send messages');
+    } finally {
+      setBulkProcessing(false);
     }
   };
 
@@ -118,7 +226,11 @@ export function AdminDriverQueueScreen() {
     try {
       setProcessingId(rejectModal.docField ? `${rejectModal.id}-${rejectModal.docField}` : rejectModal.id);
 
-      if (rejectModal.docField) {
+      if (rejectModal.bulk) {
+        const res = await adminApi.bulkRejectDrivers(getSelectedItems(), rejectionReason);
+        Alert.alert('Done', res.data?.message || 'Bulk rejection complete');
+        clearSelection();
+      } else if (rejectModal.docField) {
         // Per-document rejection
         const res = await adminApi.rejectDocumentField(
           rejectModal.id,
@@ -159,6 +271,7 @@ export function AdminDriverQueueScreen() {
     const fullName = `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || 'Unknown';
     const providerType = item.providerType || 'driver';
     const roleLabel = providerType === 'taxi_driver' ? 'Taxi Driver' : 'Chauffeur';
+    const isSelected = selectedKeys.has(selectionKey(item._id, providerType));
 
     // Count uploaded documents
     const uploadedDocs = ALL_DOC_FIELDS.filter(f => item[f]);
@@ -168,6 +281,12 @@ export function AdminDriverQueueScreen() {
       <View style={styles.card}>
         {/* Header */}
         <View style={styles.cardHeader}>
+          <TouchableOpacity
+            style={[styles.checkbox, isSelected && styles.checkboxSelected]}
+            onPress={() => toggleSelection(item._id, providerType)}
+          >
+            {isSelected && <Ionicons name="checkmark" size={14} color="#FFF" />}
+          </TouchableOpacity>
           <View style={styles.avatarCircle}>
             <Text style={styles.avatarText}>
               {(userData.firstName?.[0] || '?').toUpperCase()}
@@ -179,7 +298,7 @@ export function AdminDriverQueueScreen() {
             <Text style={styles.roleText}>{roleLabel}</Text>
           </View>
           <View style={styles.pendingBadge}>
-            <Text style={styles.pendingBadgeText}>PENDING</Text>
+            <Text style={styles.pendingBadgeText}>{(item.status || 'PENDING').toUpperCase().replace(/_/g, ' ')}</Text>
           </View>
         </View>
 
@@ -309,8 +428,69 @@ export function AdminDriverQueueScreen() {
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>Driver Verifications</Text>
-          <Text style={styles.headerSub}>{records.length} pending review{records.length !== 1 ? 's' : ''}</Text>
+          <Text style={styles.headerSub}>
+            {records.length} record{records.length !== 1 ? 's' : ''}
+            {selectedKeys.size > 0 ? ` · ${selectedKeys.size} selected` : ''}
+          </Text>
         </View>
+        {records.length > 0 && (
+          <TouchableOpacity style={styles.selectAllBtn} onPress={selectedKeys.size === records.length ? clearSelection : selectAll}>
+            <Text style={styles.selectAllText}>
+              {selectedKeys.size === records.length ? 'Clear' : 'Select All'}
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      <View style={styles.searchRow}>
+        <View style={styles.searchInputWrap}>
+          <Ionicons name="search-outline" size={18} color={COLORS.textTertiary} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search name, email, phone..."
+            placeholderTextColor={COLORS.textTertiary}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            onSubmitEditing={() => fetchRecords()}
+            returnKeyType="search"
+          />
+        </View>
+        <TouchableOpacity style={styles.searchBtn} onPress={() => fetchRecords()}>
+          <Ionicons name="arrow-forward" size={18} color="#FFF" />
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.filterScroll}>
+        {STATUS_FILTERS.map(f => (
+          <TouchableOpacity
+            key={f.id}
+            style={[styles.filterChip, statusFilter === f.id && styles.filterChipActive]}
+            onPress={() => setStatusFilter(f.id)}
+          >
+            <Text style={[styles.filterChipText, statusFilter === f.id && styles.filterChipTextActive]}>{f.label}</Text>
+          </TouchableOpacity>
+        ))}
+        <TouchableOpacity
+          style={[styles.filterChip, providerFilter === 'driver' && styles.filterChipActive]}
+          onPress={() => setProviderFilter(providerFilter === 'driver' ? '' : 'driver')}
+        >
+          <Text style={[styles.filterChipText, providerFilter === 'driver' && styles.filterChipTextActive]}>Chauffeur</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.filterChip, providerFilter === 'taxi_driver' && styles.filterChipActive]}
+          onPress={() => setProviderFilter(providerFilter === 'taxi_driver' ? '' : 'taxi_driver')}
+        >
+          <Text style={[styles.filterChipText, providerFilter === 'taxi_driver' && styles.filterChipTextActive]}>Taxi</Text>
+        </TouchableOpacity>
+        {SORT_OPTIONS.map(s => (
+          <TouchableOpacity
+            key={s.id}
+            style={[styles.filterChip, sortBy === s.id && styles.filterChipActive]}
+            onPress={() => setSortBy(s.id)}
+          >
+            <Text style={[styles.filterChipText, sortBy === s.id && styles.filterChipTextActive]}>{s.label}</Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
       {loading ? (
@@ -329,10 +509,66 @@ export function AdminDriverQueueScreen() {
           data={records}
           keyExtractor={(item) => item._id}
           renderItem={renderItem}
-          contentContainerStyle={styles.listContainer}
+          contentContainerStyle={[styles.listContainer, selectedKeys.size > 0 && { paddingBottom: 100 }]}
           showsVerticalScrollIndicator={false}
         />
       )}
+
+      {selectedKeys.size > 0 && (
+        <View style={styles.bulkBar}>
+          <TouchableOpacity style={styles.bulkBtn} onPress={handleBulkApprove} disabled={bulkProcessing}>
+            <Ionicons name="checkmark-circle-outline" size={18} color={COLORS.success} />
+            <Text style={styles.bulkBtnText}>Approve</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.bulkBtn} onPress={handleBulkReject} disabled={bulkProcessing}>
+            <Ionicons name="close-circle-outline" size={18} color={COLORS.error} />
+            <Text style={styles.bulkBtnText}>Reject</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.bulkBtn} onPress={() => setMessageModal(true)} disabled={bulkProcessing}>
+            <Ionicons name="mail-outline" size={18} color={COLORS.info} />
+            <Text style={styles.bulkBtnText}>Message</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Bulk Message Modal */}
+      <Modal visible={messageModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Bulk Message</Text>
+              <TouchableOpacity onPress={() => setMessageModal(false)}>
+                <Ionicons name="close" size={24} color={COLORS.textPrimary} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.modalSubtitle}>
+              Send a message to {selectedKeys.size} selected driver(s)
+            </Text>
+            <TextInput
+              style={styles.reasonInput}
+              placeholder="Enter your message..."
+              placeholderTextColor={COLORS.textTertiary}
+              value={bulkMessage}
+              onChangeText={setBulkMessage}
+              multiline
+              numberOfLines={5}
+              textAlignVertical="top"
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setMessageModal(false)}>
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.submitBtn, !bulkMessage.trim() && styles.submitBtnDisabled]}
+                onPress={handleBulkMessage}
+                disabled={!bulkMessage.trim() || bulkProcessing}
+              >
+                <Text style={styles.submitBtnText}>Send Message</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Rejection Reason Modal */}
       <Modal visible={!!rejectModal} animationType="slide" transparent>
@@ -401,6 +637,47 @@ const styles = StyleSheet.create({
   headerSub: {
     color: COLORS.textSecondary, fontSize: FONT_SIZES.small, marginTop: 2,
   },
+  selectAllBtn: { paddingHorizontal: SPACING.sm, paddingVertical: SPACING.xs },
+  selectAllText: { color: COLORS.electricTeal, fontSize: FONT_SIZES.small, fontWeight: FONT_WEIGHTS.medium },
+  searchRow: {
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
+    paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm,
+  },
+  searchInputWrap: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
+    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.md,
+    paddingHorizontal: SPACING.md, borderWidth: 1, borderColor: COLORS.border,
+  },
+  searchInput: { flex: 1, color: COLORS.textPrimary, fontSize: FONT_SIZES.body, paddingVertical: SPACING.sm },
+  searchBtn: {
+    backgroundColor: COLORS.electricTeal, borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.sm + 2,
+  },
+  filterScroll: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.xs,
+    paddingHorizontal: SPACING.lg, paddingBottom: SPACING.sm,
+  },
+  filterChip: {
+    paddingHorizontal: SPACING.sm, paddingVertical: 4,
+    borderRadius: BORDER_RADIUS.full, borderWidth: 1, borderColor: COLORS.border,
+    backgroundColor: COLORS.surface,
+  },
+  filterChipActive: { backgroundColor: `${COLORS.electricTeal}15`, borderColor: COLORS.electricTeal },
+  filterChipText: { color: COLORS.textSecondary, fontSize: 11, fontWeight: FONT_WEIGHTS.medium },
+  filterChipTextActive: { color: COLORS.electricTeal },
+  checkbox: {
+    width: 22, height: 22, borderRadius: 4, borderWidth: 2, borderColor: COLORS.border,
+    marginRight: SPACING.sm, justifyContent: 'center', alignItems: 'center',
+  },
+  checkboxSelected: { backgroundColor: COLORS.electricTeal, borderColor: COLORS.electricTeal },
+  bulkBar: {
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    flexDirection: 'row', justifyContent: 'space-around',
+    backgroundColor: COLORS.surface, borderTopWidth: 1, borderTopColor: COLORS.border,
+    paddingVertical: SPACING.md, paddingHorizontal: SPACING.lg,
+  },
+  bulkBtn: { alignItems: 'center', gap: 4 },
+  bulkBtnText: { color: COLORS.textPrimary, fontSize: 11, fontWeight: FONT_WEIGHTS.medium },
   listContainer: { padding: SPACING.lg },
   centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   loadingText: { color: COLORS.textSecondary, marginTop: SPACING.md },

@@ -228,6 +228,17 @@ export function AdminUsersScreen() {
 
         {!isAdmin && (
           <View style={styles.actionsRow}>
+            <TouchableOpacity
+              style={styles.actionBtn}
+              onPress={() => navigation.navigate('AdminMessaging', {
+                userId: item._id,
+                userName: `${item.firstName} ${item.lastName}`,
+              })}
+              disabled={isProcessing}
+            >
+              <Ionicons name="mail-outline" size={16} color={COLORS.info} />
+              <Text style={[styles.actionBtnText, { color: COLORS.info }]}>Message</Text>
+            </TouchableOpacity>
             {status === 'active' && (
               <>
                 <TouchableOpacity
