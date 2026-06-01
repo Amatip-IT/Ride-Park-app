@@ -93,6 +93,8 @@ export class ProviderService {
           documentStatuses: docStatuses,
           vehicleInfo: record?.vehicleInfo || null,
           rejectionReason: record?.rejectionReason || null,
+          availability: record?.availability || 'offline',
+          driverNumber: record?.driverNumber || null,
         },
         message: record ? 'Verification status retrieved' : 'No verification application found',
       };

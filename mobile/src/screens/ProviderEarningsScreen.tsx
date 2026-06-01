@@ -7,6 +7,7 @@ import {
 import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { walletApi, providerApi } from '@/api';
+import { formatCurrency, getApiErrorMessage } from '@/utils/helpers';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useAuthStore } from '@/store/authStore';
 import * as Print from 'expo-print';
@@ -34,9 +35,11 @@ export function ProviderEarningsScreen() {
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [withdrawLoading, setWithdrawLoading] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const fetchData = async (period?: Period) => {
     setLoading(true);
+    setFetchError(null);
     try {
       const [walletRes, txRes] = await Promise.all([
         walletApi.getWalletInfo(),
@@ -45,7 +48,7 @@ export function ProviderEarningsScreen() {
       if (walletRes.data?.success) setWallet(walletRes.data.data);
       if (txRes.data?.success) setTransactions(txRes.data.data || []);
     } catch (err) {
-      console.log('Failed to fetch wallet data', err);
+      setFetchError(getApiErrorMessage(err, 'Could not load earnings data.'));
     } finally {
       setLoading(false);
     }
@@ -126,8 +129,8 @@ export function ProviderEarningsScreen() {
       } else {
         Alert.alert('Error', res.data?.message || 'Failed to save bank details');
       }
-    } catch (err: any) {
-      Alert.alert('Error', err?.response?.data?.message || 'Failed to save bank details');
+    } catch (err: unknown) {
+      Alert.alert('Error', getApiErrorMessage(err, 'Failed to save bank details'));
     } finally {
       setBankLoading(false);
     }
@@ -155,8 +158,8 @@ export function ProviderEarningsScreen() {
       } else {
         Alert.alert('Error', res.data?.message || 'Failed to submit withdrawal');
       }
-    } catch (err: any) {
-      Alert.alert('Error', err?.response?.data?.message || 'Withdrawal failed');
+    } catch (err: unknown) {
+      Alert.alert('Error', getApiErrorMessage(err, 'Withdrawal failed'));
     } finally {
       setWithdrawLoading(false);
     }
@@ -244,6 +247,16 @@ export function ProviderEarningsScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+
+        {fetchError && (
+          <View style={styles.errorBanner}>
+            <Ionicons name="alert-circle" size={18} color={COLORS.coralRed} />
+            <Text style={styles.errorBannerText}>{fetchError}</Text>
+            <TouchableOpacity onPress={() => fetchData(selectedPeriod)}>
+              <Text style={styles.retryLink}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Total Earnings (Gross) */}
         <View style={styles.grossCard}>
@@ -360,6 +373,18 @@ const styles = StyleSheet.create({
   headerTitle: { color: COLORS.textPrimary, fontSize: FONT_SIZES.hero, fontWeight: FONT_WEIGHTS.bold },
   headerBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: COLORS.surface, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: COLORS.border },
   scrollContent: { paddingHorizontal: SPACING.xl, paddingBottom: 100 },
+
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+    backgroundColor: 'rgba(255, 107, 107, 0.12)',
+    borderRadius: BORDER_RADIUS.md,
+  },
+  errorBannerText: { flex: 1, color: COLORS.coralRed, fontSize: 13 },
+  retryLink: { color: COLORS.electricTeal, fontWeight: FONT_WEIGHTS.bold, fontSize: 13 },
 
   grossCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.lg, padding: SPACING.lg, marginBottom: SPACING.md, borderWidth: 1, borderColor: COLORS.border },
   grossLabel: { color: COLORS.textSecondary, fontSize: FONT_SIZES.small, fontWeight: FONT_WEIGHTS.medium },

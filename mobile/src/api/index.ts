@@ -445,6 +445,7 @@ export const ridesApi = {
     api.post<ApiResponse>('/rides/estimate', { serviceType, distanceMiles, durationMinutes }),
 
   startRide: (data: {
+    passengerId: string;
     driverId: string;
     serviceType: 'driver' | 'taxi';
     bookingId?: string;
@@ -458,6 +459,9 @@ export const ridesApi = {
 
   getRide: (rideId: string) =>
     api.get<ApiResponse>(`/rides/${rideId}`),
+
+  getReceipt: (rideId: string) =>
+    api.get<ApiResponse>(`/rides/${rideId}/receipt`),
 };
 
 // ── Taxi Bookings API (ride requests) ──
@@ -499,6 +503,9 @@ export const taxiBookingsApi = {
   // Get ride request details
   getRequest: (requestId: string) =>
     api.get<ApiResponse>(`/taxi-bookings/${requestId}`),
+
+  getReceipt: (requestId: string) =>
+    api.get<ApiResponse>(`/taxi-bookings/${requestId}/receipt`),
 
   // Admin: all active requests
   getAdminActive: () =>

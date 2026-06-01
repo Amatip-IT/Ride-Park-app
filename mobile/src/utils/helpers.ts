@@ -112,6 +112,33 @@ export const truncateText = (text: string, length: number): string => {
   return `${text.substring(0, length)}...`;
 };
 
+/** Human-readable booking window for provider/consumer lists */
+export const formatBookingDateRange = (
+  start?: string | Date | null,
+  end?: string | Date | null,
+): string | null => {
+  if (!start || !end) return null;
+  const s = new Date(start);
+  const e = new Date(end);
+  if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime())) return null;
+
+  const dateOpts: Intl.DateTimeFormatOptions = {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  };
+  const timeOpts: Intl.DateTimeFormatOptions = {
+    hour: '2-digit',
+    minute: '2-digit',
+  };
+
+  const sameDay = s.toDateString() === e.toDateString();
+  if (sameDay) {
+    return `${s.toLocaleDateString('en-GB', dateOpts)} · ${s.toLocaleTimeString('en-GB', timeOpts)} – ${e.toLocaleTimeString('en-GB', timeOpts)}`;
+  }
+  return `${s.toLocaleDateString('en-GB', { ...dateOpts, ...timeOpts })} → ${e.toLocaleDateString('en-GB', { ...dateOpts, ...timeOpts })}`;
+};
+
 // Calculate booking duration
 export const calculateDuration = (startDate: string, endDate: string): { hours: number; days: number } => {
   const start = new Date(startDate);
@@ -126,6 +153,40 @@ export const calculateDuration = (startDate: string, endDate: string): { hours: 
 export const calculateBookingPrice = (hourlyRate: number, startDate: string, endDate: string): number => {
   const { hours } = calculateDuration(startDate, endDate);
   return hourlyRate * Math.max(hours, 1);
+};
+
+import { Alert, Linking, Platform } from 'react-native';
+
+/** Open native maps for navigation to a coordinate or address */
+export const openMapsNavigation = (opts: {
+  lat?: number;
+  lng?: number;
+  label?: string;
+  address?: string;
+}): void => {
+  const { lat, lng, label = 'Destination', address } = opts;
+
+  let url: string;
+  if (lat != null && lng != null) {
+    url = Platform.select({
+      ios: `maps:0,0?q=${encodeURIComponent(label)}&ll=${lat},${lng}`,
+      android: `geo:${lat},${lng}?q=${lat},${lng}(${encodeURIComponent(label)})`,
+      default: `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`,
+    })!;
+  } else if (address) {
+    url = Platform.select({
+      ios: `maps:0,0?q=${encodeURIComponent(address)}`,
+      android: `geo:0,0?q=${encodeURIComponent(address)}`,
+      default: `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}`,
+    })!;
+  } else {
+    Alert.alert('Navigation unavailable', 'No location is available for directions.');
+    return;
+  }
+
+  Linking.openURL(url).catch(() => {
+    Alert.alert('Could not open maps', 'Please try again or copy the address manually.');
+  });
 };
 
 /** Great-circle distance between two coordinates in miles */

@@ -2,6 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Ride, RideDocument } from 'src/schemas/ride.schema';
+import {
+  TaxiRideRequest,
+  TaxiRideRequestDocument,
+} from 'src/schemas/taxi-ride-request.schema';
 import { Chauffeur, ChauffeurDocument } from 'src/schemas/chauffeur.schema';
 import { Taxi, TaxiDocument } from 'src/schemas/taxi.schema';
 import { Response } from 'src/common/interfaces/response.interface';
@@ -17,6 +21,8 @@ const RATE_PER_MINUTE = 0.20; // £0.20 per minute (taxi only)
 export class RidesService {
   constructor(
     @InjectModel(Ride.name) private rideModel: Model<RideDocument>,
+    @InjectModel(TaxiRideRequest.name)
+    private taxiRequestModel: Model<TaxiRideRequestDocument>,
     @InjectModel(Chauffeur.name) private chauffeurModel: Model<ChauffeurDocument>,
     @InjectModel(Taxi.name) private taxiModel: Model<TaxiDocument>,
     private readonly notificationsService: NotificationsService,
@@ -220,6 +226,128 @@ export class RidesService {
       return {
         success: false,
         message: `Failed to complete ride: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      };
+    }
+  }
+
+  /**
+   * Trip receipt for passenger or driver on a completed ride
+   */
+  async getRideReceipt(
+    rideId: string,
+    requestingUserId: string,
+  ): Promise<Response> {
+    try {
+      const ride = await this.rideModel
+        .findById(rideId)
+        .populate('passenger', 'firstName lastName email phoneNumber')
+        .populate('driver', 'firstName lastName email phoneNumber')
+        .exec();
+
+      if (!ride) {
+        return { success: false, message: 'Ride not found' };
+      }
+
+      const passengerId = (ride.passenger as any)?._id?.toString() || ride.passenger.toString();
+      const driverId = (ride.driver as any)?._id?.toString() || ride.driver.toString();
+
+      if (requestingUserId !== passengerId && requestingUserId !== driverId) {
+        return { success: false, message: 'You do not have access to this receipt' };
+      }
+
+      if (ride.status !== 'completed') {
+        return { success: false, message: 'Receipt is available after the trip is completed' };
+      }
+
+      let taxiRequest: TaxiRideRequestDocument | null = null;
+      if (ride.booking) {
+        taxiRequest = await this.taxiRequestModel.findById(ride.booking).exec();
+      }
+
+      const passenger = ride.passenger as any;
+      const driver = ride.driver as any;
+
+      const receipt = {
+        rideId: ride._id.toString(),
+        requestId: taxiRequest?._id?.toString() || ride.booking?.toString(),
+        role: requestingUserId === passengerId ? 'passenger' : 'driver',
+        serviceType: ride.serviceType,
+        completedAt: ride.completedAt,
+        startedAt: ride.startedAt,
+        passenger: {
+          name: `${passenger?.firstName || ''} ${passenger?.lastName || ''}`.trim(),
+          email: passenger?.email,
+        },
+        driver: {
+          name: `${driver?.firstName || ''} ${driver?.lastName || ''}`.trim(),
+          email: driver?.email,
+        },
+        pickup: ride.pickup,
+        dropoff: ride.dropoff,
+        distanceMiles: ride.distanceMiles,
+        durationMinutes: ride.durationMinutes,
+        distanceCost: ride.distanceCost,
+        timeCost: ride.timeCost,
+        totalCost: ride.totalCost,
+        ratePerMile: ride.ratePerMile,
+        ratePerMinute: ride.ratePerMinute,
+        paymentStatus: 'charged',
+        paymentNote:
+          requestingUserId === passengerId
+            ? 'Charged to your saved payment method.'
+            : 'Earnings credited to your wallet (after platform fee).',
+        vehicle: taxiRequest?.driverVehicle || null,
+        estimatedCost: taxiRequest?.estimatedCost,
+      };
+
+      return {
+        success: true,
+        data: receipt,
+        message: 'Trip receipt',
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: `Failed to load receipt: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      };
+    }
+  }
+
+  /**
+   * Receipt via taxi booking request id
+   */
+  async getReceiptByTaxiRequest(
+    requestId: string,
+    requestingUserId: string,
+  ): Promise<Response> {
+    try {
+      const request = await this.taxiRequestModel.findById(requestId).exec();
+      if (!request) {
+        return { success: false, message: 'Ride request not found' };
+      }
+
+      const passengerId = request.passenger.toString();
+      const driverId = request.acceptedDriver?.toString();
+
+      if (
+        requestingUserId !== passengerId &&
+        (!driverId || requestingUserId !== driverId)
+      ) {
+        return { success: false, message: 'You do not have access to this receipt' };
+      }
+
+      if (!request.ride) {
+        return {
+          success: false,
+          message: 'Receipt is not available until the trip is completed',
+        };
+      }
+
+      return this.getRideReceipt(request.ride.toString(), requestingUserId);
+    } catch (error) {
+      return {
+        success: false,
+        message: `Failed to load receipt: ${error instanceof Error ? error.message : 'Unknown error'}`,
       };
     }
   }

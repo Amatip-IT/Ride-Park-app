@@ -24,6 +24,7 @@ import { DriverRequestScreen } from '@/screens/DriverRequestScreen';
 import { TaxiBookingScreen } from '@/screens/TaxiBookingScreen';
 import { ParkingDetailScreen } from '@/screens/ParkingDetailScreen';
 import { PassengerTrackingScreen } from '@/screens/PassengerTrackingScreen';
+import { TripReceiptScreen } from '@/screens/TripReceiptScreen';
 import { MapPreviewScreen } from '@/screens/MapPreviewScreen';
 import { ChatListScreen } from '@/screens/ChatListScreen';
 import { ChatScreen } from '@/screens/ChatScreen';
@@ -150,6 +151,7 @@ const ConsumerNavigator = () => (
     <ConsumerStack.Screen name="ParkingDetail" component={ParkingDetailScreen} />
     {/* Tracking */}
     <ConsumerStack.Screen name="PassengerTracking" component={PassengerTrackingScreen} />
+    <ConsumerStack.Screen name="TripReceipt" component={TripReceiptScreen} />
     <ConsumerStack.Screen name="MapPreview" component={MapPreviewScreen} />
   </ConsumerStack.Navigator>
 );
@@ -223,6 +225,7 @@ const ProviderNavigator = () => (
     {/* Driver/Taxi specific screens */}
     <ProviderStack.Screen name="DriverRideRequests" component={DriverRideRequestsScreen} />
     <ProviderStack.Screen name="ProviderActiveJourney" component={ProviderActiveJourneyScreen} />
+    <ProviderStack.Screen name="TripReceipt" component={TripReceiptScreen} />
     <ProviderStack.Screen name="DriverVerification" component={DriverVerificationScreen} />
     <ProviderStack.Screen name="DocumentUpload" component={DocumentUploadScreen} />
   </ProviderStack.Navigator>
@@ -414,13 +417,14 @@ export type RootStackParamList = {
   TaxiBooking: undefined;
   ParkingDetail: { spaceId: string; space?: any };
   PassengerTracking: { requestId: string };
+  TripReceipt: { requestId?: string; rideId?: string };
   MapPreview: { latitude?: number; longitude?: number } | undefined;
   // Provider Stack (nested)
   ProviderTabs: undefined;
   ProviderSpaceManagement: undefined;
   ProviderVerification: undefined;
   DriverRideRequests: undefined;
-  ProviderActiveJourney: { journeyId: string };
+  ProviderActiveJourney: { requestId: string; serviceType?: 'driver' | 'taxi' };
   DriverVerification: undefined;
   DocumentUpload: undefined;
   // Admin Stack (nested)

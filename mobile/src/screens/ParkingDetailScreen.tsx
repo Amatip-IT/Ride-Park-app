@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Platform, SafeAreaView, ActivityIndicator, Alert, Image, TextInput, Linking,
+  Platform, SafeAreaView, ActivityIndicator, Alert, Image, TextInput,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute, RouteProp, useNavigation } from '@react-navigation/native';
 import { searchApi, bookingsApi } from '@/api';
-import { calculateBookingPrice, formatCurrency, getApiErrorMessage } from '@/utils/helpers';
+import { calculateBookingPrice, formatCurrency, getApiErrorMessage, openMapsNavigation } from '@/utils/helpers';
 import MapView, { Marker } from 'react-native-maps';
 
 type ParkingDetailParams = {
@@ -92,29 +92,11 @@ export function ParkingDetailScreen() {
   };
 
   const openDirections = () => {
-    const address = [space?.addressLine1 || space?.name, space?.town, space?.postCode].filter(Boolean).join(', ');
-    const { lat, lng } = space?.coordinates || {};
-
-    let url: string;
-    if (lat && lng) {
-      url = Platform.select({
-        ios: `maps:0,0?q=${encodeURIComponent(space?.name || 'Parking')}&ll=${lat},${lng}`,
-        android: `geo:${lat},${lng}?q=${lat},${lng}(${encodeURIComponent(space?.name || 'Parking')})`,
-        default: `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`,
-      })!;
-    } else if (address) {
-      url = Platform.select({
-        ios: `maps:0,0?q=${encodeURIComponent(address)}`,
-        android: `geo:0,0?q=${encodeURIComponent(address)}`,
-        default: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`,
-      })!;
-    } else {
-      Alert.alert('Directions unavailable', 'No location information is available for this car park.');
-      return;
-    }
-
-    Linking.openURL(url).catch(() => {
-      Alert.alert('Could not open maps', 'Please try again or copy the address manually.');
+    openMapsNavigation({
+      lat: space?.coordinates?.lat,
+      lng: space?.coordinates?.lng,
+      label: space?.name || 'Parking',
+      address: [space?.addressLine1 || space?.name, space?.town, space?.postCode].filter(Boolean).join(', '),
     });
   };
 

@@ -288,6 +288,16 @@ export function BookingsScreen() {
             <Text style={styles.cancelBtnText}>Cancel Ride</Text>
           </TouchableOpacity>
         )}
+
+        {ride.status === 'completed' && (
+          <TouchableOpacity
+            style={styles.trackBtn}
+            onPress={() => navigation.navigate('TripReceipt', { requestId: ride._id })}
+          >
+            <Ionicons name="receipt-outline" size={16} color={COLORS.electricTeal} />
+            <Text style={styles.trackBtnText}>Trip receipt</Text>
+          </TouchableOpacity>
+        )}
       </View>
     );
   };

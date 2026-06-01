@@ -7,6 +7,7 @@ import {
 import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { providerApi } from '@/api';
+import { getApiErrorMessage } from '@/utils/helpers';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 
 interface SpaceStats {
@@ -45,16 +46,18 @@ export function ProviderSpaceManagementScreen() {
   const [editForm, setEditForm] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const fetchSpaces = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
+    setFetchError(null);
     try {
       const res = await providerApi.getMySpaces();
       if (res.data?.success) {
         setSpaces(res.data.data || []);
       }
     } catch (err) {
-      console.warn('Failed to fetch spaces:', err);
+      setFetchError(getApiErrorMessage(err, 'Could not load your parking spaces.'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -172,6 +175,16 @@ export function ProviderSpaceManagementScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        {fetchError && (
+          <View style={styles.errorBanner}>
+            <Ionicons name="alert-circle" size={18} color={COLORS.coralRed} />
+            <Text style={styles.errorBannerText}>{fetchError}</Text>
+            <TouchableOpacity onPress={() => fetchSpaces(true)}>
+              <Text style={styles.retryLink}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {spaces.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="business-outline" size={64} color={COLORS.softSlate} />
@@ -406,6 +419,17 @@ const styles = StyleSheet.create({
   headerSub: { color: COLORS.textSecondary, fontSize: 13, marginTop: 2 },
 
   scrollContent: { padding: SPACING.lg, paddingBottom: 40 },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+    backgroundColor: 'rgba(255, 107, 107, 0.12)',
+    borderRadius: BORDER_RADIUS.md,
+  },
+  errorBannerText: { flex: 1, color: COLORS.coralRed, fontSize: 13 },
+  retryLink: { color: COLORS.electricTeal, fontWeight: FONT_WEIGHTS.bold, fontSize: 13 },
 
   // Empty
   emptyState: { alignItems: 'center', paddingVertical: 80 },

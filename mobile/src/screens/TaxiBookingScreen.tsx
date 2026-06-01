@@ -9,7 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, NavigationProp, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
 import { taxiBookingsApi, ridesApi } from '@/api';
 import * as Location from 'expo-location';
-import { haversineDistanceMiles, estimateDurationMinutes } from '@/utils/helpers';
+import { getApiErrorMessage, haversineDistanceMiles, estimateDurationMinutes } from '@/utils/helpers';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 type TimingType = 'now' | 'leave_at' | 'arrive_by';
@@ -40,6 +40,7 @@ export function TaxiBookingScreen() {
   // Destination
   const [destinationAddress, setDestinationAddress] = useState('');
   const [destinationPostcode, setDestinationPostcode] = useState('');
+  const [destinationCoords, setDestinationCoords] = useState<{ lat: number; lng: number } | null>(null);
 
   // Timing
   const [timingType, setTimingType] = useState<TimingType>('now');
@@ -67,8 +68,8 @@ export function TaxiBookingScreen() {
         try {
           const res = await taxiBookingsApi.getMyRequests();
           if (res.data?.success && res.data.data) {
-            const active = res.data.data.find(
-              (r: any) => ['searching', 'accepted'].includes(r.status)
+            const active = res.data.data.find((r: any) =>
+              ['searching', 'accepted', 'arrived', 'in_progress'].includes(r.status),
             );
             if (active) {
               setActiveRequest(active);
@@ -122,7 +123,7 @@ export function TaxiBookingScreen() {
     }
   }, []);
 
-  const resolveCoordinates = async (): Promise<{ lat: number; lng: number } | null> => {
+  const resolvePickupCoordinates = async (): Promise<{ lat: number; lng: number } | null> => {
     if (pickupCoords) return pickupCoords;
 
     const query = pickupPostcode || pickupAddress;
@@ -131,7 +132,28 @@ export function TaxiBookingScreen() {
     try {
       const results = await Location.geocodeAsync(query);
       if (results[0]) {
-        return { lat: results[0].latitude, lng: results[0].longitude };
+        const coords = { lat: results[0].latitude, lng: results[0].longitude };
+        setPickupCoords(coords);
+        return coords;
+      }
+    } catch {
+      // fall through
+    }
+    return null;
+  };
+
+  const resolveDestinationCoordinates = async (): Promise<{ lat: number; lng: number } | null> => {
+    if (destinationCoords) return destinationCoords;
+
+    const query = destinationPostcode || destinationAddress;
+    if (!query) return null;
+
+    try {
+      const results = await Location.geocodeAsync(query);
+      if (results[0]) {
+        const coords = { lat: results[0].latitude, lng: results[0].longitude };
+        setDestinationCoords(coords);
+        return coords;
       }
     } catch {
       // fall through
@@ -158,24 +180,17 @@ export function TaxiBookingScreen() {
       let miles = 4;
       let mins = 12;
 
-      const pickup = await resolveCoordinates();
-      const destQuery = destinationPostcode || destinationAddress;
+      const pickup = await resolvePickupCoordinates();
+      const destination = await resolveDestinationCoordinates();
 
-      if (pickup && destQuery) {
-        try {
-          const destResults = await Location.geocodeAsync(destQuery);
-          if (destResults[0]) {
-            miles = haversineDistanceMiles(
-              pickup.lat,
-              pickup.lng,
-              destResults[0].latitude,
-              destResults[0].longitude,
-            );
-            mins = estimateDurationMinutes(miles);
-          }
-        } catch {
-          // keep defaults
-        }
+      if (pickup && destination) {
+        miles = haversineDistanceMiles(
+          pickup.lat,
+          pickup.lng,
+          destination.lat,
+          destination.lng,
+        );
+        mins = estimateDurationMinutes(miles);
       }
 
       miles = Math.max(0.5, Math.round(miles * 10) / 10);
@@ -205,20 +220,35 @@ export function TaxiBookingScreen() {
     setIsSubmitting(true);
 
     try {
+      const pickup = await resolvePickupCoordinates();
+      const destination = await resolveDestinationCoordinates();
+
+      if (!pickup) {
+        Alert.alert('Pickup location', 'We could not locate your pickup. Please use GPS or check the address.');
+        return;
+      }
+      if (!destination) {
+        Alert.alert('Destination', 'We could not locate your destination. Please check the address or postcode.');
+        return;
+      }
+
       const res = await taxiBookingsApi.createRequest({
-        pickupAddress: pickupMethod === 'gps' ? 'GPS Location' : pickupAddress || undefined,
+        pickupAddress: pickupMethod === 'gps' ? pickupAddress || 'GPS Location' : pickupAddress || undefined,
         pickupPostcode: pickupPostcode || undefined,
-        pickupLat: pickupCoords?.lat,
-        pickupLng: pickupCoords?.lng,
+        pickupLat: pickup.lat,
+        pickupLng: pickup.lng,
         pickupFromGps: pickupMethod === 'gps',
         destinationAddress: destinationAddress || destinationPostcode,
         destinationPostcode: destinationPostcode || undefined,
+        destinationLat: destination.lat,
+        destinationLng: destination.lng,
         timingType,
         scheduledTime: timingType !== 'now' ? scheduledTime.toISOString() : undefined,
         passengerNote: passengerNote || undefined,
         taxiType,
         estimatedDistanceMiles: estimatedMiles,
         estimatedDurationMinutes: estimatedDuration,
+        estimatedCost,
       });
 
       if (res.data?.success) {
@@ -231,12 +261,27 @@ export function TaxiBookingScreen() {
       } else {
         Alert.alert('Error', res.data?.message || 'Failed to create request');
       }
-    } catch (error: any) {
-      Alert.alert('Error', error?.response?.data?.message || error?.message || 'Something went wrong');
+    } catch (error: unknown) {
+      Alert.alert('Error', getApiErrorMessage(error, 'Something went wrong'));
     } finally {
       setIsSubmitting(false);
     }
-  }, [pickupMethod, pickupAddress, pickupPostcode, pickupCoords, destinationAddress, destinationPostcode, timingType, scheduledTime, passengerNote, taxiType, estimatedMiles, estimatedDuration]);
+  }, [
+    pickupMethod,
+    pickupAddress,
+    pickupPostcode,
+    pickupCoords,
+    destinationAddress,
+    destinationPostcode,
+    destinationCoords,
+    timingType,
+    scheduledTime,
+    passengerNote,
+    taxiType,
+    estimatedMiles,
+    estimatedDuration,
+    estimatedCost,
+  ]);
 
   const handleCancel = useCallback(async () => {
     if (!activeRequest?._id) return;
@@ -608,10 +653,10 @@ export function TaxiBookingScreen() {
         <View style={styles.modalContainer}>
           {/* Map Background */}
           <AmazonMap
-            pickupLat={pickupCoords?.lat || 50.72} // Dummy coordinates for preview if missing
-            pickupLng={pickupCoords?.lng || -1.87}
-            destinationLat={50.75} // In a real app we'd geocode destination
-            destinationLng={-1.89}
+            pickupLat={pickupCoords?.lat ?? 51.5074}
+            pickupLng={pickupCoords?.lng ?? -0.1278}
+            destinationLat={destinationCoords?.lat ?? 51.515}
+            destinationLng={destinationCoords?.lng ?? -0.12}
           />
 
           {/* Dark Overlay Info Card (Uber style) */}

@@ -12,12 +12,16 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { TaxiBookingsService } from './taxi-bookings.service';
+import { RidesService } from 'src/rides/rides.service';
 import { AuthGuard } from 'src/guards/auth.guard';
 
 @Controller('taxi-bookings')
 @UseGuards(AuthGuard)
 export class TaxiBookingsController {
-  constructor(private readonly taxiBookingsService: TaxiBookingsService) {}
+  constructor(
+    private readonly taxiBookingsService: TaxiBookingsService,
+    private readonly ridesService: RidesService,
+  ) {}
 
   /**
    * POST /taxi-bookings/request
@@ -42,6 +46,7 @@ export class TaxiBookingsController {
       passengerNote?: string;
       estimatedDistanceMiles?: number;
       estimatedDurationMinutes?: number;
+      estimatedCost?: number;
     },
   ) {
     const passengerId = req.user._id || req.user.id;
@@ -198,6 +203,20 @@ export class TaxiBookingsController {
   @Get('admin/active')
   async getAdminActiveRequests() {
     return this.taxiBookingsService.getAllActiveRequests();
+  }
+
+  /**
+   * GET /taxi-bookings/:id/receipt
+   * Trip receipt for a completed taxi request
+   */
+  @Get(':id/receipt')
+  async getRequestReceipt(@Param('id') id: string, @Req() req: any) {
+    const userId = req.user._id || req.user.id;
+    const result = await this.ridesService.getReceiptByTaxiRequest(id, userId);
+    if (!result.success) {
+      throw new HttpException(result, HttpStatus.BAD_REQUEST);
+    }
+    return result;
   }
 
   /**

@@ -50,6 +50,7 @@ export class TaxiBookingsService {
     passengerNote?: string;
     estimatedDistanceMiles?: number;
     estimatedDurationMinutes?: number;
+    estimatedCost?: number;
   }): Promise<Response> {
     try {
       // 1. Verify passenger has a payment method BEFORE allowing them to request a ride
@@ -82,8 +83,8 @@ export class TaxiBookingsService {
       }
 
       // Calculate estimated cost if distance is provided
-      let estimatedCost: number | undefined;
-      if (data.estimatedDistanceMiles) {
+      let estimatedCost: number | undefined = data.estimatedCost;
+      if (estimatedCost == null && data.estimatedDistanceMiles) {
         const distanceCost = data.estimatedDistanceMiles * RATE_PER_MILE;
         const timeCost = (data.estimatedDurationMinutes || 0) * RATE_PER_MINUTE;
         estimatedCost = Math.round((distanceCost + timeCost) * 100) / 100;
@@ -198,7 +199,7 @@ export class TaxiBookingsService {
       const requests = await this.taxiRequestModel
         .find({
           acceptedDriver: driverId,
-          status: { $in: ['accepted', 'in_progress'] },
+          status: { $in: ['accepted', 'arrived', 'in_progress'] },
         })
         .populate('passenger', 'firstName lastName phoneNumber')
         .sort({ createdAt: -1 })
@@ -386,6 +387,7 @@ export class TaxiBookingsService {
         .findById(requestId)
         .populate('passenger', 'firstName lastName phoneNumber')
         .populate('acceptedDriver', 'firstName lastName phoneNumber')
+        .populate('ride')
         .exec();
 
       if (!request) {
@@ -466,6 +468,9 @@ export class TaxiBookingsService {
       }
 
       request.status = status as any;
+      if (rideId) {
+        request.ride = rideId as any;
+      }
       await request.save();
 
       const populated = await this.taxiRequestModel

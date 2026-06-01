@@ -11,6 +11,7 @@ import { AmazonMap } from '@/components/AmazonMap';
 import { useTaxiStore } from '@/store/taxiStore';
 import { useAuthStore } from '@/store/authStore';
 import { RatingModal } from '@/components/RatingModal';
+import { useRideRouteAndEta } from '@/hooks/useRideRouteAndEta';
 
 type ParamList = {
   PassengerTracking: { requestId: string };
@@ -37,6 +38,7 @@ export function PassengerTrackingScreen() {
   } = useTaxiStore();
 
   const request = activeRequest;
+  const { routeCoordinates, etaLabel } = useRideRouteAndEta(request, driverLocation);
 
   const fetchRequest = async () => {
     try {
@@ -180,6 +182,7 @@ export function PassengerTrackingScreen() {
           driverLat={driverLocation?.lat}
           driverLng={driverLocation?.lng}
           driverRotation={driverLocation?.rotation}
+          routeCoordinates={routeCoordinates}
         />
       </View>
 
@@ -236,10 +239,10 @@ export function PassengerTrackingScreen() {
 
         {/* ETA / Cost */}
         <View style={styles.infoRow}>
-          {request.driverEtaMinutes && request.status === 'accepted' && (
+          {etaLabel && ['accepted', 'arrived', 'in_progress'].includes(request.status) && (
             <View style={styles.infoChip}>
               <Ionicons name="time-outline" size={16} color={COLORS.electricTeal} />
-              <Text style={styles.infoChipText}>ETA: ~{request.driverEtaMinutes} min</Text>
+              <Text style={styles.infoChipText}>{etaLabel}</Text>
             </View>
           )}
           {request.estimatedCost && (
@@ -249,6 +252,16 @@ export function PassengerTrackingScreen() {
             </View>
           )}
         </View>
+
+        {request.status === 'completed' && (
+          <TouchableOpacity
+            style={styles.receiptBtn}
+            onPress={() => navigation.navigate('TripReceipt', { requestId })}
+          >
+            <Ionicons name="receipt-outline" size={18} color={COLORS.electricTeal} />
+            <Text style={styles.receiptBtnText}>View trip receipt</Text>
+          </TouchableOpacity>
+        )}
 
         {/* Buttons */}
         <View style={{ flexDirection: 'row', gap: SPACING.md }}>
@@ -356,6 +369,23 @@ const styles = StyleSheet.create({
   },
   infoChipText: {
     color: COLORS.electricTeal, fontSize: 13, fontWeight: FONT_WEIGHTS.semibold,
+  },
+  receiptBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.sm,
+    paddingVertical: SPACING.md,
+    marginBottom: SPACING.md,
+    borderRadius: BORDER_RADIUS.lg,
+    borderWidth: 1,
+    borderColor: COLORS.electricTeal,
+    backgroundColor: `${COLORS.electricTeal}10`,
+  },
+  receiptBtnText: {
+    color: COLORS.electricTeal,
+    fontSize: 15,
+    fontWeight: FONT_WEIGHTS.semibold,
   },
 
   backButton: {

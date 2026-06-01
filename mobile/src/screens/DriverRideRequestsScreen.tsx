@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Platform, SafeAreaView, ActivityIndicator, Alert, TextInput,
@@ -7,8 +7,10 @@ import {
 import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, NavigationProp, useFocusEffect } from '@react-navigation/native';
-import { taxiBookingsApi } from '@/api';
+import { taxiBookingsApi, providerApi } from '@/api';
 import { AmazonMap } from '@/components/AmazonMap';
+import { getApiErrorMessage } from '@/utils/helpers';
+import * as Haptics from 'expo-haptics';
 
 export function DriverRideRequestsScreen() {
   const navigation = useNavigation<NavigationProp<any>>();
@@ -19,21 +21,46 @@ export function DriverRideRequestsScreen() {
   // Selected request for the map modal
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [isOnline, setIsOnline] = useState(false);
+  const [statusLoading, setStatusLoading] = useState(true);
+  const previousCountRef = useRef(0);
 
   // Accept form state (ETA)
   const [etaMinutes, setEtaMinutes] = useState('5');
 
+  const loadDriverStatus = async () => {
+    try {
+      const res = await providerApi.getVerificationStatus();
+      if (res.data?.success) {
+        setIsOnline(res.data.data?.availability === 'online');
+      }
+    } catch {
+      setIsOnline(false);
+    } finally {
+      setStatusLoading(false);
+    }
+  };
+
   const fetchRequests = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
-    else setLoading(true);
+    else if (!statusLoading) setLoading(true);
+    setFetchError(null);
 
     try {
       const res = await taxiBookingsApi.getAvailable();
       if (res.data?.success) {
-        setRequests(res.data.data || []);
+        const list = res.data.data || [];
+        if (list.length > previousCountRef.current && previousCountRef.current > 0) {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        }
+        previousCountRef.current = list.length;
+        setRequests(list);
+      } else {
+        setFetchError(res.data?.message || 'Could not load ride requests');
       }
     } catch (err) {
-      console.log('Failed to fetch ride requests:', err);
+      setFetchError(getApiErrorMessage(err, 'Could not load ride requests'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -42,15 +69,23 @@ export function DriverRideRequestsScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      fetchRequests();
-      // Poll every 10 seconds for new requests
-      const interval = setInterval(() => fetchRequests(), 10000);
+      setStatusLoading(true);
+      loadDriverStatus().then(() => fetchRequests());
+      const interval = setInterval(() => fetchRequests(true), 12000);
       return () => clearInterval(interval);
     }, [])
   );
 
   const handleAccept = async () => {
     if (!selectedRequest) return;
+
+    if (!isOnline) {
+      Alert.alert(
+        'Go online first',
+        'Turn on online status from your home screen before accepting live rides.',
+      );
+      return;
+    }
     
     if (!etaMinutes || isNaN(Number(etaMinutes))) {
       Alert.alert('ETA Required', 'Please select an estimated arrival time.');
@@ -77,9 +112,8 @@ export function DriverRideRequestsScreen() {
       } else {
         Alert.alert('Error', res.data?.message || 'Failed to accept ride');
       }
-    } catch (error: any) {
-      const msg = error?.message || error?.response?.data?.message || 'Failed to accept';
-      Alert.alert('Error', msg);
+    } catch (error: unknown) {
+      Alert.alert('Error', getApiErrorMessage(error, 'Failed to accept'));
     } finally {
       setAcceptingId(null);
     }
@@ -183,7 +217,23 @@ export function DriverRideRequestsScreen() {
           <View style={{ width: 32 }} />
         </View>
 
-        {loading ? (
+        {!statusLoading && !isOnline && (
+          <View style={styles.offlineBanner}>
+            <Ionicons name="cloud-offline-outline" size={20} color={COLORS.amber} />
+            <Text style={styles.offlineBannerText}>
+              You are offline. Go online from Home to receive live ride requests.
+            </Text>
+          </View>
+        )}
+
+        {fetchError && (
+          <View style={styles.errorBanner}>
+            <Ionicons name="alert-circle" size={18} color={COLORS.coralRed} />
+            <Text style={styles.errorBannerText}>{fetchError}</Text>
+          </View>
+        )}
+
+        {loading || statusLoading ? (
           <View style={styles.centered}>
             <ActivityIndicator size="large" color={COLORS.electricTeal} />
             <Text style={styles.loadingText}>Loading ride requests...</Text>
@@ -201,7 +251,9 @@ export function DriverRideRequestsScreen() {
                 <Ionicons name="car-outline" size={64} color={COLORS.textTertiary} />
                 <Text style={styles.emptyTitle}>No Ride Requests</Text>
                 <Text style={styles.emptyDesc}>
-                  No passengers are looking for a ride right now. Stay online and check back.
+                  {isOnline
+                    ? 'No passengers are looking for a ride right now. New requests appear here automatically.'
+                    : 'Go online from your dashboard to start receiving trips.'}
                 </Text>
               </View>
             ) : (
@@ -239,7 +291,7 @@ export function DriverRideRequestsScreen() {
             <View style={styles.matchCardHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                 <Ionicons name="person" size={16} color="#FFF" />
-                <Text style={styles.matchCardTitle}>UberX Request</Text>
+                <Text style={styles.matchCardTitle}>Ride request</Text>
               </View>
               <TouchableOpacity onPress={() => setSelectedRequest(null)} style={styles.closeBtn}>
                 <Ionicons name="close" size={24} color="#FFF" />
@@ -250,15 +302,6 @@ export function DriverRideRequestsScreen() {
               <Text style={styles.matchPrice}>£{selectedRequest?.estimatedCost?.toFixed(2) || '0.00'}</Text>
             </View>
             
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
-              <Ionicons name="star" size={14} color={COLORS.amber} />
-              <Text style={styles.matchRating}>4.91</Text>
-            </View>
-
-            <View style={styles.feeBadge}>
-              <Text style={styles.feeText}>£0.77 est. holiday entitlement included</Text>
-            </View>
-
             <View style={styles.matchRoute}>
               {/* Pickup Line */}
               <View style={styles.matchRouteItem}>
@@ -302,6 +345,29 @@ export function DriverRideRequestsScreen() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: COLORS.background },
   container: { flex: 1 },
+
+  offlineBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    marginHorizontal: SPACING.lg,
+    marginTop: SPACING.sm,
+    padding: SPACING.md,
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    borderRadius: BORDER_RADIUS.md,
+  },
+  offlineBannerText: { flex: 1, color: COLORS.amber, fontSize: 13, lineHeight: 18 },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    marginHorizontal: SPACING.lg,
+    marginTop: SPACING.sm,
+    padding: SPACING.md,
+    backgroundColor: 'rgba(255, 107, 107, 0.12)',
+    borderRadius: BORDER_RADIUS.md,
+  },
+  errorBannerText: { flex: 1, color: COLORS.coralRed, fontSize: 13, lineHeight: 18 },
 
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',

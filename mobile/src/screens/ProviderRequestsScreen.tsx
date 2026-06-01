@@ -9,11 +9,20 @@ import { Ionicons } from '@expo/vector-icons';
 import { bookingsApi, providerApi } from '@/api';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useAuthStore } from '@/store/authStore';
+import {
+  calculateDuration,
+  formatBookingDateRange,
+  formatCurrency,
+  getApiErrorMessage,
+} from '@/utils/helpers';
 
 export function ProviderRequestsScreen() {
   const { user } = useAuthStore();
   const navigation = useNavigation<any>();
   const isDriverOrTaxi = user?.role === 'driver' || user?.role === 'taxi_driver';
+  const isChauffeur = user?.role === 'driver';
+  const isTaxiDriver = user?.role === 'taxi_driver';
+  const isParkingProvider = user?.role === 'parking_provider';
   const [verificationStatus, setVerificationStatus] = useState<string | null>(null);
   const [verificationLoading, setVerificationLoading] = useState(isDriverOrTaxi);
   const [activeTab, setActiveTab] = useState<'pending' | 'responded'>('pending');
@@ -23,10 +32,12 @@ export function ProviderRequestsScreen() {
   const [respondingId, setRespondingId] = useState<string | null>(null);
   const [rejectMessage, setRejectMessage] = useState('');
   const [showRejectInput, setShowRejectInput] = useState<string | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const fetchRequests = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
+    setFetchError(null);
 
     try {
       const response = await bookingsApi.getProviderRequests();
@@ -34,7 +45,7 @@ export function ProviderRequestsScreen() {
         setRequests(response.data.data || []);
       }
     } catch (err) {
-      console.log('Failed to fetch requests:', err);
+      setFetchError(getApiErrorMessage(err, 'Could not load requests. Pull down to retry.'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -77,7 +88,7 @@ export function ProviderRequestsScreen() {
             Verification Required
           </Text>
           <Text style={{ color: COLORS.textSecondary, fontSize: 14, marginTop: SPACING.sm, textAlign: 'center', lineHeight: 20 }}>
-            You need to complete your document verification and be approved before you can view ride requests.
+            Complete document verification and get approved before accepting work on Gleezip.
           </Text>
           <TouchableOpacity
             style={{ backgroundColor: COLORS.electricTeal, paddingVertical: 14, paddingHorizontal: 32, borderRadius: 12, marginTop: SPACING.xl }}
@@ -118,8 +129,8 @@ export function ProviderRequestsScreen() {
       } else {
         Alert.alert('Error', res.data?.message || 'Failed to respond');
       }
-    } catch (err: any) {
-      Alert.alert('Error', err?.response?.data?.message || err?.message || 'Failed to respond to request');
+    } catch (err: unknown) {
+      Alert.alert('Error', getApiErrorMessage(err, 'Failed to respond to request'));
     } finally {
       setRespondingId(null);
     }
@@ -143,8 +154,8 @@ export function ProviderRequestsScreen() {
               } else {
                 Alert.alert('Error', res.data?.message || 'Failed to complete booking');
               }
-            } catch (err: any) {
-              Alert.alert('Error', err?.response?.data?.message || 'Failed to complete booking');
+            } catch (err: unknown) {
+              Alert.alert('Error', getApiErrorMessage(err, 'Failed to complete booking'));
             } finally {
               setRespondingId(null);
             }
@@ -168,6 +179,8 @@ export function ProviderRequestsScreen() {
     const date = request.createdAt ? new Date(request.createdAt).toLocaleDateString('en-GB', {
       day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
     }) : '';
+    const bookingWindow = formatBookingDateRange(request.startDate, request.endDate);
+    const estimatedTotal = request.quotedPrice != null ? request.quotedPrice : null;
 
     const isPending = request.status === 'pending';
     const isResponding = respondingId === request._id;
@@ -216,19 +229,42 @@ export function ProviderRequestsScreen() {
           </View>
         </View>
 
-        {/* Date & price */}
+        {bookingWindow && (
+          <View style={styles.dateWindow}>
+            <Ionicons name="time-outline" size={16} color={COLORS.electricTeal} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.dateWindowLabel}>Requested period</Text>
+              <Text style={styles.dateWindowValue}>{bookingWindow}</Text>
+              {request.startDate && request.endDate && (
+                <Text style={styles.dateWindowSub}>
+                  {calculateDuration(request.startDate, request.endDate).hours} hr(s) total
+                </Text>
+              )}
+            </View>
+          </View>
+        )}
+
         <View style={styles.detailRow}>
           <Ionicons name="calendar-outline" size={14} color={COLORS.softSlate} />
-          <Text style={styles.detailText}>Requested {date}</Text>
+          <Text style={styles.detailText}>Submitted {date}</Text>
         </View>
-        {request.quotedPrice != null && (
+        {estimatedTotal != null && (
           <View style={styles.detailRow}>
             <Ionicons name="pricetag-outline" size={14} color={COLORS.softSlate} />
             <Text style={styles.detailText}>
-              £{request.quotedPrice.toFixed(2)}/{request.pricingUnit === 'per_hour' ? 'hr' : 'day'}
+              {formatCurrency(estimatedTotal)}
+              {request.pricingUnit ? ` / ${request.pricingUnit === 'per_hour' ? 'hour' : request.pricingUnit === 'per_day' ? 'day' : 'trip'}` : ''}
             </Text>
           </View>
         )}
+        {request.pickupAddress || request.pickupPostcode ? (
+          <View style={styles.detailRow}>
+            <Ionicons name="location-outline" size={14} color={COLORS.softSlate} />
+            <Text style={styles.detailText} numberOfLines={2}>
+              Pickup: {request.pickupAddress || request.pickupPostcode}
+            </Text>
+          </View>
+        ) : null}
 
         {/* Message from requester */}
         {request.message && (
@@ -326,7 +362,13 @@ export function ProviderRequestsScreen() {
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Requests</Text>
+          <Text style={styles.headerTitle}>
+            {isParkingProvider
+              ? 'Parking requests'
+              : isChauffeur
+                ? 'Scheduled jobs'
+                : 'Booking requests'}
+          </Text>
           {pendingRequests.length > 0 && (
             <View style={styles.pendingBadge}>
               <Text style={styles.pendingBadgeText}>{pendingRequests.length}</Text>
@@ -361,6 +403,39 @@ export function ProviderRequestsScreen() {
             <RefreshControl refreshing={refreshing} onRefresh={() => fetchRequests(true)} tintColor={COLORS.electricTeal} />
           }
         >
+          {isTaxiDriver && (
+            <TouchableOpacity
+              style={styles.liveRidesCta}
+              onPress={() => navigation.navigate('DriverRideRequests')}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="car-sport" size={22} color={COLORS.electricTeal} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.liveRidesTitle}>Live taxi ride requests</Text>
+                <Text style={styles.liveRidesSub}>
+                  Point-to-point trips with map tracking — open the live queue
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={COLORS.electricTeal} />
+            </TouchableOpacity>
+          )}
+
+          {isChauffeur && (
+            <View style={styles.infoBanner}>
+              <Ionicons name="information-circle-outline" size={18} color={COLORS.info} />
+              <Text style={styles.infoBannerText}>
+                These are scheduled chauffeur hires. Confirm the dates below before accepting. Live GPS tracking applies to taxi trips, not hourly hires.
+              </Text>
+            </View>
+          )}
+
+          {fetchError && (
+            <View style={styles.errorBanner}>
+              <Ionicons name="alert-circle" size={18} color={COLORS.coralRed} />
+              <Text style={styles.errorBannerText}>{fetchError}</Text>
+            </View>
+          )}
+
           {loading ? (
             <View style={styles.emptyState}>
               <ActivityIndicator size="large" color={COLORS.electricTeal} />
@@ -373,7 +448,9 @@ export function ProviderRequestsScreen() {
               </Text>
               <Text style={styles.emptySubtext}>
                 {activeTab === 'pending'
-                  ? 'When a user requests your service, it will appear here.'
+                  ? isTaxiDriver
+                    ? 'Parking or other bookings appear here. For live trips, use Live Ride Requests on your home screen.'
+                    : 'When a customer requests your service, it will appear here.'
                   : 'Requests you accept or reject will show up here.'}
               </Text>
             </View>
@@ -495,6 +572,54 @@ const styles = StyleSheet.create({
     borderRadius: BORDER_RADIUS.md,
   },
   completeBtnText: { color: '#FFF', fontSize: FONT_SIZES.label, fontWeight: FONT_WEIGHTS.bold },
+
+  dateWindow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: SPACING.sm,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+    backgroundColor: 'rgba(0, 194, 168, 0.08)',
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 194, 168, 0.25)',
+  },
+  dateWindowLabel: { color: COLORS.textSecondary, fontSize: 11, fontWeight: FONT_WEIGHTS.semibold },
+  dateWindowValue: { color: COLORS.textPrimary, fontSize: 14, fontWeight: FONT_WEIGHTS.medium, marginTop: 2 },
+  dateWindowSub: { color: COLORS.textSecondary, fontSize: 12, marginTop: 4 },
+  liveRidesCta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+    padding: SPACING.lg,
+    marginBottom: SPACING.md,
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.lg,
+    borderWidth: 1,
+    borderColor: COLORS.electricTeal,
+  },
+  liveRidesTitle: { color: COLORS.textPrimary, fontSize: 16, fontWeight: FONT_WEIGHTS.bold },
+  liveRidesSub: { color: COLORS.textSecondary, fontSize: 13, marginTop: 2 },
+  infoBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: SPACING.sm,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+    borderRadius: BORDER_RADIUS.md,
+  },
+  infoBannerText: { flex: 1, color: COLORS.textSecondary, fontSize: 13, lineHeight: 18 },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+    backgroundColor: 'rgba(255, 107, 107, 0.12)',
+    borderRadius: BORDER_RADIUS.md,
+  },
+  errorBannerText: { flex: 1, color: COLORS.coralRed, fontSize: 13, lineHeight: 18 },
 
   // Empty
   emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 60 },
