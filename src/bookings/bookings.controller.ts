@@ -127,6 +127,29 @@ export class BookingsController {
   }
 
   /**
+   * PATCH /bookings/:id/complete
+   * Provider marks a booking as completed — frees the parking spot
+   */
+  @Patch(':id/complete')
+  async completeBooking(
+    @Req() req: any,
+    @Param('id') id: string,
+  ) {
+    const result = await this.bookingsService.completeBooking(
+      id,
+      req.user._id || req.user.id,
+    );
+
+    if (!result.success) {
+      throw new HttpException(
+        { message: result.message },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    return result;
+  }
+
+  /**
    * PATCH /bookings/:id/cancel
    * Consumer cancels their own booking
    */
@@ -144,6 +167,22 @@ export class BookingsController {
       throw new HttpException(
         { message: result.message },
         HttpStatus.BAD_REQUEST,
+      );
+    }
+    return result;
+  }
+
+  /**
+   * POST /bookings/auto-complete
+   * Admin/system endpoint to auto-complete all expired bookings
+   */
+  @Post('auto-complete')
+  async autoCompleteExpired() {
+    const result = await this.bookingsService.autoCompleteExpiredBookings();
+    if (!result.success) {
+      throw new HttpException(
+        { message: result.message },
+        HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
     return result;

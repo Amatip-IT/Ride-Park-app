@@ -12,12 +12,16 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { TaxiBookingsService } from './taxi-bookings.service';
+import { RidesService } from 'src/rides/rides.service';
 import { AuthGuard } from 'src/guards/auth.guard';
 
 @Controller('taxi-bookings')
 @UseGuards(AuthGuard)
 export class TaxiBookingsController {
-  constructor(private readonly taxiBookingsService: TaxiBookingsService) {}
+  constructor(
+    private readonly taxiBookingsService: TaxiBookingsService,
+    private readonly ridesService: RidesService,
+  ) {}
 
   /**
    * POST /taxi-bookings/request
@@ -42,6 +46,7 @@ export class TaxiBookingsController {
       passengerNote?: string;
       estimatedDistanceMiles?: number;
       estimatedDurationMinutes?: number;
+      estimatedCost?: number;
     },
   ) {
     const passengerId = req.user._id || req.user.id;
@@ -136,6 +141,34 @@ export class TaxiBookingsController {
   }
 
   /**
+   * PATCH /taxi-bookings/:id/status
+   * Driver updates the status of a ride request (e.g. arrived, in_progress, completed)
+   */
+  @Patch(':id/status')
+  async updateStatus(
+    @Param('id') id: string,
+    @Body() body: { status: string; rideId?: string },
+  ) {
+    if (!body.status) {
+      throw new HttpException(
+        { success: false, message: 'Status is required' },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const result = await this.taxiBookingsService.updateRequestStatus(
+      id,
+      body.status,
+      body.rideId,
+    );
+
+    if (!result.success) {
+      throw new HttpException(result, HttpStatus.BAD_REQUEST);
+    }
+    return result;
+  }
+
+  /**
    * PATCH /taxi-bookings/:id/cancel
    * Passenger cancels their ride request
    */
@@ -170,6 +203,20 @@ export class TaxiBookingsController {
   @Get('admin/active')
   async getAdminActiveRequests() {
     return this.taxiBookingsService.getAllActiveRequests();
+  }
+
+  /**
+   * GET /taxi-bookings/:id/receipt
+   * Trip receipt for a completed taxi request
+   */
+  @Get(':id/receipt')
+  async getRequestReceipt(@Param('id') id: string, @Req() req: any) {
+    const userId = req.user._id || req.user.id;
+    const result = await this.ridesService.getReceiptByTaxiRequest(id, userId);
+    if (!result.success) {
+      throw new HttpException(result, HttpStatus.BAD_REQUEST);
+    }
+    return result;
   }
 
   /**

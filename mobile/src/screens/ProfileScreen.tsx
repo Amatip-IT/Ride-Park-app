@@ -104,6 +104,15 @@ export function ProfileScreen() {
             </TouchableOpacity>
             <View style={styles.menuDivider} />
 
+            <TouchableOpacity style={styles.menuItem} activeOpacity={0.7} onPress={() => navigation.navigate('Disputes')}>
+              <View style={[styles.menuIconWrapper, { backgroundColor: `${COLORS.coralRed}20` }]}>
+                <Ionicons name="help-buoy-outline" size={22} color={COLORS.coralRed} />
+              </View>
+              <Text style={styles.menuTitle}>Help & Disputes</Text>
+              <Ionicons name="chevron-forward" size={20} color={COLORS.softSlate} />
+            </TouchableOpacity>
+            <View style={styles.menuDivider} />
+
             <TouchableOpacity style={styles.menuItem} activeOpacity={0.7} onPress={() => navigation.navigate('Notifications')}>
               <View style={[styles.menuIconWrapper, { backgroundColor: `${COLORS.amber}20` }]}>
                 <Ionicons name="notifications-outline" size={22} color={COLORS.amber} />

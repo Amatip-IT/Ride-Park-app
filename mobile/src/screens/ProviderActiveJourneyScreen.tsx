@@ -1,13 +1,24 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, SafeAreaView,
-  ActivityIndicator, Alert, Platform,
+  ActivityIndicator, Alert, Platform, Linking,
 } from 'react-native';
 import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { taxiBookingsApi, ridesApi } from '@/api';
 import { AmazonMap } from '@/components/AmazonMap';
+import * as Location from 'expo-location';
+import { useTaxiStore } from '@/store/taxiStore';
+import { useAuthStore } from '@/store/authStore';
+import {
+  getApiErrorMessage,
+  haversineDistanceMiles,
+  openMapsNavigation,
+} from '@/utils/helpers';
+import { useRideRouteAndEta } from '@/hooks/useRideRouteAndEta';
+
+type JourneyState = 'accepted' | 'arrived' | 'in_progress' | 'completed';
 
 type ParamList = {
   ProviderActiveJourney: {
@@ -16,6 +27,19 @@ type ParamList = {
   };
 };
 
+function mapRequestStatusToJourney(status?: string): JourneyState {
+  switch (status) {
+    case 'arrived':
+      return 'arrived';
+    case 'in_progress':
+      return 'in_progress';
+    case 'completed':
+      return 'completed';
+    default:
+      return 'accepted';
+  }
+}
+
 export function ProviderActiveJourneyScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<RouteProp<ParamList, 'ProviderActiveJourney'>>();
@@ -23,39 +47,168 @@ export function ProviderActiveJourneyScreen() {
 
   const [requestItem, setRequestItem] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  
-  // Journey state: 'accepted' -> 'arrived' -> 'in_progress' -> 'completed'
-  const [journeyState, setJourneyState] = useState<'accepted' | 'arrived' | 'in_progress' | 'completed'>('accepted');
+  const [actionLoading, setActionLoading] = useState(false);
+  const [journeyState, setJourneyState] = useState<JourneyState>('accepted');
   const [rideId, setRideId] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchRequest();
-  }, [requestId]);
+  const rideStartedAtRef = useRef<number | null>(null);
+  const lastPositionRef = useRef<{ lat: number; lng: number } | null>(null);
+  const accumulatedMilesRef = useRef(0);
+
+  const { user } = useAuthStore();
+  const { connect, joinRide, leaveRide, updateDriverLocation, driverLocation } = useTaxiStore();
+  const { routeCoordinates, etaLabel } = useRideRouteAndEta(requestItem, driverLocation);
+
+  const applyRequestData = useCallback((data: any) => {
+    setRequestItem(data);
+    if (data?.status) {
+      setJourneyState(mapRequestStatusToJourney(data.status));
+    }
+    const linkedRide = data?.ride?._id || data?.ride;
+    if (linkedRide) {
+      setRideId(String(linkedRide));
+    }
+    if (data?.status === 'in_progress' && !rideStartedAtRef.current) {
+      rideStartedAtRef.current = data.updatedAt
+        ? new Date(data.updatedAt).getTime()
+        : Date.now();
+    }
+  }, []);
 
   const fetchRequest = async () => {
     try {
       const res = await taxiBookingsApi.getRequest(requestId);
       if (res.data?.success) {
-        setRequestItem(res.data.data);
+        applyRequestData(res.data.data);
       }
     } catch (err) {
-      console.log('Failed to fetch request details:', err);
+      Alert.alert('Error', getApiErrorMessage(err, 'Failed to load trip details.'));
     } finally {
       setLoading(false);
     }
   };
 
+  useEffect(() => {
+    fetchRequest();
+  }, [requestId]);
+
+  const trackLocation = ['accepted', 'arrived', 'in_progress'].includes(journeyState);
+
+  useEffect(() => {
+    let locationSubscription: Location.LocationSubscription | null = null;
+
+    const startWatching = async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Location required', 'Enable location to share your position with the passenger.');
+          return;
+        }
+
+        locationSubscription = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.High,
+            timeInterval: 2000,
+            distanceInterval: 5,
+          },
+          (location) => {
+            const { latitude, longitude, heading } = location.coords;
+            const driverId = user?._id || (user as any)?.id;
+
+            if (driverId && requestId) {
+              updateDriverLocation(requestId, driverId, latitude, longitude, heading || 0);
+            }
+
+            if (journeyState === 'in_progress') {
+              const last = lastPositionRef.current;
+              if (last) {
+                accumulatedMilesRef.current += haversineDistanceMiles(
+                  last.lat,
+                  last.lng,
+                  latitude,
+                  longitude,
+                );
+              }
+              lastPositionRef.current = { lat: latitude, lng: longitude };
+            }
+          },
+        );
+      } catch (err) {
+        console.error('Error starting location watcher:', err);
+      }
+    };
+
+    if (user && trackLocation) {
+      const userId = user._id || (user as any).id;
+      connect(userId);
+      joinRide(requestId);
+      startWatching();
+    }
+
+    return () => {
+      locationSubscription?.remove();
+      leaveRide(requestId);
+    };
+  }, [requestId, user, journeyState, trackLocation]);
+
+  const resolveTripMetrics = () => {
+    const estimatedMiles = requestItem?.estimatedDistanceMiles || 5;
+    const estimatedMins = requestItem.estimatedDurationMinutes || 15;
+
+    let distanceMiles = accumulatedMilesRef.current;
+    if (distanceMiles < 0.1 && requestItem?.pickupLat && requestItem?.destinationLat) {
+      distanceMiles = haversineDistanceMiles(
+        requestItem.pickupLat,
+        requestItem.pickupLng,
+        requestItem.destinationLat,
+        requestItem.destinationLng,
+      );
+    }
+    if (distanceMiles < 0.1) {
+      distanceMiles = estimatedMiles;
+    }
+
+    let durationMinutes = estimatedMins;
+    if (rideStartedAtRef.current) {
+      durationMinutes = Math.max(
+        1,
+        Math.ceil((Date.now() - rideStartedAtRef.current) / 60000),
+      );
+    }
+
+    return {
+      distanceMiles: Math.round(distanceMiles * 100) / 100,
+      durationMinutes,
+    };
+  };
+
   const handleAction = async () => {
+    if (actionLoading) return;
+    setActionLoading(true);
+
     try {
       if (journeyState === 'accepted') {
-        // Driver arrived at pickup
-        setJourneyState('arrived');
-        Alert.alert('Arrived', 'Passenger has been notified of your arrival.');
+        const res = await taxiBookingsApi.updateStatus(requestId, 'arrived');
+        if (res.data?.success) {
+          applyRequestData(res.data.data);
+          Alert.alert('Arrived', 'Passenger has been notified of your arrival.');
+        } else {
+          Alert.alert('Error', res.data?.message || 'Failed to update status');
+        }
       } else if (journeyState === 'arrived') {
-        // Start the actual ride
+        const passengerId =
+          requestItem.passenger?._id || requestItem.passenger;
+        const driverId = user?._id || (user as any)?.id;
+
+        if (!passengerId || !driverId) {
+          Alert.alert('Error', 'Missing passenger or driver information.');
+          return;
+        }
+
         const res = await ridesApi.startRide({
-          driverId: requestItem.acceptedDriver._id || requestItem.acceptedDriver,
-          serviceType: serviceType,
+          passengerId: String(passengerId),
+          driverId: String(driverId),
+          serviceType,
           bookingId: requestId,
           pickup: {
             address: requestItem.pickupAddress || requestItem.pickupPostcode,
@@ -66,57 +219,118 @@ export function ProviderActiveJourneyScreen() {
             address: requestItem.destinationAddress || requestItem.destinationPostcode,
             lat: requestItem.destinationLat,
             lng: requestItem.destinationLng,
-          }
+          },
         });
+
         if (res.data?.success) {
-          setRideId(res.data.data._id);
-          setJourneyState('in_progress');
-          Alert.alert('Ride Started', 'The journey is now in progress.');
+          const newRideId = res.data.data._id;
+          setRideId(newRideId);
+          rideStartedAtRef.current = Date.now();
+          lastPositionRef.current = null;
+          accumulatedMilesRef.current = 0;
+
+          const statusRes = await taxiBookingsApi.updateStatus(requestId, 'in_progress', newRideId);
+          if (statusRes.data?.success) {
+            applyRequestData(statusRes.data.data);
+          } else {
+            setJourneyState('in_progress');
+          }
+          Alert.alert('Ride started', 'Head to the destination. The passenger can track your trip.');
         } else {
           Alert.alert('Error', res.data?.message || 'Failed to start ride');
         }
       } else if (journeyState === 'in_progress') {
-        // Complete the ride and calculate final fare
-        if (!rideId) return;
-        const res = await ridesApi.completeRide(
-          rideId,
-          requestItem.estimatedDistanceMiles || 5, // Simulation defaults
-          requestItem.estimatedDurationMinutes || 15
-        );
+        if (!rideId) {
+          Alert.alert('Error', 'Ride record not found. Please try again.');
+          return;
+        }
+
+        const { distanceMiles, durationMinutes } = resolveTripMetrics();
+        const res = await ridesApi.completeRide(rideId, distanceMiles, durationMinutes);
+
         if (res.data?.success) {
-          setJourneyState('completed');
+          const statusRes = await taxiBookingsApi.updateStatus(requestId, 'completed');
+          if (statusRes.data?.success) {
+            applyRequestData(statusRes.data.data);
+          } else {
+            setJourneyState('completed');
+          }
+
+          const total = res.data.data?.totalCost ?? 0;
           Alert.alert(
-            'Ride Completed',
-            `The total fare is £${res.data.data.totalCost.toFixed(2)}. Please collect payment.`
+            'Ride completed',
+            `Fare: £${total.toFixed(2)}. Payment will be charged to the passenger's saved card automatically.`,
+            [{ text: 'OK' }],
           );
         } else {
           Alert.alert('Error', res.data?.message || 'Failed to complete ride');
         }
       } else if (journeyState === 'completed') {
-        navigation.navigate('ProviderHome');
+        navigation.navigate('ProviderTabs', { screen: 'ProviderHome' });
       }
-    } catch (err: any) {
-      Alert.alert('Error', err?.response?.data?.message || 'An error occurred');
+    } catch (err: unknown) {
+      Alert.alert('Error', getApiErrorMessage(err, 'An error occurred'));
+    } finally {
+      setActionLoading(false);
     }
+  };
+
+  const callPassenger = () => {
+    const phone = requestItem?.passenger?.phoneNumber;
+    if (phone) {
+      Linking.openURL(`tel:${phone}`).catch(() => {
+        Alert.alert('Could not call', 'Unable to open the phone app.');
+      });
+    } else {
+      Alert.alert('Unavailable', 'Passenger phone number is not available.');
+    }
+  };
+
+  const navigateToPickup = () => {
+    openMapsNavigation({
+      lat: requestItem?.pickupLat,
+      lng: requestItem?.pickupLng,
+      label: 'Pickup',
+      address: [requestItem?.pickupAddress, requestItem?.pickupPostcode].filter(Boolean).join(', '),
+    });
+  };
+
+  const navigateToDropoff = () => {
+    openMapsNavigation({
+      lat: requestItem?.destinationLat,
+      lng: requestItem?.destinationLng,
+      label: 'Drop-off',
+      address: [requestItem?.destinationAddress, requestItem?.destinationPostcode].filter(Boolean).join(', '),
+    });
   };
 
   const getActionText = () => {
     switch (journeyState) {
-      case 'accepted': return 'I Have Arrived';
-      case 'arrived': return 'Start Ride (Pick Up)';
-      case 'in_progress': return 'Complete Ride & Request Payment';
-      case 'completed': return 'Finish & Return Home';
-      default: return 'Action';
+      case 'accepted':
+        return 'I Have Arrived';
+      case 'arrived':
+        return 'Start Ride (Pick Up)';
+      case 'in_progress':
+        return 'Complete Ride';
+      case 'completed':
+        return 'Finish & Return Home';
+      default:
+        return 'Continue';
     }
   };
 
   const getActionColor = () => {
     switch (journeyState) {
-      case 'accepted': return COLORS.amber;
-      case 'arrived': return COLORS.success;
-      case 'in_progress': return COLORS.error;
-      case 'completed': return COLORS.electricTeal;
-      default: return COLORS.electricTeal;
+      case 'accepted':
+        return COLORS.amber;
+      case 'arrived':
+        return COLORS.success;
+      case 'in_progress':
+        return COLORS.error;
+      case 'completed':
+        return COLORS.electricTeal;
+      default:
+        return COLORS.electricTeal;
     }
   };
 
@@ -140,15 +354,21 @@ export function ProviderActiveJourneyScreen() {
     );
   }
 
+  const navTarget =
+    journeyState === 'in_progress' ? 'dropoff' : 'pickup';
+
   return (
     <SafeAreaView style={styles.safeArea}>
-      {/* Live Map Integration utilizing AWS MapLibre HTML Script */}
       <View style={styles.mapContainer}>
-        <AmazonMap 
-           pickupLat={requestItem.pickupLat}
-           pickupLng={requestItem.pickupLng}
-           destinationLat={requestItem.destinationLat}
-           destinationLng={requestItem.destinationLng}
+        <AmazonMap
+          pickupLat={requestItem.pickupLat}
+          pickupLng={requestItem.pickupLng}
+          destinationLat={requestItem.destinationLat}
+          destinationLng={requestItem.destinationLng}
+          driverLat={driverLocation?.lat}
+          driverLng={driverLocation?.lng}
+          driverRotation={driverLocation?.rotation}
+          routeCoordinates={routeCoordinates}
         />
       </View>
 
@@ -157,33 +377,69 @@ export function ProviderActiveJourneyScreen() {
           <Text style={styles.passengerStr}>
             {requestItem.passenger?.firstName} {requestItem.passenger?.lastName}
           </Text>
-          <TouchableOpacity style={styles.callBtn}>
+          <TouchableOpacity style={styles.callBtn} onPress={callPassenger} activeOpacity={0.8}>
             <Ionicons name="call" size={20} color="#FFF" />
           </TouchableOpacity>
         </View>
 
         <View style={styles.routeBox}>
-          <View style={styles.routeRow}>
+          <TouchableOpacity style={styles.routeRow} onPress={navigateToPickup} activeOpacity={0.7}>
             <Ionicons name="radio-button-on" size={16} color={COLORS.success} />
-            <Text style={styles.routeText} numberOfLines={1}>
+            <Text style={styles.routeText} numberOfLines={2}>
               {requestItem.pickupAddress || requestItem.pickupPostcode || 'GPS Location'}
             </Text>
-          </View>
+            <Ionicons name="navigate-outline" size={18} color={COLORS.electricTeal} />
+          </TouchableOpacity>
           <View style={styles.routeDivider} />
-          <View style={styles.routeRow}>
+          <TouchableOpacity style={styles.routeRow} onPress={navigateToDropoff} activeOpacity={0.7}>
             <Ionicons name="location" size={16} color={COLORS.error} />
-            <Text style={styles.routeText} numberOfLines={1}>
+            <Text style={styles.routeText} numberOfLines={2}>
               {requestItem.destinationAddress || requestItem.destinationPostcode}
             </Text>
-          </View>
+            <Ionicons name="navigate-outline" size={18} color={COLORS.electricTeal} />
+          </TouchableOpacity>
         </View>
 
-        <TouchableOpacity 
-          style={[styles.mainBtn, { backgroundColor: getActionColor() }]} 
-          onPress={handleAction}
+        {etaLabel && journeyState !== 'completed' && (
+          <View style={styles.etaBanner}>
+            <Ionicons name="time-outline" size={18} color={COLORS.electricTeal} />
+            <Text style={styles.etaText}>{etaLabel}</Text>
+          </View>
+        )}
+
+        <TouchableOpacity
+          style={styles.navBtn}
+          onPress={navTarget === 'dropoff' ? navigateToDropoff : navigateToPickup}
           activeOpacity={0.8}
         >
-          <Text style={styles.mainBtnText}>{getActionText()}</Text>
+          <Ionicons name="navigate" size={20} color={COLORS.electricTeal} />
+          <Text style={styles.navBtnText}>
+            {navTarget === 'dropoff' ? 'Navigate to drop-off' : 'Navigate to pickup'}
+          </Text>
+        </TouchableOpacity>
+
+        {journeyState === 'completed' && (
+          <TouchableOpacity
+            style={styles.receiptBtn}
+            onPress={() => navigation.navigate('TripReceipt', { requestId })}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="receipt-outline" size={18} color={COLORS.electricTeal} />
+            <Text style={styles.receiptBtnText}>View trip receipt</Text>
+          </TouchableOpacity>
+        )}
+
+        <TouchableOpacity
+          style={[styles.mainBtn, { backgroundColor: getActionColor() }, actionLoading && { opacity: 0.7 }]}
+          onPress={handleAction}
+          disabled={actionLoading}
+          activeOpacity={0.8}
+        >
+          {actionLoading ? (
+            <ActivityIndicator color="#FFF" />
+          ) : (
+            <Text style={styles.mainBtnText}>{getActionText()}</Text>
+          )}
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -194,23 +450,104 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: COLORS.background },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   mapContainer: { flex: 1, backgroundColor: '#E2E8F0' },
-  map: { width: '100%', height: '100%' },
-  mapMock: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  mapMockText: { color: COLORS.textSecondary, fontWeight: FONT_WEIGHTS.semibold, marginTop: SPACING.sm },
   detailsContainer: {
     backgroundColor: COLORS.surface,
     padding: SPACING.xl,
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
-    shadowColor: '#000', shadowOffset: { width: 0, height: -3 }, shadowOpacity: 0.1, shadowRadius: 10, elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 10,
   },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.lg },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.lg,
+  },
   passengerStr: { fontSize: 22, fontWeight: FONT_WEIGHTS.bold, color: COLORS.textPrimary },
-  callBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: COLORS.success, justifyContent: 'center', alignItems: 'center' },
-  routeBox: { backgroundColor: COLORS.background, padding: SPACING.md, borderRadius: BORDER_RADIUS.md, borderWidth: 1, borderColor: COLORS.border, marginBottom: SPACING.xl },
+  callBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: COLORS.success,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  routeBox: {
+    backgroundColor: COLORS.background,
+    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginBottom: SPACING.md,
+  },
   routeRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
-  routeDivider: { width: 2, height: 16, backgroundColor: COLORS.border, marginVertical: 4, marginLeft: 7 },
+  routeDivider: {
+    width: 2,
+    height: 16,
+    backgroundColor: COLORS.border,
+    marginVertical: 4,
+    marginLeft: 7,
+  },
   routeText: { fontSize: FONT_SIZES.body, color: COLORS.textSecondary, flex: 1 },
-  mainBtn: { paddingVertical: SPACING.xl, borderRadius: BORDER_RADIUS.lg, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 4 },
+  etaBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.sm,
+    paddingVertical: SPACING.sm,
+    marginBottom: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    backgroundColor: `${COLORS.electricTeal}12`,
+  },
+  etaText: {
+    color: COLORS.electricTeal,
+    fontSize: 15,
+    fontWeight: FONT_WEIGHTS.semibold,
+  },
+  receiptBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.sm,
+    paddingVertical: SPACING.md,
+    marginBottom: SPACING.md,
+    borderRadius: BORDER_RADIUS.lg,
+    borderWidth: 1,
+    borderColor: COLORS.electricTeal,
+    backgroundColor: `${COLORS.electricTeal}10`,
+  },
+  receiptBtnText: {
+    color: COLORS.electricTeal,
+    fontSize: 15,
+    fontWeight: FONT_WEIGHTS.bold,
+  },
+  navBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.sm,
+    paddingVertical: SPACING.md,
+    marginBottom: SPACING.lg,
+    borderRadius: BORDER_RADIUS.lg,
+    borderWidth: 1,
+    borderColor: COLORS.electricTeal,
+    backgroundColor: `${COLORS.electricTeal}10`,
+  },
+  navBtnText: {
+    color: COLORS.electricTeal,
+    fontSize: 15,
+    fontWeight: FONT_WEIGHTS.bold,
+  },
+  mainBtn: {
+    paddingVertical: SPACING.xl,
+    borderRadius: BORDER_RADIUS.lg,
+    alignItems: 'center',
+    minHeight: 56,
+    justifyContent: 'center',
+  },
   mainBtnText: { color: '#FFF', fontSize: 18, fontWeight: FONT_WEIGHTS.bold },
 });

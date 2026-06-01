@@ -19,7 +19,7 @@ type LegalScreenRouteProp = RouteProp<RootStackParamList, 'LegalDocument'>;
 export function LegalDocumentScreen() {
   const navigation = useNavigation();
   const route = useRoute<LegalScreenRouteProp>();
-  const { documentType } = route.params;
+  const documentType = route.params?.documentType ?? 'terms';
 
   const title = documentType === 'privacy' 
     ? 'Privacy Policy' 

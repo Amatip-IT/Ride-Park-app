@@ -31,24 +31,21 @@ export class SearchService {
       const skip = (page - 1) * limit;
       const cleanQuery = query.trim();
 
-      if (!cleanQuery) {
-        return { success: false, message: 'Please enter a location or postcode to search' };
-      }
-
       // Build a flexible search filter:
-      // 1. Exact postcode match (case-insensitive)
-      // 2. Town/name partial match (case-insensitive regex)
-      const searchFilter = {
+      const searchFilter: any = {
         isAvailable: true,
         isVerified: true, // Only show admin-approved parking spaces
-        $or: [
+      };
+
+      if (cleanQuery) {
+        searchFilter.$or = [
           { postCode: { $regex: new RegExp(`^${cleanQuery}`, 'i') } },
           { town: { $regex: new RegExp(cleanQuery, 'i') } },
           { name: { $regex: new RegExp(cleanQuery, 'i') } },
           { county: { $regex: new RegExp(cleanQuery, 'i') } },
           { nearestPlace: { $regex: new RegExp(cleanQuery, 'i') } },
-        ],
-      };
+        ];
+      }
 
       const [spaces, total] = await Promise.all([
         this.parkingSpaceModel

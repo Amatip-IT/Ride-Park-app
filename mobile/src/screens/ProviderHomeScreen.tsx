@@ -8,6 +8,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/store/authStore';
 import { useNavigation, NavigationProp, useFocusEffect } from '@react-navigation/native';
 import { bookingsApi, providerApi, taxiBookingsApi } from '@/api';
+import { getApiErrorMessage } from '@/utils/helpers';
+import { useProviderRideAlerts } from '@/hooks/useProviderRideAlerts';
 
 export function ProviderHomeScreen() {
   const { user } = useAuthStore();
@@ -25,9 +27,16 @@ export function ProviderHomeScreen() {
   // Verification gate state
   const [verificationStatus, setVerificationStatus] = useState<string | null>(null);
   const [verificationLoading, setVerificationLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
+  const isOnline = driverStatus === 'online';
+  const { availableCount: liveRideCount } = useProviderRideAlerts(
+    isDriverOrTaxi && isOnline && verificationStatus === 'approved',
+  );
 
   const fetchStats = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
+    setFetchError(null);
     try {
       const res = await bookingsApi.getProviderRequests();
       if (res.data?.success) {
@@ -59,11 +68,11 @@ export function ProviderHomeScreen() {
             setActiveJourneyId(null);
           }
         } catch (e) {
-          console.log('Failed to fetch active journeys', e);
+          // non-fatal
         }
       }
     } catch (err) {
-      console.log('Failed to fetch stats:', err);
+      setFetchError(getApiErrorMessage(err, 'Could not refresh your dashboard.'));
     } finally {
       setRefreshing(false);
     }
@@ -80,7 +89,15 @@ export function ProviderHomeScreen() {
           try {
             const res = await providerApi.getVerificationStatus();
             if (res.data?.success) {
-              setVerificationStatus(res.data.data?.status || 'not_applied');
+              const data = res.data.data;
+              setVerificationStatus(data?.status || 'not_applied');
+              const avail = data?.availability;
+              if (avail === 'online' || avail === 'offline' || avail === 'busy') {
+                setDriverStatus(avail);
+              }
+              if (data?.driverNumber) {
+                setDriverNumber(String(data.driverNumber));
+              }
             } else {
               setVerificationStatus('not_applied');
             }
@@ -109,12 +126,15 @@ export function ProviderHomeScreen() {
     try {
       const res = await providerApi.toggleStatus(newStatus);
       if (res.data?.success) {
-        setDriverStatus(newStatus);
+        const avail = res.data.data?.availability;
+        setDriverStatus(
+          avail === 'online' || avail === 'offline' || avail === 'busy' ? avail : newStatus,
+        );
       } else {
         Alert.alert('Error', res.data?.message || 'Failed to update status');
       }
-    } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Failed to update status');
+    } catch (err: unknown) {
+      Alert.alert('Error', getApiErrorMessage(err, 'Failed to update status'));
     } finally {
       setTogglingStatus(false);
     }
@@ -260,6 +280,34 @@ export function ProviderHomeScreen() {
             <RefreshControl refreshing={refreshing} onRefresh={() => fetchStats(true)} tintColor={COLORS.electricTeal} />
           }
         >
+          {fetchError && (
+            <View style={styles.errorBanner}>
+              <Ionicons name="alert-circle" size={18} color={COLORS.coralRed} />
+              <Text style={styles.errorBannerText}>{fetchError}</Text>
+              <TouchableOpacity onPress={() => fetchStats(true)}>
+                <Text style={styles.retryLink}>Retry</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {isDriverOrTaxi && user?.role === 'driver' && (
+            <View style={styles.infoBanner}>
+              <Ionicons name="information-circle-outline" size={20} color={COLORS.info} />
+              <Text style={styles.infoBannerText}>
+                Chauffeur hires are scheduled bookings under View Requests. Live map tracking is used for taxi trips only.
+              </Text>
+            </View>
+          )}
+
+          {isDriverOrTaxi && user?.role === 'taxi_driver' && (
+            <View style={styles.infoBanner}>
+              <Ionicons name="information-circle-outline" size={20} color={COLORS.electricTeal} />
+              <Text style={styles.infoBannerText}>
+                Go online to receive live ride requests. Passengers track you on the map during active trips.
+              </Text>
+            </View>
+          )}
+
           {/* Driver Status Toggle (for driver/taxi only) */}
           {isDriverOrTaxi && (
             <View style={styles.statusCard}>
@@ -373,21 +421,60 @@ export function ProviderHomeScreen() {
             <Ionicons name="chevron-forward" size={20} color={COLORS.textTertiary} />
           </TouchableOpacity>
 
-          {/* Ride Requests (driver/taxi only) */}
-          {isDriverOrTaxi && (
+          {/* Manage Spaces (parking provider only) */}
+          {!isDriverOrTaxi && (
             <TouchableOpacity
               style={styles.actionCard}
-              onPress={() => navigation.navigate('DriverRideRequests')}
+              onPress={() => navigation.navigate('ProviderSpaceManagement')}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.actionIcon, { backgroundColor: `${COLORS.electricTeal}12` }]}>
+                <Ionicons name="business" size={24} color={COLORS.electricTeal} />
+              </View>
+              <View style={styles.actionContent}>
+                <Text style={styles.actionTitle}>Manage My Spaces</Text>
+                <Text style={styles.actionSubtext}>Edit pricing, capacity, and availability</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={COLORS.textTertiary} />
+            </TouchableOpacity>
+          )}
+
+          {/* Ride Requests (driver/taxi only) */}
+          {isDriverOrTaxi && user?.role === 'taxi_driver' && (
+            <TouchableOpacity
+              style={styles.actionCard}
+              onPress={() => {
+                if (!isOnline) {
+                  Alert.alert(
+                    'Go online first',
+                    'Turn on online status to see and accept live ride requests.',
+                  );
+                  return;
+                }
+                navigation.navigate('DriverRideRequests');
+              }}
               activeOpacity={0.7}
             >
               <View style={[styles.actionIcon, { backgroundColor: `${COLORS.amber}12` }]}>
                 <Ionicons name="car" size={24} color={COLORS.amber} />
               </View>
               <View style={styles.actionContent}>
-                <Text style={styles.actionTitle}>Ride Requests</Text>
-                <Text style={styles.actionSubtext}>See passenger ride requests near you</Text>
+                <Text style={styles.actionTitle}>Live Ride Requests</Text>
+                <Text style={styles.actionSubtext}>
+                  {isOnline
+                    ? liveRideCount > 0
+                      ? `${liveRideCount} request${liveRideCount > 1 ? 's' : ''} waiting`
+                      : 'Listening for passengers nearby'
+                    : 'Go online to receive trips'}
+                </Text>
               </View>
-              <Ionicons name="chevron-forward" size={20} color={COLORS.textTertiary} />
+              {isOnline && liveRideCount > 0 ? (
+                <View style={styles.liveBadge}>
+                  <Text style={styles.liveBadgeText}>{liveRideCount}</Text>
+                </View>
+              ) : (
+                <Ionicons name="chevron-forward" size={20} color={COLORS.textTertiary} />
+              )}
             </TouchableOpacity>
           )}
 
@@ -522,6 +609,38 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary, fontSize: FONT_SIZES.body,
     fontWeight: FONT_WEIGHTS.semibold, marginBottom: SPACING.md,
   },
+
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+    backgroundColor: 'rgba(255, 107, 107, 0.12)',
+    borderRadius: BORDER_RADIUS.md,
+  },
+  errorBannerText: { flex: 1, color: COLORS.coralRed, fontSize: 13, lineHeight: 18 },
+  retryLink: { color: COLORS.electricTeal, fontWeight: FONT_WEIGHTS.bold, fontSize: 13 },
+  infoBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: SPACING.sm,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+    borderRadius: BORDER_RADIUS.md,
+  },
+  infoBannerText: { flex: 1, color: COLORS.textSecondary, fontSize: 13, lineHeight: 18 },
+  liveBadge: {
+    backgroundColor: COLORS.coralRed,
+    minWidth: 26,
+    height: 26,
+    borderRadius: 13,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+  },
+  liveBadgeText: { color: '#FFF', fontSize: 12, fontWeight: FONT_WEIGHTS.bold },
 
   // Action cards
   actionCard: {

@@ -6,7 +6,17 @@ import {
 import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { bookingsApi, taxiBookingsApi } from '@/api';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { RatingModal } from '@/components/RatingModal';
+import { getApiErrorMessage } from '@/utils/helpers';
+
+type RatingTarget = {
+  subjectName: string;
+  subjectId: string;
+  bookingId: string;
+  serviceType: 'parking' | 'driver' | 'taxi';
+  title: string;
+};
 
 const STATUS_CONFIG: Record<string, { color: string; label: string; icon: keyof typeof Ionicons.glyphMap }> = {
   pending: { color: COLORS.amber, label: 'Pending', icon: 'time-outline' },
@@ -17,17 +27,21 @@ const STATUS_CONFIG: Record<string, { color: string; label: string; icon: keyof 
 };
 
 export function BookingsScreen() {
+  const navigation = useNavigation<any>();
   const [activeTab, setActiveTab] = useState<'active' | 'past'>('active');
   const [bookings, setBookings] = useState<any[]>([]);
   const [rideRequests, setRideRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [ratingTarget, setRatingTarget] = useState<RatingTarget | null>(null);
 
   const fetchBookings = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
 
     try {
+      setFetchError(null);
       const [bookingsRes, ridesRes] = await Promise.all([
         bookingsApi.getMyBookings(),
         taxiBookingsApi.getMyRequests(),
@@ -39,7 +53,7 @@ export function BookingsScreen() {
         setRideRequests(ridesRes.data.data || []);
       }
     } catch (err) {
-      console.log('Failed to fetch bookings:', err);
+      setFetchError(getApiErrorMessage(err, 'Could not load your bookings. Pull down to retry.'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -109,7 +123,9 @@ export function BookingsScreen() {
 
   // Combine bookings + ride requests for display
   const activeBookings = bookings.filter(b => ['pending', 'accepted'].includes(b.status));
-  const activeRides = rideRequests.filter(r => ['searching', 'accepted'].includes(r.status));
+  const activeRides = rideRequests.filter(r =>
+    ['searching', 'accepted', 'arrived', 'in_progress'].includes(r.status),
+  );
   const pastBookings = bookings.filter(b => ['rejected', 'cancelled', 'completed'].includes(b.status));
   const pastRides = rideRequests.filter(r => ['cancelled', 'completed', 'expired'].includes(r.status));
   const displayBookings = activeTab === 'active' ? activeBookings : pastBookings;
@@ -169,6 +185,22 @@ export function BookingsScreen() {
             <Text style={styles.responseLabel}>Provider's response:</Text>
             <Text style={styles.responseText}>{booking.responseMessage}</Text>
           </View>
+        )}
+
+        {booking.status === 'completed' && booking.provider?._id && (
+          <TouchableOpacity
+            style={styles.trackBtn}
+            onPress={() => setRatingTarget({
+              subjectName: providerName,
+              subjectId: booking.provider._id,
+              bookingId: booking._id,
+              serviceType: booking.serviceType === 'parking' ? 'parking' : 'driver',
+              title: booking.serviceType === 'parking' ? 'Rate Parking Provider' : 'Rate Your Driver',
+            })}
+          >
+            <Ionicons name="star-outline" size={16} color={COLORS.amber} />
+            <Text style={[styles.trackBtnText, { color: COLORS.amber }]}>Leave a Review</Text>
+          </TouchableOpacity>
         )}
 
         {/* Cancel button for active bookings */}
@@ -236,7 +268,17 @@ export function BookingsScreen() {
           </View>
         )}
 
-        {/* Cancel button for active rides */}
+        {/* Track / cancel for active rides */}
+        {['searching', 'accepted', 'arrived', 'in_progress'].includes(ride.status) && (
+          <TouchableOpacity
+            style={styles.trackBtn}
+            onPress={() => navigation.navigate('PassengerTracking', { requestId: ride._id })}
+          >
+            <Ionicons name="navigate-outline" size={16} color={COLORS.electricTeal} />
+            <Text style={styles.trackBtnText}>Track Ride</Text>
+          </TouchableOpacity>
+        )}
+
         {['searching', 'accepted'].includes(ride.status) && (
           <TouchableOpacity
             style={styles.cancelBtn}
@@ -244,6 +286,16 @@ export function BookingsScreen() {
           >
             <Ionicons name="close" size={16} color={COLORS.coralRed} />
             <Text style={styles.cancelBtnText}>Cancel Ride</Text>
+          </TouchableOpacity>
+        )}
+
+        {ride.status === 'completed' && (
+          <TouchableOpacity
+            style={styles.trackBtn}
+            onPress={() => navigation.navigate('TripReceipt', { requestId: ride._id })}
+          >
+            <Ionicons name="receipt-outline" size={16} color={COLORS.electricTeal} />
+            <Text style={styles.trackBtnText}>Trip receipt</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -279,6 +331,13 @@ export function BookingsScreen() {
           </TouchableOpacity>
         </View>
 
+        {fetchError && (
+          <View style={styles.errorBanner}>
+            <Ionicons name="alert-circle" size={18} color={COLORS.coralRed} />
+            <Text style={styles.errorBannerText}>{fetchError}</Text>
+          </View>
+        )}
+
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
@@ -312,6 +371,18 @@ export function BookingsScreen() {
           )}
         </ScrollView>
       </View>
+
+      {ratingTarget && (
+        <RatingModal
+          visible={!!ratingTarget}
+          onClose={() => setRatingTarget(null)}
+          subjectName={ratingTarget.subjectName}
+          subjectId={ratingTarget.subjectId}
+          bookingId={ratingTarget.bookingId}
+          serviceType={ratingTarget.serviceType}
+          title={ratingTarget.title}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -387,6 +458,13 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
   },
   cancelBtnText: { color: COLORS.coralRed, fontSize: FONT_SIZES.label, fontWeight: FONT_WEIGHTS.bold },
+  trackBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    marginTop: SPACING.md, paddingVertical: SPACING.sm,
+    borderWidth: 1, borderColor: COLORS.electricTeal, borderRadius: BORDER_RADIUS.md,
+    backgroundColor: COLORS.background,
+  },
+  trackBtnText: { color: COLORS.electricTeal, fontSize: FONT_SIZES.label, fontWeight: FONT_WEIGHTS.bold },
 
   // Empty
   emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 60 },
@@ -401,5 +479,21 @@ const styles = StyleSheet.create({
   },
   emptyStateSubtext: {
     color: COLORS.textSecondary, fontSize: 16, textAlign: 'center', maxWidth: '85%', lineHeight: 24,
+  },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    marginHorizontal: SPACING.lg,
+    marginBottom: SPACING.sm,
+    padding: SPACING.md,
+    backgroundColor: 'rgba(255, 107, 107, 0.12)',
+    borderRadius: BORDER_RADIUS.md,
+  },
+  errorBannerText: {
+    flex: 1,
+    color: COLORS.coralRed,
+    fontSize: 13,
+    lineHeight: 18,
   },
 });

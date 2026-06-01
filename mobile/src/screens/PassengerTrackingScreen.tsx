@@ -8,24 +8,43 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
 import { taxiBookingsApi } from '@/api';
 import { AmazonMap } from '@/components/AmazonMap';
+import { useTaxiStore } from '@/store/taxiStore';
+import { useAuthStore } from '@/store/authStore';
+import { RatingModal } from '@/components/RatingModal';
+import { useRideRouteAndEta } from '@/hooks/useRideRouteAndEta';
 
 type ParamList = {
-  PassengerTrackingScreen: { requestId: string };
+  PassengerTracking: { requestId: string };
 };
 
 export function PassengerTrackingScreen() {
   const navigation = useNavigation<any>();
-  const route = useRoute<RouteProp<ParamList, 'PassengerTrackingScreen'>>();
+  const route = useRoute<RouteProp<ParamList, 'PassengerTracking'>>();
   const { requestId } = route.params;
 
-  const [request, setRequest] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [showRating, setShowRating] = useState(false);
+  const [ratingDismissed, setRatingDismissed] = useState(false);
+  
+  const { user } = useAuthStore();
+  const {
+    connect,
+    disconnect,
+    joinRide,
+    leaveRide,
+    activeRequest,
+    driverLocation,
+    setActiveRequest,
+  } = useTaxiStore();
+
+  const request = activeRequest;
+  const { routeCoordinates, etaLabel } = useRideRouteAndEta(request, driverLocation);
 
   const fetchRequest = async () => {
     try {
       const res = await taxiBookingsApi.getRequest(requestId);
       if (res.data?.success) {
-        setRequest(res.data.data);
+        setActiveRequest(res.data.data);
       }
     } catch (err) {
       console.log('Failed to fetch request:', err);
@@ -36,15 +55,42 @@ export function PassengerTrackingScreen() {
 
   useEffect(() => {
     fetchRequest();
-  }, [requestId]);
 
-  // Poll for status updates every 10 seconds
+    // Setup real-time Socket.io booking connection
+    if (user) {
+      const userId = user._id || (user as any).id;
+      connect(userId);
+      joinRide(requestId);
+    }
+
+    return () => {
+      leaveRide(requestId);
+    };
+  }, [requestId, user]);
+
+  // Keep a long fallback polling interval (30s) just in case of network drops
   useFocusEffect(
     useCallback(() => {
-      const interval = setInterval(fetchRequest, 10000);
+      const interval = setInterval(fetchRequest, 30000);
       return () => clearInterval(interval);
     }, [requestId])
   );
+
+  useEffect(() => {
+    if (
+      request?.status === 'completed' &&
+      !ratingDismissed &&
+      request.acceptedDriver?._id
+    ) {
+      setShowRating(true);
+    }
+  }, [request?.status, request?.acceptedDriver?._id, ratingDismissed]);
+
+  const driver = request?.acceptedDriver;
+  const driverId = driver?._id || driver?.id;
+  const driverName = driver
+    ? `${driver.firstName || ''} ${driver.lastName || ''}`.trim() || 'Your driver'
+    : 'Your driver';
 
   const getStatusText = () => {
     if (!request) return '';
@@ -133,6 +179,10 @@ export function PassengerTrackingScreen() {
           pickupLng={request.pickupLng}
           destinationLat={request.destinationLat}
           destinationLng={request.destinationLng}
+          driverLat={driverLocation?.lat}
+          driverLng={driverLocation?.lng}
+          driverRotation={driverLocation?.rotation}
+          routeCoordinates={routeCoordinates}
         />
       </View>
 
@@ -189,10 +239,10 @@ export function PassengerTrackingScreen() {
 
         {/* ETA / Cost */}
         <View style={styles.infoRow}>
-          {request.driverEtaMinutes && request.status === 'accepted' && (
+          {etaLabel && ['accepted', 'arrived', 'in_progress'].includes(request.status) && (
             <View style={styles.infoChip}>
               <Ionicons name="time-outline" size={16} color={COLORS.electricTeal} />
-              <Text style={styles.infoChipText}>ETA: ~{request.driverEtaMinutes} min</Text>
+              <Text style={styles.infoChipText}>{etaLabel}</Text>
             </View>
           )}
           {request.estimatedCost && (
@@ -202,6 +252,16 @@ export function PassengerTrackingScreen() {
             </View>
           )}
         </View>
+
+        {request.status === 'completed' && (
+          <TouchableOpacity
+            style={styles.receiptBtn}
+            onPress={() => navigation.navigate('TripReceipt', { requestId })}
+          >
+            <Ionicons name="receipt-outline" size={18} color={COLORS.electricTeal} />
+            <Text style={styles.receiptBtnText}>View trip receipt</Text>
+          </TouchableOpacity>
+        )}
 
         {/* Buttons */}
         <View style={{ flexDirection: 'row', gap: SPACING.md }}>
@@ -222,6 +282,21 @@ export function PassengerTrackingScreen() {
           )}
         </View>
       </View>
+
+      {driverId && (
+        <RatingModal
+          visible={showRating}
+          onClose={() => {
+            setShowRating(false);
+            setRatingDismissed(true);
+          }}
+          subjectName={driverName}
+          subjectId={driverId}
+          bookingId={requestId}
+          serviceType="taxi"
+          title="Rate Your Ride"
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -294,6 +369,23 @@ const styles = StyleSheet.create({
   },
   infoChipText: {
     color: COLORS.electricTeal, fontSize: 13, fontWeight: FONT_WEIGHTS.semibold,
+  },
+  receiptBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.sm,
+    paddingVertical: SPACING.md,
+    marginBottom: SPACING.md,
+    borderRadius: BORDER_RADIUS.lg,
+    borderWidth: 1,
+    borderColor: COLORS.electricTeal,
+    backgroundColor: `${COLORS.electricTeal}10`,
+  },
+  receiptBtnText: {
+    color: COLORS.electricTeal,
+    fontSize: 15,
+    fontWeight: FONT_WEIGHTS.semibold,
   },
 
   backButton: {

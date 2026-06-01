@@ -51,10 +51,7 @@ export function ServiceChoiceScreen() {
   const config = CONFIG[mode];
 
   const handleSearch = () => {
-    navigation.navigate('ConsumerTabs', { 
-      screen: 'Search', 
-      params: { serviceType: mode } 
-    });
+    navigation.navigate('Search', { serviceType: mode });
   };
 
   const handleRequest = () => {

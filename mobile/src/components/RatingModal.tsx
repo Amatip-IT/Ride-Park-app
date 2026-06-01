@@ -10,19 +10,21 @@ import { reviewsApi } from '@/api';
 interface RatingModalProps {
   visible: boolean;
   onClose: () => void;
-  driverName: string;
-  driverId: string;
+  subjectName: string;
+  subjectId: string;
   bookingId?: string;
-  serviceType: 'taxi' | 'driver';
+  serviceType: 'taxi' | 'driver' | 'parking';
+  title?: string;
 }
 
 export function RatingModal({
   visible,
   onClose,
-  driverName,
-  driverId,
+  subjectName,
+  subjectId,
   bookingId,
   serviceType,
+  title = 'Rate Your Experience',
 }: RatingModalProps) {
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState('');
@@ -38,7 +40,7 @@ export function RatingModal({
       setSubmitting(true);
       const res = await reviewsApi.createReview({
         serviceType,
-        serviceId: driverId,
+        serviceId: subjectId,
         bookingId,
         rating,
         comment: comment.trim() || undefined,
@@ -96,8 +98,8 @@ export function RatingModal({
         <View style={styles.container}>
           <View style={styles.handle} />
 
-          <Text style={styles.title}>Rate Your Ride</Text>
-          <Text style={styles.subtitle}>How was your experience with {driverName}?</Text>
+          <Text style={styles.title}>{title}</Text>
+          <Text style={styles.subtitle}>How was your experience with {subjectName}?</Text>
 
           {renderStars()}
           <Text style={styles.ratingLabel}>{getRatingLabel()}</Text>

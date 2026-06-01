@@ -93,6 +93,10 @@ export const bookingsApi = {
   respondToRequest: (id: string, action: 'accept' | 'reject', responseMessage?: string) =>
     api.patch<ApiResponse>(`/bookings/${id}/respond`, { action, responseMessage }),
 
+  // Provider marks a booking as completed (frees the parking spot)
+  completeBooking: (id: string) =>
+    api.patch<ApiResponse>(`/bookings/${id}/complete`),
+
   // Consumer cancels a booking
   cancelBooking: (id: string) =>
     api.patch<ApiResponse>(`/bookings/${id}/cancel`),
@@ -127,32 +131,28 @@ export const providerApi = {
   getEarnings: () =>
     api.get<ApiResponse>('/provider/earnings'),
 
+  // Get all approved parking spaces with live stats
+  getMySpaces: () =>
+    api.get<ApiResponse>('/provider/my-spaces'),
+
+  // Update a parking space's details (pricing, description, etc.)
+  updateSpace: (spaceId: string, updates: Record<string, any>) =>
+    api.patch<ApiResponse>(`/provider/spaces/${spaceId}`, updates),
+
+  // Toggle a parking space's availability on/off
+  toggleSpaceAvailability: (spaceId: string) =>
+    api.patch<ApiResponse>(`/provider/spaces/${spaceId}/toggle-availability`),
+
   // Submit parking provider verification
   submitParkingVerification: (data: Record<string, any>) =>
     api.post<ApiResponse>('/provider/submit-parking-verification', data),
 
-  // Submit driver verification
-  submitDriverVerification: (data: {
-    driverLicenseUrl?: string;
-    driverLicenseNumber?: string;
-    nationalIdUrl?: string;
-    proofOfAddressUrl?: string;
-    proofOfAddressType?: string;
-  }) =>
+  // Submit a single driver document (docField = the schema field name, docUrl = S3 URL)
+  submitDriverVerification: (data: { docField: string; docUrl: string }) =>
     api.post<ApiResponse>('/provider/submit-driver-verification', data),
 
-  // Submit taxi driver verification
-  submitTaxiVerification: (data: {
-    driverLicenseUrl?: string;
-    driverLicenseNumber?: string;
-    plateNumber?: string;
-    vehicleMake?: string;
-    vehicleModel?: string;
-    vehicleYear?: string;
-    nationalIdUrl?: string;
-    proofOfAddressUrl?: string;
-    proofOfAddressType?: string;
-  }) =>
+  // Submit a single taxi driver document
+  submitTaxiVerification: (data: { docField: string; docUrl: string }) =>
     api.post<ApiResponse>('/provider/submit-taxi-verification', data),
 
   // Toggle online/offline status
@@ -163,7 +163,7 @@ export const providerApi = {
   getMyDriverNumber: () =>
     api.get<ApiResponse>('/provider/my-driver-number'),
 
-  // Upload a document to S3 using native fetch to avoid React Native Axios FormData timeout bugs
+  // Upload a document to S3 using native fetch to avoid React Native Axios FormData bugs
   uploadDocument: async (formData: any) => {
     const { useAuthStore } = require('@/store/authStore');
     const token = useAuthStore.getState().token;
@@ -211,6 +211,25 @@ export const adminApi = {
   rejectParkingVerification: (id: string, reason: string) =>
     api.post<ApiResponse>(`/admin/verifications/parking/${id}/reject`, { reason }),
 
+  // ── Driver / Taxi Document Verifications ──
+  getPendingDriverVerifications: () =>
+    api.get<ApiResponse>('/admin/verifications/drivers'),
+
+  getDriverVerificationDetail: (recordId: string, providerType: string) =>
+    api.get<ApiResponse>(`/admin/verifications/drivers/${recordId}?type=${providerType}`),
+
+  approveDriverVerification: (recordId: string, providerType: string) =>
+    api.post<ApiResponse>(`/admin/verifications/drivers/${recordId}/approve`, { providerType }),
+
+  rejectDriverVerification: (recordId: string, providerType: string, reason: string) =>
+    api.post<ApiResponse>(`/admin/verifications/drivers/${recordId}/reject`, { providerType, reason }),
+
+  approveDocumentField: (recordId: string, providerType: string, docField: string) =>
+    api.post<ApiResponse>(`/admin/verifications/drivers/${recordId}/documents/${docField}/approve`, { providerType }),
+
+  rejectDocumentField: (recordId: string, providerType: string, docField: string, reason: string) =>
+    api.post<ApiResponse>(`/admin/verifications/drivers/${recordId}/documents/${docField}/reject`, { providerType, reason }),
+
   // ── Provider Identity Verifications ──
   getPendingIdentityVerifications: () =>
     api.get<ApiResponse>('/admin/verifications/identity'),
@@ -237,6 +256,172 @@ export const adminApi = {
 
   rejectWithdrawal: (id: string, reason: string) =>
     api.post<ApiResponse>(`/admin/verifications/withdrawals/${id}/reject`, { reason }),
+
+  // ── User Account Management ──
+  suspendUser: (userId: string, reason: string, durationDays?: number) =>
+    api.post<ApiResponse>(`/admin/verifications/users/${userId}/suspend`, { reason, durationDays }),
+
+  unsuspendUser: (userId: string) =>
+    api.post<ApiResponse>(`/admin/verifications/users/${userId}/unsuspend`),
+
+  banUser: (userId: string, reason: string) =>
+    api.post<ApiResponse>(`/admin/verifications/users/${userId}/ban`, { reason }),
+
+  unbanUser: (userId: string) =>
+    api.post<ApiResponse>(`/admin/verifications/users/${userId}/unban`),
+
+  // ── Document Expiry Management ──
+  getExpiringDocuments: (alertLevel?: 'all' | '30_day' | '7_day' | 'expired') =>
+    api.get<ApiResponse>(`/admin/verifications/documents/expiring${alertLevel ? `?alertLevel=${alertLevel}` : ''}`),
+
+  renewDocument: (recordId: string, providerType: string, docField: string, newExpiryDate: string) =>
+    api.post<ApiResponse>(`/admin/verifications/documents/${recordId}/renew`, { providerType, docField, newExpiryDate }),
+
+  // ── Audit Logs ──
+  getAuditLogs: (params?: {
+    action?: string;
+    adminId?: string;
+    targetId?: string;
+    from?: string;
+    to?: string;
+    page?: number;
+    limit?: number;
+  }) => {
+    const query = new URLSearchParams();
+    if (params?.action) query.set('action', params.action);
+    if (params?.adminId) query.set('adminId', params.adminId);
+    if (params?.targetId) query.set('targetId', params.targetId);
+    if (params?.from) query.set('from', params.from);
+    if (params?.to) query.set('to', params.to);
+    if (params?.page) query.set('page', String(params.page));
+    if (params?.limit) query.set('limit', String(params.limit));
+    const qs = query.toString();
+    return api.get<ApiResponse>(`/admin/verifications/audit-logs${qs ? `?${qs}` : ''}`);
+  },
+
+  exportAuditLogs: (params?: { action?: string; from?: string; to?: string }) => {
+    const query = new URLSearchParams();
+    if (params?.action) query.set('action', params.action);
+    if (params?.from) query.set('from', params.from);
+    if (params?.to) query.set('to', params.to);
+    const qs = query.toString();
+    return api.get<ApiResponse>(`/admin/verifications/audit-logs/export${qs ? `?${qs}` : ''}`);
+  },
+
+  // ── Driver Search & Bulk Ops ──
+  searchDriverVerifications: (params?: {
+    q?: string;
+    status?: string;
+    providerType?: string;
+    days?: number;
+    sort?: string;
+  }) => {
+    const query = new URLSearchParams();
+    if (params?.q) query.set('q', params.q);
+    if (params?.status) query.set('status', params.status);
+    if (params?.providerType) query.set('providerType', params.providerType);
+    if (params?.days) query.set('days', String(params.days));
+    if (params?.sort) query.set('sort', params.sort);
+    const qs = query.toString();
+    return api.get<ApiResponse>(`/admin/verifications/drivers/search${qs ? `?${qs}` : ''}`);
+  },
+
+  bulkApproveDrivers: (items: Array<{ recordId: string; providerType: string }>) =>
+    api.post<ApiResponse>('/admin/verifications/drivers/bulk-approve', { items }),
+
+  bulkRejectDrivers: (items: Array<{ recordId: string; providerType: string }>, reason: string) =>
+    api.post<ApiResponse>('/admin/verifications/drivers/bulk-reject', { items, reason }),
+
+  bulkMessageDrivers: (items: Array<{ recordId: string; providerType: string }>, message: string) =>
+    api.post<ApiResponse>('/admin/verifications/drivers/bulk-message', { items, message }),
+
+  // ── Admin Messaging ──
+  getMessageTemplates: () =>
+    api.get<ApiResponse>('/admin/messages/templates'),
+
+  createMessageTemplate: (data: { name: string; category: string; subject: string; body: string }) =>
+    api.post<ApiResponse>('/admin/messages/templates', data),
+
+  sendAdminMessage: (data: {
+    userId: string;
+    message: string;
+    subject?: string;
+    type?: 'system' | 'email' | 'push' | 'all';
+    templateId?: string;
+  }) =>
+    api.post<ApiResponse>('/admin/messages/send', data),
+
+  getMessageHistory: (userId: string, params?: { q?: string; page?: number; limit?: number }) => {
+    const query = new URLSearchParams();
+    if (params?.q) query.set('q', params.q);
+    if (params?.page) query.set('page', String(params.page));
+    if (params?.limit) query.set('limit', String(params.limit));
+    const qs = query.toString();
+    return api.get<ApiResponse>(`/admin/messages/history/${userId}${qs ? `?${qs}` : ''}`);
+  },
+
+  // ── Admin Analytics ──
+  getAnalyticsDashboard: (period?: 'week' | 'month' | 'year' | 'all') =>
+    api.get<ApiResponse>(`/admin/analytics/dashboard${period ? `?period=${period}` : ''}`),
+
+  getRevenueAnalytics: (period?: 'week' | 'month' | 'year' | 'all') =>
+    api.get<ApiResponse>(`/admin/analytics/revenue${period ? `?period=${period}` : ''}`),
+
+  getVerificationAnalytics: (period?: 'week' | 'month' | 'year' | 'all') =>
+    api.get<ApiResponse>(`/admin/analytics/verifications${period ? `?period=${period}` : ''}`),
+
+  getUserAnalytics: (period?: 'week' | 'month' | 'year' | 'all') =>
+    api.get<ApiResponse>(`/admin/analytics/users${period ? `?period=${period}` : ''}`),
+
+  getQueueHealth: () =>
+    api.get<ApiResponse>('/admin/analytics/queue-health'),
+};
+
+// ── Disputes API ──
+export const disputesApi = {
+  fileDispute: (data: {
+    category: string;
+    description: string;
+    complaintAbout?: string;
+    evidenceUrls?: string[];
+    relatedServiceType?: string;
+    relatedServiceId?: string;
+    metadata?: Record<string, unknown>;
+  }) =>
+    api.post<ApiResponse>('/disputes', data),
+
+  getMyDisputes: () =>
+    api.get<ApiResponse>('/disputes/my'),
+
+  getDispute: (id: string) =>
+    api.get<ApiResponse>(`/disputes/${id}`),
+
+  // Admin
+  getAdminDisputes: (params?: { status?: string; category?: string; page?: number }) => {
+    const query = new URLSearchParams();
+    if (params?.status) query.set('status', params.status);
+    if (params?.category) query.set('category', params.category);
+    if (params?.page) query.set('page', String(params.page));
+    const qs = query.toString();
+    return api.get<ApiResponse>(`/admin/disputes${qs ? `?${qs}` : ''}`);
+  },
+
+  getAdminDispute: (id: string) =>
+    api.get<ApiResponse>(`/admin/disputes/${id}`),
+
+  investigateDispute: (id: string, adminNotes?: string) =>
+    api.post<ApiResponse>(`/admin/disputes/${id}/investigate`, { adminNotes }),
+
+  resolveDispute: (id: string, data: {
+    resolution: string;
+    notes?: string;
+    adminNotes?: string;
+    refundAmount?: number;
+    suspendReason?: string;
+    providerType?: string;
+    recordId?: string;
+  }) =>
+    api.post<ApiResponse>(`/admin/disputes/${id}/resolve`, data),
 };
 
 // ── Reviews API ──
@@ -260,6 +445,7 @@ export const ridesApi = {
     api.post<ApiResponse>('/rides/estimate', { serviceType, distanceMiles, durationMinutes }),
 
   startRide: (data: {
+    passengerId: string;
     driverId: string;
     serviceType: 'driver' | 'taxi';
     bookingId?: string;
@@ -273,6 +459,9 @@ export const ridesApi = {
 
   getRide: (rideId: string) =>
     api.get<ApiResponse>(`/rides/${rideId}`),
+
+  getReceipt: (rideId: string) =>
+    api.get<ApiResponse>(`/rides/${rideId}/receipt`),
 };
 
 // ── Taxi Bookings API (ride requests) ──
@@ -299,6 +488,10 @@ export const taxiBookingsApi = {
   }) =>
     api.post<ApiResponse>(`/taxi-bookings/${requestId}/accept`, data),
 
+  // Driver updates status
+  updateStatus: (requestId: string, status: string, rideId?: string) =>
+    api.patch<ApiResponse>(`/taxi-bookings/${requestId}/status`, { status, rideId }),
+
   // Passenger cancels
   cancelRequest: (requestId: string) =>
     api.patch<ApiResponse>(`/taxi-bookings/${requestId}/cancel`),
@@ -310,6 +503,9 @@ export const taxiBookingsApi = {
   // Get ride request details
   getRequest: (requestId: string) =>
     api.get<ApiResponse>(`/taxi-bookings/${requestId}`),
+
+  getReceipt: (requestId: string) =>
+    api.get<ApiResponse>(`/taxi-bookings/${requestId}/receipt`),
 
   // Admin: all active requests
   getAdminActive: () =>

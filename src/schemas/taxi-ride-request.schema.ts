@@ -67,6 +67,7 @@ export class TaxiRideRequest {
     enum: [
       'searching',     // Actively looking for a driver
       'accepted',      // A driver accepted
+      'arrived',       // Driver has arrived at pickup
       'in_progress',   // Ride is underway
       'completed',     // Ride finished
       'cancelled',     // Passenger cancelled

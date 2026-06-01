@@ -1,6 +1,6 @@
 import * as bcrypt from 'bcrypt';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import type { HydratedDocument, Schema as MongooseSchema } from 'mongoose';
+import { HydratedDocument, Schema as MongooseSchema } from 'mongoose';
 import { VerifiedStatus, VerifiedStatusSchema } from './verified-status.schema';
 import { OtpStorage, OtpStorageSchema } from './otp.schema';
 
@@ -105,6 +105,22 @@ export class User {
 
   @Prop({ type: String, default: null })
   profileImageUrl?: string;
+
+  // Account status for suspension/ban functionality
+  @Prop({ default: 'active', enum: ['active', 'suspended', 'banned'] })
+  accountStatus: string;
+
+  @Prop({ type: String })
+  suspensionReason?: string;
+
+  @Prop({ type: Date })
+  suspensionEndDate?: Date;
+
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User' })
+  suspendedBy?: string;
+
+  @Prop({ type: Date })
+  suspendedAt?: Date;
 }
 
 export const UserSchema: MongooseSchema<User> =

@@ -1,6 +1,6 @@
 # Schemas Documentation
 
-This directory contains all MongoDB schemas for the Ride and Park backend, organized into a normalized structure for optimal performance and maintainability.
+This directory contains all MongoDB schemas for the Gleezip backend, organized into a normalized structure for optimal performance and maintainability.
 
 ## Schema Architecture Overview
 
@@ -624,4 +624,4 @@ const canToggle = await DriverVerification.exists({
 
 **Last Updated:** December 5, 2025  
 **Author:** [war-riz](https://github.com/war-riz)
-**Project:** Ride and Park Backend
+**Project:** Gleezip Backend

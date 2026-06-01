@@ -2,6 +2,8 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
+  Param,
   Body,
   Req,
   UseGuards,
@@ -47,6 +49,80 @@ export class ProviderController {
   }
 
   /**
+   * GET /provider/my-spaces
+   * Get all approved parking spaces owned by this provider with stats
+   */
+  @Get('my-spaces')
+  async getMySpaces(@Req() req: any) {
+    const user = req.user;
+    if (user.role !== 'parking_provider') {
+      throw new HttpException(
+        { message: 'Only parking providers can manage spaces' },
+        HttpStatus.FORBIDDEN,
+      );
+    }
+    return this.providerService.getMySpaces(user._id || user.id);
+  }
+
+  /**
+   * PATCH /provider/spaces/:id
+   * Update a parking space's details (pricing, description, capacity, photos, etc.)
+   */
+  @Patch('spaces/:id')
+  async updateSpace(
+    @Req() req: any,
+    @Param('id') spaceId: string,
+    @Body() body: Record<string, any>,
+  ) {
+    const user = req.user;
+    if (user.role !== 'parking_provider') {
+      throw new HttpException(
+        { message: 'Only parking providers can update spaces' },
+        HttpStatus.FORBIDDEN,
+      );
+    }
+
+    const result = await this.providerService.updateSpace(
+      user._id || user.id,
+      spaceId,
+      body,
+    );
+
+    if (!result.success) {
+      throw new HttpException({ message: result.message }, HttpStatus.BAD_REQUEST);
+    }
+    return result;
+  }
+
+  /**
+   * PATCH /provider/spaces/:id/toggle-availability
+   * Toggle a parking space on/off (manually pause/resume listings)
+   */
+  @Patch('spaces/:id/toggle-availability')
+  async toggleSpaceAvailability(
+    @Req() req: any,
+    @Param('id') spaceId: string,
+  ) {
+    const user = req.user;
+    if (user.role !== 'parking_provider') {
+      throw new HttpException(
+        { message: 'Only parking providers can toggle space availability' },
+        HttpStatus.FORBIDDEN,
+      );
+    }
+
+    const result = await this.providerService.toggleSpaceAvailability(
+      user._id || user.id,
+      spaceId,
+    );
+
+    if (!result.success) {
+      throw new HttpException({ message: result.message }, HttpStatus.BAD_REQUEST);
+    }
+    return result;
+  }
+
+  /**
    * POST /provider/submit-parking-verification
    * Submit parking provider verification documents
    */
@@ -76,17 +152,14 @@ export class ProviderController {
 
   /**
    * POST /provider/submit-driver-verification
-   * Submit driver (chauffeur) verification documents
+   * Submit a single driver document with its dedicated field name
    */
   @Post('submit-driver-verification')
   async submitDriverVerification(
     @Req() req: any,
     @Body() body: {
-      driverLicenseUrl?: string;
-      driverLicenseNumber?: string;
-      nationalIdUrl?: string;
-      proofOfAddressUrl?: string;
-      proofOfAddressType?: string;
+      docField: string;
+      docUrl: string;
     },
   ) {
     const user = req.user;
@@ -94,6 +167,13 @@ export class ProviderController {
       throw new HttpException(
         { message: 'Only drivers can submit driver verification' },
         HttpStatus.FORBIDDEN,
+      );
+    }
+
+    if (!body.docField || !body.docUrl) {
+      throw new HttpException(
+        { message: 'docField and docUrl are required' },
+        HttpStatus.BAD_REQUEST,
       );
     }
 
@@ -110,21 +190,18 @@ export class ProviderController {
 
   /**
    * POST /provider/submit-taxi-verification
-   * Submit taxi driver verification documents
+   * Submit a single taxi driver document with its dedicated field name
    */
   @Post('submit-taxi-verification')
   async submitTaxiVerification(
     @Req() req: any,
     @Body() body: {
-      driverLicenseUrl?: string;
-      driverLicenseNumber?: string;
+      docField: string;
+      docUrl: string;
       plateNumber?: string;
       vehicleMake?: string;
       vehicleModel?: string;
       vehicleYear?: string;
-      nationalIdUrl?: string;
-      proofOfAddressUrl?: string;
-      proofOfAddressType?: string;
     },
   ) {
     const user = req.user;
@@ -132,6 +209,13 @@ export class ProviderController {
       throw new HttpException(
         { message: 'Only taxi drivers can submit taxi verification' },
         HttpStatus.FORBIDDEN,
+      );
+    }
+
+    if (!body.docField || !body.docUrl) {
+      throw new HttpException(
+        { message: 'docField and docUrl are required' },
+        HttpStatus.BAD_REQUEST,
       );
     }
 
@@ -215,8 +299,8 @@ export class ProviderController {
       const folder = `provider-documents/${userId}`;
       const url = await this.fileUploadService.uploadFile(file, folder);
       return { success: true, url, message: 'Document uploaded successfully' };
-    } catch (error) {
-      throw new HttpException({ message: 'Failed to upload document' }, HttpStatus.INTERNAL_SERVER_ERROR);
+    } catch (error: any) {
+      throw new HttpException({ message: `S3 Error: ${error.message}` }, HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 }

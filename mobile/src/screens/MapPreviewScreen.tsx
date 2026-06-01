@@ -3,11 +3,11 @@ import { View, Text, StyleSheet, TouchableOpacity, Platform, ActivityIndicator }
 import { AmazonMap } from '@/components/AmazonMap';
 import { COLORS, SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, NavigationProp } from '@react-navigation/native';
 import * as Location from 'expo-location';
 
 export function MapPreviewScreen() {
-  const navigation = useNavigation();
+  const navigation = useNavigation<NavigationProp<any>>();
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -43,9 +43,6 @@ export function MapPreviewScreen() {
   // Use current location for pickup
   const pickupLat = location.lat;
   const pickupLng = location.lng;
-  // Make destination slightly offset for the demo
-  const destinationLat = location.lat + 0.01;
-  const destinationLng = location.lng + 0.01;
 
   return (
     <View style={styles.container}>
@@ -54,8 +51,6 @@ export function MapPreviewScreen() {
         <AmazonMap
           pickupLat={pickupLat}
           pickupLng={pickupLng}
-          destinationLat={destinationLat}
-          destinationLng={destinationLng}
         />
       </View>
 
@@ -73,30 +68,25 @@ export function MapPreviewScreen() {
         <View style={styles.routeInfo}>
           <View style={styles.routeRow}>
             <View style={[styles.dot, { backgroundColor: '#10B981' }]} />
-            <Text style={styles.routeText}>Pickup: Your Current Location</Text>
-          </View>
-          <View style={styles.routeDivider} />
-          <View style={styles.routeRow}>
-            <View style={[styles.dot, { backgroundColor: '#EF4444' }]} />
-            <Text style={styles.routeText}>Destination: Dropoff Point</Text>
+            <Text style={styles.routeText}>Your Current Location</Text>
           </View>
         </View>
 
         <View style={styles.statsRow}>
-          <View style={styles.stat}>
-            <Text style={styles.statValue}>1.2 mi</Text>
-            <Text style={styles.statLabel}>Distance</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.stat}>
-            <Text style={styles.statValue}>8 min</Text>
-            <Text style={styles.statLabel}>ETA</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.stat}>
-            <Text style={styles.statValue}>£3.92</Text>
-            <Text style={styles.statLabel}>Est. Fare</Text>
-          </View>
+          <TouchableOpacity 
+            style={styles.actionBtn} 
+            onPress={() => navigation.navigate('TaxiBooking', {})}
+          >
+            <Ionicons name="navigate" size={20} color="#FFF" />
+            <Text style={styles.actionBtnText}>Book a Taxi</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.actionBtn, { backgroundColor: COLORS.info }]} 
+            onPress={() => navigation.navigate('DriverRequest', {})}
+          >
+            <Ionicons name="person" size={20} color="#FFF" />
+            <Text style={styles.actionBtnText}>Book a Driver</Text>
+          </TouchableOpacity>
         </View>
       </View>
     </View>
@@ -185,27 +175,22 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.md,
+    justifyContent: 'space-between',
+    gap: SPACING.md,
   },
-  stat: {
+  actionBtn: {
     flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.amber,
+    paddingVertical: SPACING.md,
+    borderRadius: BORDER_RADIUS.lg,
+    gap: 8,
   },
-  statValue: {
-    fontSize: 18,
+  actionBtnText: {
+    color: '#FFF',
+    fontSize: FONT_SIZES.body,
     fontWeight: FONT_WEIGHTS.bold,
-    color: COLORS.textPrimary,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    marginTop: 2,
-  },
-  statDivider: {
-    width: 1,
-    height: 30,
-    backgroundColor: '#E5E7EB',
   },
 });

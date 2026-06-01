@@ -1,6 +1,6 @@
 # Identity Verification Documentation
 
-This module handles identity verification for the Ride and Park application using **Stripe Identity**. Users upload government-issued documents (driving license or passport) to verify their identity.
+This module handles identity verification for the Gleezip application using **Stripe Identity**. Users upload government-issued documents (driving license or passport) to verify their identity.
 
 ## Table of Contents
 
@@ -70,7 +70,7 @@ Identity verification uses **Stripe Identity** to verify users through governmen
 - `returnUrl`: Must be valid frontend URL format, required. It is where user will go after verification.
 - Must be authenticated user
 - User must not be already verified
-- Also user with ID verified can aslso re-verify if he want to become driver 
+- Also user with ID verified can aslso re-verify if he want to become driver
 
 **Success Response (200 OK):**
 
@@ -341,12 +341,12 @@ STRIPE_WEBHOOK_SECRET=whsec_your_production_secret_here
 
 The webhook endpoint listens for these Stripe events:
 
-| Event                                           | Description                          | Action                               |
-| ----------------------------------------------- | ------------------------------------ | ------------------------------------ |
-| `identity.verification_session.verified`        | Verification successful              | Update user status, save data        |
-| `identity.verification_session.requires_input`  | User needs to retry                  | Log for debugging                    |
-| `identity.verification_session.processing`      | Verification in progress             | Log status update                    |
-| `identity.verification_session.canceled`        | User canceled verification           | Log cancellation                     |
+| Event                                          | Description                | Action                        |
+| ---------------------------------------------- | -------------------------- | ----------------------------- |
+| `identity.verification_session.verified`       | Verification successful    | Update user status, save data |
+| `identity.verification_session.requires_input` | User needs to retry        | Log for debugging             |
+| `identity.verification_session.processing`     | Verification in progress   | Log status update             |
+| `identity.verification_session.canceled`       | User canceled verification | Log cancellation              |
 
 **Current Implementation:** Only `verified` event updates the database. Others are logged.
 
@@ -455,16 +455,16 @@ const createVerification = async () => {
   const response = await fetch('/verification/identity/create-session', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${userToken}`,
+      Authorization: `Bearer ${userToken}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      returnUrl: window.location.origin + '/verification/complete'
-    })
+      returnUrl: window.location.origin + '/verification/complete',
+    }),
   });
 
   const data = await response.json();
-  
+
   // 2. Redirect user to Stripe
   window.location.href = data.url;
 };
@@ -473,12 +473,12 @@ const createVerification = async () => {
 const checkVerificationStatus = async () => {
   const response = await fetch('/verification/identity/status', {
     headers: {
-      'Authorization': `Bearer ${userToken}`
-    }
+      Authorization: `Bearer ${userToken}`,
+    },
   });
 
   const data = await response.json();
-  
+
   if (data.isVerified) {
     showSuccess('Identity verified!');
   } else {
@@ -493,14 +493,14 @@ const checkVerificationStatus = async () => {
 
 ### Accepted Documents
 
-| Document Type     | Code              | Required for Drivers | Extracted Data                       |
-| ----------------- | ----------------- | -------------------- | ------------------------------------ |
-| UK Driving License | `driving_license` | ✅ Yes               | Name, DOB, License Number           |
-| Passport          | `passport`        | ❌ No                | Name, DOB, Passport Number          |
+| Document Type      | Code              | Required for Drivers | Extracted Data             |
+| ------------------ | ----------------- | -------------------- | -------------------------- |
+| UK Driving License | `driving_license` | ✅ Yes               | Name, DOB, License Number  |
+| Passport           | `passport`        | ❌ No                | Name, DOB, Passport Number |
 
 ### Driving License Requirements
 
-To become a **driver** in the Ride and Park platform:
+To become a **driver** in the Gleezip platform:
 
 1. Must verify identity with **UK driving license**
 2. Passport verification is **not sufficient**
@@ -723,12 +723,14 @@ Stripe Identity is PCI compliant:
 **Local Development:**
 
 1. **Stripe CLI not running**
+
    ```bash
    # Start Stripe CLI
    stripe listen --forward-to localhost:5000/verification/identity/webhook
    ```
 
 2. **Wrong webhook URL**
+
    ```bash
    # Check URL matches your backend
    stripe listen --forward-to localhost:5000/verification/identity/webhook
@@ -917,7 +919,7 @@ Complete API documentation: [Stripe Identity Docs](https://stripe.com/docs/ident
 - [Stripe Support](https://support.stripe.com)
 - [Stripe Status Page](https://status.stripe.com)
 
-**Ride and Park Issues:**
+**Gleezip Issues:**
 
 - Email: info@amatip.co.uk
 - GitHub: [Issue Tracker](https://github.com/war-riz/ride_and_park_backend/issues)

@@ -42,7 +42,7 @@ export class TwilioService {
   async sendOtpSms(phoneNumber: string, otp: string): Promise<boolean> {
     try {
       const message = await this.client.messages.create({
-        body: `Your Ride and Park verification code is: ${otp}\n\nThis code expires in 10 minutes.\n\nNever share this code with anyone.`,
+        body: `Your Gleezip verification code is: ${otp}\n\nThis code expires in 10 minutes.\n\nNever share this code with anyone.`,
         from: this.twilioPhoneNumber,
         to: phoneNumber,
       });
@@ -69,7 +69,7 @@ export class TwilioService {
   ): Promise<boolean> {
     try {
       const message = await this.client.messages.create({
-        body: `Welcome to Ride and Park, ${firstName}! 🎉\n\nYour phone number has been verified. You're all set to start using our platform.\n\nHappy riding!`,
+        body: `Welcome to Gleezip, ${firstName}! 🎉\n\nYour phone number has been verified. You're all set to start using our platform.\n\nHappy riding!`,
         from: this.twilioPhoneNumber,
         to: phoneNumber,
       });

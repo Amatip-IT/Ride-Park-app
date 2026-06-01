@@ -52,6 +52,7 @@ export class RidesController {
   async startRide(
     @Req() req: any,
     @Body() body: {
+      passengerId?: string;
       driverId: string;
       serviceType: 'driver' | 'taxi';
       bookingId?: string;
@@ -59,7 +60,14 @@ export class RidesController {
       dropoff?: { address?: string; lat?: number; lng?: number };
     },
   ) {
-    const passengerId = req.user._id || req.user.id;
+    if (!body.passengerId) {
+      throw new HttpException(
+        { success: false, message: 'passengerId is required to start a ride' },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const passengerId = body.passengerId;
 
     const result = await this.ridesService.createRide({
       passengerId,
@@ -95,6 +103,21 @@ export class RidesController {
       body.durationMinutes,
     );
 
+    if (!result.success) {
+      throw new HttpException(result, HttpStatus.BAD_REQUEST);
+    }
+    return result;
+  }
+
+  /**
+   * GET /rides/:id/receipt
+   * Trip receipt (passenger or driver on that ride)
+   */
+  @Get(':id/receipt')
+  @UseGuards(AuthGuard)
+  async getRideReceipt(@Param('id') id: string, @Req() req: any) {
+    const userId = req.user._id || req.user.id;
+    const result = await this.ridesService.getRideReceipt(id, userId);
     if (!result.success) {
       throw new HttpException(result, HttpStatus.BAD_REQUEST);
     }

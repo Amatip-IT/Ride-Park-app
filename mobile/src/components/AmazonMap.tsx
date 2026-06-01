@@ -1,12 +1,19 @@
-import React from 'react';
+import React, { useRef, useEffect, useMemo } from 'react';
 import { View, StyleSheet, ActivityIndicator } from 'react-native';
 import { WebView } from 'react-native-webview';
+
+export type MapCoordinate = { lat: number; lng: number };
 
 interface AmazonMapProps {
   pickupLat?: number;
   pickupLng?: number;
   destinationLat?: number;
   destinationLng?: number;
+  driverLat?: number;
+  driverLng?: number;
+  driverRotation?: number;
+  /** Driving route polyline (ordered lat/lng points) */
+  routeCoordinates?: MapCoordinate[];
 }
 
 export function AmazonMap({
@@ -14,13 +21,44 @@ export function AmazonMap({
   pickupLng,
   destinationLat,
   destinationLng,
+  driverLat,
+  driverLng,
+  driverRotation = 0,
+  routeCoordinates = [],
 }: AmazonMapProps) {
-  const AWS_API_KEY = process.env.EXPO_PUBLIC_AWS_LOCATION_KEY || '';
-  const AWS_REGION = process.env.EXPO_PUBLIC_AWS_REGION || 'us-east-1';
+  const webViewRef = useRef<WebView>(null);
 
-  // Fallback map center if no coordinates
-  const centerLng = pickupLng || -0.1276;
-  const centerLat = pickupLat || 51.5072; // London default
+  const centerLng = driverLng || pickupLng || -0.1276;
+  const centerLat = driverLat || pickupLat || 51.5072;
+
+  const routeJson = useMemo(
+    () => JSON.stringify(routeCoordinates.filter((p) => p.lat && p.lng)),
+    [routeCoordinates],
+  );
+
+  const mapKey = useMemo(
+    () =>
+      `map-${pickupLat}-${pickupLng}-${destinationLat}-${destinationLng}-${routeCoordinates.length}`,
+    [
+      pickupLat,
+      pickupLng,
+      destinationLat,
+      destinationLng,
+      routeCoordinates.length,
+    ],
+  );
+
+  useEffect(() => {
+    if (webViewRef.current && driverLat && driverLng) {
+      const js = `
+        if (window.updateDriverLocation) {
+          window.updateDriverLocation(${driverLng}, ${driverLat}, ${driverRotation});
+        }
+        true;
+      `;
+      webViewRef.current.injectJavaScript(js);
+    }
+  }, [driverLat, driverLng, driverRotation]);
 
   const htmlContent = `
     <!DOCTYPE html>
@@ -47,6 +85,15 @@ export function AmazonMap({
             border: 3px solid white;
             box-shadow: 0 0 10px rgba(0,0,0,0.5);
           }
+          .marker-car {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+          }
+          .marker-car span {
+            font-size: 26px;
+            filter: drop-shadow(0px 3px 6px rgba(0,0,0,0.4));
+          }
         </style>
       </head>
       <body>
@@ -54,83 +101,109 @@ export function AmazonMap({
         <script src="https://unpkg.com/maplibre-gl@3.x/dist/maplibre-gl.js"></script>
         <script>
           try {
-            const apiKey = "${AWS_API_KEY}";
-            const region = "${AWS_REGION}";
-            const style = "Standard";
-            const colorScheme = "Light";
-
             const map = new maplibregl.Map({
               container: "map",
               style: "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
               center: [${centerLng}, ${centerLat}],
-              zoom: 15.5,
-              pitch: 60,
-              bearing: -20,
+              zoom: 14,
+              pitch: 45,
+              bearing: -15,
               attributionControl: false
             });
 
-            // Add Navigation Controls
             map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
 
-            map.on('load', () => {
-              // Add 3D Buildings
-              try {
-                // Get the primary vector tile source provided by AWS
-                const sources = map.getStyle().sources;
-                const sourceId = Object.keys(sources).find(key => sources[key].type === 'vector') || 'esri';
+            let carMarker = null;
+            window.updateDriverLocation = (lng, lat, rotation) => {
+              if (!carMarker) {
+                const carEl = document.createElement('div');
+                carEl.className = 'marker-car';
+                carEl.innerHTML = '<span>🚗</span>';
+                carMarker = new maplibregl.Marker({ element: carEl })
+                  .setLngLat([lng, lat])
+                  .addTo(map);
+              } else {
+                carMarker.setLngLat([lng, lat]);
+              }
+              const carSpan = carMarker.getElement().querySelector('span');
+              if (carSpan) {
+                carSpan.style.display = 'inline-block';
+                carSpan.style.transform = 'rotate(' + (rotation || 0) + 'deg)';
+              }
+            };
 
+            const addRouteLine = (coords) => {
+              if (!coords || coords.length < 2) return;
+              const geojson = {
+                type: 'Feature',
+                geometry: {
+                  type: 'LineString',
+                  coordinates: coords.map(c => [c.lng, c.lat])
+                }
+              };
+              if (map.getSource('route')) {
+                map.getSource('route').setData(geojson);
+              } else {
+                map.addSource('route', { type: 'geojson', data: geojson });
                 map.addLayer({
-                  'id': '3d-buildings',
-                  'source': sourceId,
-                  'source-layer': 'Building',
-                  'filter': ['==', 'extrude', 'true'],
-                  'type': 'fill-extrusion',
-                  'minzoom': 14,
-                  'paint': {
-                    'fill-extrusion-color': '#e5e7eb',
-                    'fill-extrusion-height': ['get', 'height'],
-                    'fill-extrusion-base': ['get', 'min_height'],
-                    'fill-extrusion-opacity': 0.8
+                  id: 'route-line',
+                  type: 'line',
+                  source: 'route',
+                  layout: { 'line-join': 'round', 'line-cap': 'round' },
+                  paint: {
+                    'line-color': '#00C2A8',
+                    'line-width': 5,
+                    'line-opacity': 0.85
                   }
                 });
-              } catch (err) {
-                console.warn('Could not load 3D buildings layer', err);
               }
+            };
 
+            map.on('load', () => {
               const bounds = new maplibregl.LngLatBounds();
               let hasBounds = false;
 
-              // Pickup Marker
+              const routeCoords = ${routeJson};
+              if (routeCoords.length >= 2) {
+                addRouteLine(routeCoords);
+                routeCoords.forEach(c => {
+                  bounds.extend([c.lng, c.lat]);
+                  hasBounds = true;
+                });
+              }
+
               if (${pickupLng ? 'true' : 'false'}) {
                 const pickupEl = document.createElement('div');
                 pickupEl.className = 'marker-pickup';
                 new maplibregl.Marker({ element: pickupEl })
-                  .setLngLat([${pickupLng}, ${pickupLat}])
+                  .setLngLat([${pickupLng ?? 0}, ${pickupLat ?? 0}])
                   .addTo(map);
-                
-                bounds.extend([${pickupLng}, ${pickupLat}]);
+                bounds.extend([${pickupLng ?? 0}, ${pickupLat ?? 0}]);
                 hasBounds = true;
               }
 
-              // Destination Marker
               if (${destinationLng ? 'true' : 'false'}) {
                 const destEl = document.createElement('div');
                 destEl.className = 'marker-destination';
                 new maplibregl.Marker({ element: destEl })
-                  .setLngLat([${destinationLng}, ${destinationLat}])
+                  .setLngLat([${destinationLng ?? 0}, ${destinationLat ?? 0}])
                   .addTo(map);
-                
-                bounds.extend([${destinationLng}, ${destinationLat}]);
+                bounds.extend([${destinationLng ?? 0}, ${destinationLat ?? 0}]);
                 hasBounds = true;
               }
 
-              // Fit bounds securely if we have two points
+              if (${driverLng ? 'true' : 'false'} && ${driverLat ? 'true' : 'false'}) {
+                window.updateDriverLocation(${driverLng}, ${driverLat}, ${driverRotation});
+                bounds.extend([${driverLng}, ${driverLat}]);
+                hasBounds = true;
+              }
+
               if (hasBounds) {
-                map.fitBounds(bounds, { 
-                  padding: 60, 
+                map.fitBounds(bounds, {
+                  padding: 70,
                   maxZoom: 16,
-                  pitch: 60,
-                  bearing: -20
+                  pitch: 45,
+                  bearing: -15
                 });
               }
             });
@@ -145,13 +218,17 @@ export function AmazonMap({
   return (
     <View style={styles.container}>
       <WebView
+        key={mapKey}
+        ref={webViewRef}
         originWhitelist={['*']}
         source={{ html: htmlContent }}
         style={styles.webview}
         scrollEnabled={false}
         bounces={false}
         startInLoadingState={true}
-        renderLoading={() => <ActivityIndicator style={styles.loader} size="large" color="#00B4A0" />}
+        renderLoading={() => (
+          <ActivityIndicator style={styles.loader} size="large" color="#00B4A0" />
+        )}
       />
     </View>
   );
@@ -172,5 +249,5 @@ const styles = StyleSheet.create({
     left: '50%',
     marginLeft: -18,
     marginTop: -18,
-  }
+  },
 });

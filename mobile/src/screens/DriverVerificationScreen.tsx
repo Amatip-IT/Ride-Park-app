@@ -8,6 +8,21 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useAuthStore } from '@/store/authStore';
 
+// Maps the UI doc ID to the backend schema field name
+const DOC_TO_FIELD: Record<string, string> = {
+  nat_insurance: 'natInsuranceUrl',
+  vat_cert: 'vatCertUrl',
+  dvla_licence: 'dvlaLicenceUrl',
+  bank_statement: 'bankStatementUrl',
+  dvla_check_code: 'dvlaCheckCodeUrl',
+  phv_driver_licence: 'phvDriverLicenceUrl',
+  profile_photo: 'profilePhotoUrl',
+  phvl: 'phvlUrl',
+  v5c: 'v5cUrl',
+  insurance: 'insuranceUrl',
+  vehicle_inspection: 'vehicleInspectionUrl',
+};
+
 const DRIVER_DOCS = [
   { id: 'nat_insurance', title: 'National Insurance', optional: true },
   { id: 'vat_cert', title: 'VAT Certificate', optional: true },
@@ -28,10 +43,12 @@ const VEHICLE_DOCS = [
 export function DriverVerificationScreen() {
   const navigation = useNavigation<any>();
   const { user } = useAuthStore();
-  
-  const [docStatuses, setDocStatuses] = useState<Record<string, { status: string; expiry?: Date }>>({});
+
+  const [docStatuses, setDocStatuses] = useState<Record<string, { status: string; expiry?: Date; rejectionReason?: string }>>({});
   const [loading, setLoading] = useState(true);
   const [overallStatus, setOverallStatus] = useState<string>('not_applied');
+  const [rejectionReason, setRejectionReason] = useState<string>('');
+  const [recordId, setRecordId] = useState<string>('');
 
   useFocusEffect(
     useCallback(() => {
@@ -44,30 +61,34 @@ export function DriverVerificationScreen() {
             const data = res.data.data;
             const backendStatus = data?.status || 'not_applied';
             setOverallStatus(backendStatus);
-            
-            const docs = data?.documents || {};
-            
-            // Map backend documents to the local UI ids
-            const mapping: Record<string, string> = {
-              driverLicenseUrl: 'dvla_licence',
-              nationalIdUrl: 'nat_insurance',
-              proofOfAddressUrl: 'bank_statement',
-            };
+            setRejectionReason(data?.rejectionReason || '');
+            setRecordId(data?._id || '');
 
-            const newStatuses: Record<string, { status: string }> = {};
-            
-            // Determine per-document status based on overall verification status
-            Object.keys(docs).forEach(key => {
-              if (docs[key]) {
-                const mappedId = mapping[key] || key;
-                if (backendStatus === 'approved') {
-                  newStatuses[mappedId] = { status: 'Verified' };
-                } else if (backendStatus === 'pending_admin_review' || backendStatus === 'pending_auto_check') {
-                  newStatuses[mappedId] = { status: 'Uploaded, Await Review' };
-                } else if (backendStatus === 'rejected') {
-                  newStatuses[mappedId] = { status: 'Rejected' };
+            const docs = data?.documents || {};
+            const perDocStatuses = data?.documentStatuses || {};
+
+            const newStatuses: Record<string, { status: string; rejectionReason?: string }> = {};
+
+            // Map each document field to its UI doc ID with per-document status
+            Object.entries(DOC_TO_FIELD).forEach(([uiId, fieldName]) => {
+              if (docs[fieldName]) {
+                // Document URL exists — check its individual status
+                const docStatus = perDocStatuses[fieldName];
+                if (docStatus === 'verified') {
+                  newStatuses[uiId] = { status: 'Verified' };
+                } else if (docStatus === 'rejected') {
+                  newStatuses[uiId] = { status: 'Rejected', rejectionReason: perDocStatuses[fieldName]?.rejectionReason };
+                } else if (docStatus === 'uploaded') {
+                  newStatuses[uiId] = { status: 'Uploaded, Await Review' };
                 } else {
-                  newStatuses[mappedId] = { status: 'Uploaded' };
+                  // Fallback to overall status
+                  if (backendStatus === 'approved') {
+                    newStatuses[uiId] = { status: 'Verified' };
+                  } else if (backendStatus === 'rejected') {
+                    newStatuses[uiId] = { status: 'Rejected', rejectionReason: data?.rejectionReason };
+                  } else {
+                    newStatuses[uiId] = { status: 'Uploaded, Await Review' };
+                  }
                 }
               }
             });
@@ -96,7 +117,7 @@ export function DriverVerificationScreen() {
   const getStatusText = (status: string | undefined, optional: boolean) => {
     if (status) return status;
     if (optional) return 'Optional';
-    return 'Not Submitted'; // Changed from 'Pending' to 'Not Submitted'
+    return 'Not Submitted';
   };
 
   const renderDocItem = (item: typeof DRIVER_DOCS[0]) => {
@@ -118,6 +139,11 @@ export function DriverVerificationScreen() {
         <View style={styles.docInfo}>
           <Text style={styles.docTitle}>{item.title}</Text>
           <Text style={[styles.docStatus, { color: statusColor }]}>{statusText}</Text>
+          {docData?.rejectionReason && (
+            <Text style={styles.rejectionReason}>
+              Reason: {docData.rejectionReason}
+            </Text>
+          )}
         </View>
         <Ionicons name="chevron-forward" size={20} color={COLORS.textTertiary} />
       </TouchableOpacity>
@@ -157,9 +183,36 @@ export function DriverVerificationScreen() {
         {overallStatus === 'rejected' && (
           <View style={[styles.alertBox, { backgroundColor: '#FEF2F2', borderColor: COLORS.error }]}>
             <Ionicons name="warning" size={24} color={COLORS.error} />
-            <Text style={[styles.alertText, { color: COLORS.error }]}>
-              Your documents were rejected. Please review and resubmit.
-            </Text>
+            <View style={{ flex: 1, marginLeft: SPACING.sm }}>
+              <Text style={[styles.alertText, { color: COLORS.error }]}>
+                Your documents were rejected.
+              </Text>
+              {rejectionReason && (
+                <Text style={[styles.rejectionReasonText, { color: COLORS.error }]}>
+                  Reason: {rejectionReason}
+                </Text>
+              )}
+              <Text style={[styles.alertText, { color: COLORS.error, marginTop: SPACING.sm }]}>
+                Please review the feedback and resubmit your documents.
+              </Text>
+              <TouchableOpacity
+                style={styles.appealBtn}
+                onPress={() => navigation.navigate('FileDispute', {
+                  category: 'unfair_rejection',
+                  description: rejectionReason
+                    ? `My driver verification was rejected. Reason given: ${rejectionReason}. I believe this decision was unfair and request a review.`
+                    : 'My driver verification was rejected. I believe this decision was unfair and request a review.',
+                  relatedServiceType: 'verification',
+                  relatedServiceId: recordId,
+                  metadata: {
+                    recordId,
+                    providerType: user?.role === 'taxi_driver' ? 'taxi_driver' : 'driver',
+                  },
+                })}
+              >
+                <Text style={styles.appealBtnText}>Appeal This Decision</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         )}
         {overallStatus === 'not_applied' && (
@@ -232,4 +285,26 @@ const styles = StyleSheet.create({
   docInfo: { flex: 1, marginRight: SPACING.sm },
   docTitle: { color: COLORS.textPrimary, fontSize: 15, marginBottom: 4 },
   docStatus: { fontSize: 13, fontWeight: FONT_WEIGHTS.medium },
+  rejectionReason: {
+    fontSize: 12,
+    fontWeight: FONT_WEIGHTS.medium,
+    color: COLORS.error,
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  rejectionReasonText: {
+    fontSize: 13,
+    fontWeight: FONT_WEIGHTS.semibold,
+    marginTop: SPACING.sm,
+    lineHeight: 18,
+  },
+  appealBtn: {
+    marginTop: SPACING.md,
+    backgroundColor: COLORS.coralRed,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    alignSelf: 'flex-start',
+  },
+  appealBtnText: { color: '#FFF', fontWeight: FONT_WEIGHTS.semibold, fontSize: FONT_SIZES.small },
 });

@@ -3,10 +3,12 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Platform, SafeAreaView, ActivityIndicator, Alert, Image, TextInput,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute, RouteProp, useNavigation } from '@react-navigation/native';
 import { searchApi, bookingsApi } from '@/api';
+import { calculateBookingPrice, formatCurrency, getApiErrorMessage, openMapsNavigation } from '@/utils/helpers';
 import MapView, { Marker } from 'react-native-maps';
 
 type ParkingDetailParams = {
@@ -23,6 +25,20 @@ export function ParkingDetailScreen() {
   const [sendingRequest, setSendingRequest] = useState(false);
 
   const [message, setMessage] = useState('');
+  const [startDate, setStartDate] = useState(() => {
+    const d = new Date();
+    d.setMinutes(0, 0, 0);
+    d.setHours(d.getHours() + 1);
+    return d;
+  });
+  const [endDate, setEndDate] = useState(() => {
+    const d = new Date();
+    d.setMinutes(0, 0, 0);
+    d.setHours(d.getHours() + 3);
+    return d;
+  });
+  const [showStartPicker, setShowStartPicker] = useState(false);
+  const [showEndPicker, setShowEndPicker] = useState(false);
 
   useEffect(() => {
     if (!passedSpace && spaceId) {
@@ -37,19 +53,26 @@ export function ParkingDetailScreen() {
         setSpace(res.data.data);
       }
     } catch (err) {
-      Alert.alert('Error', 'Failed to load parking space details');
+      Alert.alert('Error', getApiErrorMessage(err, 'Failed to load parking space details'));
     } finally {
       setLoading(false);
     }
   };
 
   const handleSendRequest = async () => {
+    if (endDate <= startDate) {
+      Alert.alert('Invalid dates', 'End time must be after your start time.');
+      return;
+    }
+
     setSendingRequest(true);
     try {
       const response = await bookingsApi.createRequest({
         serviceType: 'parking',
         serviceId: spaceId,
         message: message.trim() || undefined,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
       });
 
       if (response.data?.success) {
@@ -61,11 +84,49 @@ export function ParkingDetailScreen() {
       } else {
         Alert.alert('Error', response.data?.message || 'Failed to send request');
       }
-    } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Failed to send request. Please try again.');
+    } catch (err: unknown) {
+      Alert.alert('Error', getApiErrorMessage(err, 'Failed to send request. Please try again.'));
     } finally {
       setSendingRequest(false);
     }
+  };
+
+  const openDirections = () => {
+    openMapsNavigation({
+      lat: space?.coordinates?.lat,
+      lng: space?.coordinates?.lng,
+      label: space?.name || 'Parking',
+      address: [space?.addressLine1 || space?.name, space?.town, space?.postCode].filter(Boolean).join(', '),
+    });
+  };
+
+  const handleChat = () => {
+    const ownerId = space?.owner?._id || space?.owner;
+    if (!ownerId) {
+      Alert.alert('Chat unavailable', 'Owner contact is not available for this listing.');
+      return;
+    }
+    (navigation as any).navigate('Chat', {
+      userId: ownerId,
+      userName: space.owner?.firstName ? `${space.owner.firstName} ${space.owner.lastName}` : 'Park Owner',
+    });
+  };
+
+  const onStartDateChange = (_: unknown, date?: Date) => {
+    setShowStartPicker(Platform.OS === 'ios');
+    if (date) {
+      setStartDate(date);
+      if (date >= endDate) {
+        const adjusted = new Date(date);
+        adjusted.setHours(adjusted.getHours() + 2);
+        setEndDate(adjusted);
+      }
+    }
+  };
+
+  const onEndDateChange = (_: unknown, date?: Date) => {
+    setShowEndPicker(Platform.OS === 'ios');
+    if (date) setEndDate(date);
   };
 
   if (loading) {
@@ -93,6 +154,7 @@ export function ParkingDetailScreen() {
   const ownerName = space.owner?.firstName
     ? `${space.owner.firstName} ${space.owner.lastName}`
     : 'Park Owner';
+  const estimatedCost = calculateBookingPrice(space.hourlyRate || 0, startDate.toISOString(), endDate.toISOString());
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -172,7 +234,7 @@ export function ParkingDetailScreen() {
             <Text style={styles.blockText}>
               {[space.addressLine1 || space.name, space.town, space.postCode].filter(Boolean).join(', ')}
             </Text>
-            <TouchableOpacity style={styles.linkButton}>
+            <TouchableOpacity style={styles.linkButton} onPress={openDirections} activeOpacity={0.7}>
               <Text style={styles.linkText}>Get directions to this car park</Text>
               <Ionicons name="open-outline" size={14} color={COLORS.electricTeal} style={{ marginLeft: 4 }} />
             </TouchableOpacity>
@@ -257,6 +319,61 @@ export function ParkingDetailScreen() {
           </View>
         </View>
 
+        {/* Booking dates */}
+        <View style={styles.pricingSection}>
+          <Text style={styles.sectionTitle}>When do you need parking?</Text>
+
+          <TouchableOpacity style={styles.dateRow} onPress={() => setShowStartPicker(true)} activeOpacity={0.7}>
+            <Ionicons name="calendar-outline" size={20} color={COLORS.electricTeal} />
+            <View style={styles.dateRowText}>
+              <Text style={styles.dateLabel}>Start</Text>
+              <Text style={styles.dateValue}>
+                {startDate.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}{' '}
+                · {startDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={COLORS.textTertiary} />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.dateRow} onPress={() => setShowEndPicker(true)} activeOpacity={0.7}>
+            <Ionicons name="calendar-outline" size={20} color={COLORS.electricTeal} />
+            <View style={styles.dateRowText}>
+              <Text style={styles.dateLabel}>End</Text>
+              <Text style={styles.dateValue}>
+                {endDate.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}{' '}
+                · {endDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={COLORS.textTertiary} />
+          </TouchableOpacity>
+
+          {endDate <= startDate && (
+            <Text style={styles.dateError}>End time must be after start time.</Text>
+          )}
+
+          <View style={styles.estimateRow}>
+            <Text style={styles.estimateLabel}>Estimated cost</Text>
+            <Text style={styles.estimateValue}>{formatCurrency(estimatedCost)}</Text>
+          </View>
+
+          {showStartPicker && (
+            <DateTimePicker
+              value={startDate}
+              mode="datetime"
+              minimumDate={new Date()}
+              onChange={onStartDateChange}
+            />
+          )}
+          {showEndPicker && (
+            <DateTimePicker
+              value={endDate}
+              mode="datetime"
+              minimumDate={startDate}
+              onChange={onEndDateChange}
+            />
+          )}
+        </View>
+
         {/* Message */}
         <View style={styles.pricingSection}>
           <Text style={styles.sectionTitle}>Message the Owner (Optional)</Text>
@@ -294,19 +411,16 @@ export function ParkingDetailScreen() {
         {/* Chat Button */}
         <TouchableOpacity
           style={styles.chatButton}
-          onPress={() => (navigation as any).navigate('Chat', { 
-            userId: space.owner?._id || space.owner, 
-            userName: space.owner?.firstName ? `${space.owner.firstName} ${space.owner.lastName}` : 'Park Owner' 
-          })}
+          onPress={handleChat}
           activeOpacity={0.8}
         >
           <Ionicons name="chatbubble-ellipses" size={24} color={COLORS.electricTeal} />
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.ctaButton, (sendingRequest || availableSpots === 0) && styles.ctaDisabled]}
+          style={[styles.ctaButton, (sendingRequest || availableSpots === 0 || endDate <= startDate) && styles.ctaDisabled]}
           onPress={handleSendRequest}
-          disabled={sendingRequest || availableSpots === 0}
+          disabled={sendingRequest || availableSpots === 0 || endDate <= startDate}
           activeOpacity={0.8}
         >
           {sendingRequest ? (
@@ -433,6 +547,32 @@ const styles = StyleSheet.create({
     padding: SPACING.md, color: COLORS.textPrimary, fontSize: FONT_SIZES.body,
     minHeight: 80, textAlignVertical: 'top', borderWidth: 1, borderColor: COLORS.border,
   },
+  dateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md,
+    marginBottom: SPACING.sm,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    gap: SPACING.sm,
+  },
+  dateRowText: { flex: 1 },
+  dateLabel: { color: COLORS.textSecondary, fontSize: 12, marginBottom: 2 },
+  dateValue: { color: COLORS.textPrimary, fontSize: FONT_SIZES.body, fontWeight: FONT_WEIGHTS.medium },
+  dateError: { color: COLORS.coralRed, fontSize: 13, marginBottom: SPACING.sm },
+  estimateRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: SPACING.md,
+    padding: SPACING.md,
+    backgroundColor: 'rgba(0, 194, 168, 0.1)',
+    borderRadius: BORDER_RADIUS.md,
+  },
+  estimateLabel: { color: COLORS.textSecondary, fontSize: 14 },
+  estimateValue: { color: COLORS.electricTeal, fontSize: 18, fontWeight: FONT_WEIGHTS.bold },
 
   // CTA
   ctaContainer: {

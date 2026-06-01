@@ -134,6 +134,28 @@ export function DriverRequestScreen() {
         </View>
 
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {targetName && (
+            <View style={styles.preselectedDriverCard}>
+              <View style={styles.preselectedDriverHeader}>
+                <Ionicons name="shield-checkmark" size={16} color={COLORS.electricTeal} />
+                <Text style={styles.preselectedDriverLabel}>DIRECT DRIVER BOOKING SECURED</Text>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: SPACING.sm }}>
+                <View style={styles.driverAvatarMini}>
+                  <Text style={styles.driverAvatarMiniText}>
+                    {targetName.split(' ').map((n: string) => n[0]).join('').toUpperCase()}
+                  </Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.driverNameText}>{targetName}</Text>
+                  <Text style={styles.driverNumSubtext}>
+                    Your private hire request will be routed directly to this verified operator.
+                  </Text>
+                </View>
+              </View>
+            </View>
+          )}
+
           {/* ── Location ── */}
           <Text style={styles.sectionLabel}>Start Location</Text>
 
@@ -352,5 +374,52 @@ const styles = StyleSheet.create({
   },
   submitBtnText: {
     color: '#FFF', fontSize: FONT_SIZES.body, fontWeight: FONT_WEIGHTS.bold,
+  },
+
+  // Preselected Driver Card
+  preselectedDriverCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.lg,
+    marginBottom: SPACING.lg,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  preselectedDriverHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+    paddingBottom: SPACING.sm,
+  },
+  preselectedDriverLabel: {
+    color: COLORS.electricTeal,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  driverAvatarMini: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: `${COLORS.electricTeal}15`,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  driverAvatarMiniText: {
+    color: COLORS.electricTeal,
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  driverNameText: {
+    color: COLORS.textPrimary,
+    fontSize: FONT_SIZES.label,
+    fontWeight: FONT_WEIGHTS.bold,
+  },
+  driverNumSubtext: {
+    color: COLORS.textTertiary,
+    fontSize: 11,
+    marginTop: 2,
   },
 });

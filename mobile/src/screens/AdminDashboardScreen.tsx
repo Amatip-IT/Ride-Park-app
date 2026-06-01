@@ -115,14 +115,30 @@ export function AdminDashboardScreen() {
           <Ionicons name="chevron-forward" size={22} color={COLORS.textTertiary} />
         </TouchableOpacity>
 
+        {/* Driver / Taxi Verifications */}
+        <TouchableOpacity
+          style={styles.card}
+          onPress={() => navigation.navigate('AdminDriverQueue')}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.iconContainer, { backgroundColor: `${COLORS.amber}12` }]}>
+            <Ionicons name="car-sport-outline" size={28} color={COLORS.amber} />
+          </View>
+          <View style={styles.cardContent}>
+            <Text style={styles.cardTitle}>Driver Verifications</Text>
+            <Text style={styles.cardDesc}>Review driver and taxi driver document submissions.</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={22} color={COLORS.textTertiary} />
+        </TouchableOpacity>
+
         {/* Identity Documents */}
         <TouchableOpacity
           style={styles.card}
           onPress={() => navigation.navigate('AdminIdentityQueue')}
           activeOpacity={0.7}
         >
-          <View style={[styles.iconContainer, { backgroundColor: `${COLORS.amber}12` }]}>
-            <Ionicons name="id-card-outline" size={28} color={COLORS.amber} />
+          <View style={[styles.iconContainer, { backgroundColor: `${COLORS.info}12` }]}>
+            <Ionicons name="id-card-outline" size={28} color={COLORS.info} />
           </View>
           <View style={styles.cardContent}>
             <Text style={styles.cardTitle}>Identity Documents</Text>
@@ -142,7 +158,87 @@ export function AdminDashboardScreen() {
           </View>
           <View style={styles.cardContent}>
             <Text style={styles.cardTitle}>Users</Text>
-            <Text style={styles.cardDesc}>View and manage all registered users.</Text>
+            <Text style={styles.cardDesc}>View, suspend, or ban platform users.</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={22} color={COLORS.textTertiary} />
+        </TouchableOpacity>
+
+        {/* Expiring Documents */}
+        <TouchableOpacity
+          style={styles.card}
+          onPress={() => navigation.navigate('AdminExpiringDocuments')}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.iconContainer, { backgroundColor: `${COLORS.warning}12` }]}>
+            <Ionicons name="alert-circle-outline" size={28} color={COLORS.warning} />
+          </View>
+          <View style={styles.cardContent}>
+            <Text style={styles.cardTitle}>Expiring Documents</Text>
+            <Text style={styles.cardDesc}>Review driver licence and insurance renewals.</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={22} color={COLORS.textTertiary} />
+        </TouchableOpacity>
+
+        {/* Audit Logs */}
+        <TouchableOpacity
+          style={styles.card}
+          onPress={() => navigation.navigate('AdminAuditLogs')}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.iconContainer, { backgroundColor: `${COLORS.electricTeal}12` }]}>
+            <Ionicons name="shield-checkmark-outline" size={28} color={COLORS.electricTeal} />
+          </View>
+          <View style={styles.cardContent}>
+            <Text style={styles.cardTitle}>Audit Logs</Text>
+            <Text style={styles.cardDesc}>Review admin actions, approvals, and account changes.</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={22} color={COLORS.textTertiary} />
+        </TouchableOpacity>
+
+        {/* Admin Messaging */}
+        <TouchableOpacity
+          style={styles.card}
+          onPress={() => navigation.navigate('AdminMessaging')}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.iconContainer, { backgroundColor: `${COLORS.info}12` }]}>
+            <Ionicons name="mail-outline" size={28} color={COLORS.info} />
+          </View>
+          <View style={styles.cardContent}>
+            <Text style={styles.cardTitle}>Admin Messaging</Text>
+            <Text style={styles.cardDesc}>Send templated messages to users with delivery tracking.</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={22} color={COLORS.textTertiary} />
+        </TouchableOpacity>
+
+        {/* Analytics Dashboard */}
+        <TouchableOpacity
+          style={styles.card}
+          onPress={() => navigation.navigate('AdminAnalytics')}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.iconContainer, { backgroundColor: `${COLORS.success}12` }]}>
+            <Ionicons name="bar-chart-outline" size={28} color={COLORS.success} />
+          </View>
+          <View style={styles.cardContent}>
+            <Text style={styles.cardTitle}>Analytics</Text>
+            <Text style={styles.cardDesc}>Revenue, verifications, users, and queue health metrics.</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={22} color={COLORS.textTertiary} />
+        </TouchableOpacity>
+
+        {/* Dispute Resolution */}
+        <TouchableOpacity
+          style={styles.card}
+          onPress={() => navigation.navigate('AdminDisputes')}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.iconContainer, { backgroundColor: `${COLORS.coralRed}12` }]}>
+            <Ionicons name="help-buoy-outline" size={28} color={COLORS.coralRed} />
+          </View>
+          <View style={styles.cardContent}>
+            <Text style={styles.cardTitle}>Dispute Queue</Text>
+            <Text style={styles.cardDesc}>Review user complaints and resolve cases.</Text>
           </View>
           <Ionicons name="chevron-forward" size={22} color={COLORS.textTertiary} />
         </TouchableOpacity>

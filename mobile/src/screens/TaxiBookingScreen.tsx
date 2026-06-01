@@ -1,13 +1,15 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Platform, SafeAreaView, ActivityIndicator, Alert, TextInput,
+  Platform, SafeAreaView, ActivityIndicator, Alert, TextInput, Modal
 } from 'react-native';
 import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
+import { AmazonMap } from '@/components/AmazonMap';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, NavigationProp, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
-import { taxiBookingsApi } from '@/api';
+import { taxiBookingsApi, ridesApi } from '@/api';
 import * as Location from 'expo-location';
+import { getApiErrorMessage, haversineDistanceMiles, estimateDurationMinutes } from '@/utils/helpers';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 type TimingType = 'now' | 'leave_at' | 'arrive_by';
@@ -29,9 +31,16 @@ export function TaxiBookingScreen() {
   const [pickupCoords, setPickupCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [fetchingLocation, setFetchingLocation] = useState(false);
 
+  // Preview Map Modal
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [estimatedMiles, setEstimatedMiles] = useState(4.3);
+  const [estimatedCost, setEstimatedCost] = useState(9.75);
+  const [estimatedDuration, setEstimatedDuration] = useState(12);
+
   // Destination
   const [destinationAddress, setDestinationAddress] = useState('');
   const [destinationPostcode, setDestinationPostcode] = useState('');
+  const [destinationCoords, setDestinationCoords] = useState<{ lat: number; lng: number } | null>(null);
 
   // Timing
   const [timingType, setTimingType] = useState<TimingType>('now');
@@ -46,6 +55,7 @@ export function TaxiBookingScreen() {
 
   // Submission
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [calculatingEstimate, setCalculatingEstimate] = useState(false);
   const [activeRequest, setActiveRequest] = useState<any>(null);
   const [loadingActiveRequest, setLoadingActiveRequest] = useState(true);
   const [isCancelling, setIsCancelling] = useState(false);
@@ -58,8 +68,8 @@ export function TaxiBookingScreen() {
         try {
           const res = await taxiBookingsApi.getMyRequests();
           if (res.data?.success && res.data.data) {
-            const active = res.data.data.find(
-              (r: any) => ['searching', 'accepted'].includes(r.status)
+            const active = res.data.data.find((r: any) =>
+              ['searching', 'accepted', 'arrived', 'in_progress'].includes(r.status),
             );
             if (active) {
               setActiveRequest(active);
@@ -113,38 +123,132 @@ export function TaxiBookingScreen() {
     }
   }, []);
 
-  const handleSubmit = useCallback(async () => {
-    // Validation
+  const resolvePickupCoordinates = async (): Promise<{ lat: number; lng: number } | null> => {
+    if (pickupCoords) return pickupCoords;
+
+    const query = pickupPostcode || pickupAddress;
+    if (!query) return null;
+
+    try {
+      const results = await Location.geocodeAsync(query);
+      if (results[0]) {
+        const coords = { lat: results[0].latitude, lng: results[0].longitude };
+        setPickupCoords(coords);
+        return coords;
+      }
+    } catch {
+      // fall through
+    }
+    return null;
+  };
+
+  const resolveDestinationCoordinates = async (): Promise<{ lat: number; lng: number } | null> => {
+    if (destinationCoords) return destinationCoords;
+
+    const query = destinationPostcode || destinationAddress;
+    if (!query) return null;
+
+    try {
+      const results = await Location.geocodeAsync(query);
+      if (results[0]) {
+        const coords = { lat: results[0].latitude, lng: results[0].longitude };
+        setDestinationCoords(coords);
+        return coords;
+      }
+    } catch {
+      // fall through
+    }
+    return null;
+  };
+
+  const handleCalculatePreview = async () => {
     if (pickupMethod === 'manual' && !pickupAddress && !pickupPostcode) {
       Alert.alert('Missing Pickup', 'Please enter your pickup address or postcode, or use GPS.');
       return;
     }
-
     if (!destinationAddress && !destinationPostcode) {
       Alert.alert('Missing Destination', 'Please enter your destination address or postcode.');
       return;
     }
-
     if (timingType !== 'now' && !scheduledTime) {
       Alert.alert('Missing Time', 'Please select your travel time.');
       return;
     }
 
+    setCalculatingEstimate(true);
+    try {
+      let miles = 4;
+      let mins = 12;
+
+      const pickup = await resolvePickupCoordinates();
+      const destination = await resolveDestinationCoordinates();
+
+      if (pickup && destination) {
+        miles = haversineDistanceMiles(
+          pickup.lat,
+          pickup.lng,
+          destination.lat,
+          destination.lng,
+        );
+        mins = estimateDurationMinutes(miles);
+      }
+
+      miles = Math.max(0.5, Math.round(miles * 10) / 10);
+      mins = Math.max(5, mins);
+
+      const res = await ridesApi.getEstimate('taxi', miles, mins);
+      if (res.data?.success && res.data.data) {
+        setEstimatedMiles(res.data.data.distanceMiles ?? miles);
+        setEstimatedDuration(res.data.data.durationMinutes ?? mins);
+        setEstimatedCost(res.data.data.totalCost ?? 0);
+      } else {
+        setEstimatedMiles(miles);
+        setEstimatedDuration(mins);
+        setEstimatedCost(Math.round((miles * 1.1 + mins * 0.2) * 100) / 100);
+      }
+
+      setShowPreviewModal(true);
+    } catch {
+      Alert.alert('Error', 'Could not calculate fare estimate. Please try again.');
+    } finally {
+      setCalculatingEstimate(false);
+    }
+  };
+
+  const confirmAndRequest = useCallback(async () => {
+    setShowPreviewModal(false);
     setIsSubmitting(true);
 
     try {
+      const pickup = await resolvePickupCoordinates();
+      const destination = await resolveDestinationCoordinates();
+
+      if (!pickup) {
+        Alert.alert('Pickup location', 'We could not locate your pickup. Please use GPS or check the address.');
+        return;
+      }
+      if (!destination) {
+        Alert.alert('Destination', 'We could not locate your destination. Please check the address or postcode.');
+        return;
+      }
+
       const res = await taxiBookingsApi.createRequest({
-        pickupAddress: pickupMethod === 'gps' ? 'GPS Location' : pickupAddress || undefined,
+        pickupAddress: pickupMethod === 'gps' ? pickupAddress || 'GPS Location' : pickupAddress || undefined,
         pickupPostcode: pickupPostcode || undefined,
-        pickupLat: pickupCoords?.lat,
-        pickupLng: pickupCoords?.lng,
+        pickupLat: pickup.lat,
+        pickupLng: pickup.lng,
         pickupFromGps: pickupMethod === 'gps',
         destinationAddress: destinationAddress || destinationPostcode,
         destinationPostcode: destinationPostcode || undefined,
+        destinationLat: destination.lat,
+        destinationLng: destination.lng,
         timingType,
         scheduledTime: timingType !== 'now' ? scheduledTime.toISOString() : undefined,
         passengerNote: passengerNote || undefined,
         taxiType,
+        estimatedDistanceMiles: estimatedMiles,
+        estimatedDurationMinutes: estimatedDuration,
+        estimatedCost,
       });
 
       if (res.data?.success) {
@@ -157,12 +261,27 @@ export function TaxiBookingScreen() {
       } else {
         Alert.alert('Error', res.data?.message || 'Failed to create request');
       }
-    } catch (error: any) {
-      Alert.alert('Error', error?.response?.data?.message || error?.message || 'Something went wrong');
+    } catch (error: unknown) {
+      Alert.alert('Error', getApiErrorMessage(error, 'Something went wrong'));
     } finally {
       setIsSubmitting(false);
     }
-  }, [pickupMethod, pickupAddress, pickupPostcode, pickupCoords, destinationAddress, destinationPostcode, timingType, scheduledTime, passengerNote]);
+  }, [
+    pickupMethod,
+    pickupAddress,
+    pickupPostcode,
+    pickupCoords,
+    destinationAddress,
+    destinationPostcode,
+    destinationCoords,
+    timingType,
+    scheduledTime,
+    passengerNote,
+    taxiType,
+    estimatedMiles,
+    estimatedDuration,
+    estimatedCost,
+  ]);
 
   const handleCancel = useCallback(async () => {
     if (!activeRequest?._id) return;
@@ -338,6 +457,28 @@ export function TaxiBookingScreen() {
         </View>
 
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {targetName && (
+            <View style={styles.preselectedDriverCard}>
+              <View style={styles.preselectedDriverHeader}>
+                <Ionicons name="shield-checkmark" size={16} color={COLORS.electricTeal} />
+                <Text style={styles.preselectedDriverLabel}>DIRECT TAXI BOOKING SECURED</Text>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: SPACING.sm }}>
+                <View style={styles.driverAvatarMini}>
+                  <Text style={styles.driverAvatarMiniText}>
+                    {targetName.split(' ').map((n: string) => n[0]).join('').toUpperCase()}
+                  </Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.driverNameText}>{targetName}</Text>
+                  <Text style={styles.driverNumSubtext}>
+                    Your request will be routed directly to this verified operator.
+                  </Text>
+                </View>
+              </View>
+            </View>
+          )}
+
           {/* ── Pickup Section ── */}
           <Text style={styles.sectionLabel}>Pickup Location</Text>
 
@@ -485,21 +626,95 @@ export function TaxiBookingScreen() {
           {/* ── Submit ── */}
           <TouchableOpacity
             style={[styles.submitBtn, isSubmitting && { opacity: 0.6 }]}
-            onPress={handleSubmit}
-            disabled={isSubmitting}
+            onPress={handleCalculatePreview}
+            disabled={isSubmitting || calculatingEstimate}
             activeOpacity={0.7}
           >
-            {isSubmitting ? (
+            {calculatingEstimate ? (
+              <ActivityIndicator size="small" color="#FFF" />
+            ) : isSubmitting ? (
               <ActivityIndicator size="small" color="#FFF" />
             ) : (
               <>
                 <Ionicons name="send" size={20} color="#FFF" style={{ marginRight: 8 }} />
-                <Text style={styles.submitBtnText}>Request Taxi</Text>
+                <Text style={styles.submitBtnText}>Calculate Route & Price</Text>
               </>
             )}
           </TouchableOpacity>
         </ScrollView>
       </View>
+
+      {/* MATCH MODAL (Uber-Style UI) */}
+      <Modal
+        visible={showPreviewModal}
+        animationType="slide"
+        transparent={false}
+      >
+        <View style={styles.modalContainer}>
+          {/* Map Background */}
+          <AmazonMap
+            pickupLat={pickupCoords?.lat ?? 51.5074}
+            pickupLng={pickupCoords?.lng ?? -0.1278}
+            destinationLat={destinationCoords?.lat ?? 51.515}
+            destinationLng={destinationCoords?.lng ?? -0.12}
+          />
+
+          {/* Dark Overlay Info Card (Uber style) */}
+          <View style={styles.matchCard}>
+            <View style={styles.matchCardHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Ionicons name="car" size={16} color="#FFF" />
+                <Text style={styles.matchCardTitle}>{targetName ? `${taxiType || 'Taxi'} - ${targetName}` : 'UberX / Taxi'}</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowPreviewModal(false)} style={styles.closeBtn}>
+                <Ionicons name="close" size={24} color="#FFF" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10 }}>
+              <Text style={styles.matchPrice}>£{estimatedCost.toFixed(2)}</Text>
+            </View>
+            
+            <View style={styles.feeBadge}>
+              <Text style={styles.feeText}>£0.77 est. holiday entitlement included</Text>
+            </View>
+
+            <View style={styles.matchRoute}>
+              {/* Pickup Line */}
+              <View style={styles.matchRouteItem}>
+                <View style={styles.matchNode} />
+                <Text style={styles.matchRouteText} numberOfLines={1}>
+                  {pickupAddress || pickupPostcode || 'Current Location'}
+                </Text>
+              </View>
+              
+              <View style={styles.matchRouteLine} />
+              
+              {/* Dropoff Line */}
+              <View style={styles.matchRouteItem}>
+                <View style={[styles.matchNode, { backgroundColor: '#FFF' }]} />
+                <Text style={styles.matchRouteText} numberOfLines={2}>
+                  {estimatedDuration} mins ({estimatedMiles.toFixed(1)} mi){'\n'}
+                  {destinationAddress || destinationPostcode}
+                </Text>
+              </View>
+            </View>
+
+            <TouchableOpacity 
+              style={[styles.matchBtn, isSubmitting && { opacity: 0.6 }]}
+              onPress={confirmAndRequest}
+              disabled={isSubmitting}
+              activeOpacity={0.8}
+            >
+              {isSubmitting ? (
+                <ActivityIndicator size="small" color="#000" />
+              ) : (
+                <Text style={styles.matchBtnText}>{targetName ? 'Match' : 'Confirm & Request'}</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -666,4 +881,74 @@ const styles = StyleSheet.create({
     borderWidth: 1.5, borderColor: COLORS.error,
   },
   cancelBtnText: { color: COLORS.error, fontSize: FONT_SIZES.body, fontWeight: FONT_WEIGHTS.bold },
+
+  // Preselected Driver Card
+  preselectedDriverCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.lg,
+    marginBottom: SPACING.lg,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  preselectedDriverHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+    paddingBottom: SPACING.sm,
+  },
+  preselectedDriverLabel: {
+    color: COLORS.electricTeal,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  driverAvatarMini: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: `${COLORS.electricTeal}15`,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  driverAvatarMiniText: {
+    color: COLORS.electricTeal,
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  driverNameText: {
+    color: COLORS.textPrimary,
+    fontSize: FONT_SIZES.label,
+    fontWeight: FONT_WEIGHTS.bold,
+  },
+  driverNumSubtext: {
+    color: COLORS.textTertiary,
+    fontSize: 11,
+    marginTop: 2,
+  },
+
+  // MODAL UBER UI
+  modalContainer: { flex: 1, backgroundColor: '#1C1C1E' },
+  matchCard: {
+    position: 'absolute', bottom: 20, left: 16, right: 16,
+    backgroundColor: 'rgba(30,30,30,0.95)',
+    borderRadius: 24, padding: 24,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.5, shadowRadius: 20, elevation: 15,
+  },
+  matchCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  matchCardTitle: { color: '#B0B0B0', fontSize: 15, fontWeight: 'bold' as any },
+  closeBtn: { padding: 4 },
+  matchPrice: { color: '#FFF', fontSize: 44, fontWeight: 'bold' as any, letterSpacing: -1 },
+  feeBadge: { backgroundColor: 'rgba(255,255,255,0.1)', alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, marginTop: 12, marginBottom: 20 },
+  feeText: { color: '#B0B0B0', fontSize: 12, fontWeight: 'bold' as any },
+  matchRoute: { marginBottom: 24, paddingLeft: 4 },
+  matchRouteItem: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  matchNode: { width: 8, height: 8, borderRadius: 4, backgroundColor: 'transparent', borderWidth: 2, borderColor: '#FFF', marginTop: 6 },
+  matchRouteText: { color: '#FFF', fontSize: 14, fontWeight: '500' as any, lineHeight: 20, flex: 1 },
+  matchRouteLine: { width: 2, height: 24, backgroundColor: '#555', marginLeft: 3, marginVertical: 4 },
+  
+  matchBtn: { backgroundColor: '#FFF', paddingVertical: 18, borderRadius: 100, alignItems: 'center', justifyContent: 'center' },
+  matchBtnText: { color: '#000', fontSize: 18, fontWeight: 'bold' as any },
 });

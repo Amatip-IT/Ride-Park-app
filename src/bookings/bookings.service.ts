@@ -1,15 +1,19 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { BookingRequest, BookingRequestDocument } from 'src/schemas/booking-request.schema';
 import { ParkingSpace, ParkingSpaceDocument } from 'src/schemas/parking-space.schema';
+import { NotificationsService } from 'src/notifications/notifications.service';
 import { Response } from 'src/common/interfaces/response.interface';
 
 @Injectable()
 export class BookingsService {
+  private readonly logger = new Logger(BookingsService.name);
+
   constructor(
     @InjectModel(BookingRequest.name) private bookingModel: Model<BookingRequestDocument>,
     @InjectModel(ParkingSpace.name) private parkingSpaceModel: Model<ParkingSpaceDocument>,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   /**
@@ -47,12 +51,29 @@ export class BookingsService {
           return { success: false, message: 'Parking space not found' };
         }
         if (!space.isAvailable) {
-          return { success: false, message: 'This parking space is not available' };
+          return { success: false, message: 'This parking space is no longer available. All spots are currently occupied.' };
         }
         providerId = space.owner.toString();
         serviceName = space.name;
-        quotedPrice = space.hourlyRate;
-        pricingUnit = 'per_hour';
+
+        // Calculate price based on duration and available rates
+        const requestedStart = data.startDate ? new Date(data.startDate) : (data.startTime ? new Date(data.startTime) : undefined);
+        const requestedEnd = data.endDate ? new Date(data.endDate) : (data.endTime ? new Date(data.endTime) : undefined);
+
+        if (requestedStart && requestedEnd && space.dailyRate) {
+          const hours = (requestedEnd.getTime() - requestedStart.getTime()) / (1000 * 60 * 60);
+          if (hours >= 24) {
+            const days = Math.ceil(hours / 24);
+            quotedPrice = days * space.dailyRate;
+            pricingUnit = 'per_day';
+          } else {
+            quotedPrice = Math.ceil(hours) * space.hourlyRate;
+            pricingUnit = 'per_hour';
+          }
+        } else {
+          quotedPrice = space.hourlyRate;
+          pricingUnit = 'per_hour';
+        }
       } else if (data.serviceType === 'driver') {
         // Driver request — no specific provider yet (broadcast)
         serviceName = 'Driver Request';
@@ -101,7 +122,7 @@ export class BookingsService {
         } else {
           // Fallback to checking real-time occupied spots
           if (space.occupiedSpots >= space.totalSpots) {
-            return { success: false, message: `Sorry, all ${space.totalSpots} spots are currently occupied.` };
+            return { success: false, message: `Sorry, all ${space.totalSpots} spots are currently occupied. This space is no longer available.` };
           }
         }
       }
@@ -131,6 +152,26 @@ export class BookingsService {
         .populate('requester', 'firstName lastName email phoneNumber')
         .populate('provider', 'firstName lastName')
         .exec();
+
+      // ── Notify the provider about the new request ──
+      if (providerId) {
+        try {
+          const requesterData = populated?.requester as any;
+          const requesterName = requesterData?.firstName
+            ? `${requesterData.firstName} ${requesterData.lastName}`
+            : 'A user';
+
+          await this.notificationsService.sendNotification(
+            providerId,
+            '📥 New Booking Request',
+            `${requesterName} has requested to book "${serviceName}".`,
+            'booking',
+            { bookingId: booking._id.toString(), serviceType: data.serviceType },
+          );
+        } catch (err) {
+          this.logger.warn('Failed to send new-request notification to provider', err);
+        }
+      }
 
       return {
         success: true,
@@ -201,6 +242,15 @@ export class BookingsService {
 
   /**
    * Provider responds to a booking request (accept or reject)
+   * 
+   * On ACCEPT:
+   *   1. Increment occupiedSpots on the ParkingSpace
+   *   2. If occupiedSpots >= totalSpots → set isAvailable = false
+   *   3. Notify the requester
+   *   4. If space just became full → notify provider
+   * 
+   * On REJECT:
+   *   1. Notify the requester
    */
   async respondToRequest(
     requestId: string,
@@ -223,16 +273,120 @@ export class BookingsService {
         return { success: false, message: `This request has already been ${booking.status}` };
       }
 
+      // ── For parking: validate capacity before accepting ──
+      if (action === 'accept' && booking.serviceType === 'parking' && booking.serviceId) {
+        const space = await this.parkingSpaceModel.findById(booking.serviceId);
+        if (space && space.occupiedSpots >= space.totalSpots) {
+          return {
+            success: false,
+            message: `Cannot accept — all ${space.totalSpots} spots are already occupied. Reject this request or wait for a spot to free up.`,
+          };
+        }
+      }
+
       booking.status = action === 'accept' ? 'accepted' : 'rejected';
       booking.responseMessage = responseMessage;
       booking.respondedAt = new Date();
       await booking.save();
+
+      // ── FIX BUG 1+2: Update occupiedSpots on the parking space ──
+      let spaceBecameFull = false;
+      if (action === 'accept' && booking.serviceType === 'parking' && booking.serviceId) {
+        const updatedSpace = await this.parkingSpaceModel.findByIdAndUpdate(
+          booking.serviceId,
+          { $inc: { occupiedSpots: 1 } },
+          { new: true },
+        );
+
+        if (updatedSpace) {
+          // Check if space is now full → auto-disable availability
+          if (updatedSpace.occupiedSpots >= updatedSpace.totalSpots) {
+            updatedSpace.isAvailable = false;
+            await updatedSpace.save();
+            spaceBecameFull = true;
+            this.logger.log(
+              `Parking space "${updatedSpace.name}" (${updatedSpace._id}) is now FULL ` +
+              `(${updatedSpace.occupiedSpots}/${updatedSpace.totalSpots}). Marked as unavailable.`,
+            );
+          }
+        }
+      }
 
       const populated = await this.bookingModel
         .findById(booking._id)
         .populate('requester', 'firstName lastName email phoneNumber')
         .populate('provider', 'firstName lastName')
         .exec();
+
+      // ── FIX BUG 3: Send notifications ──
+      const requesterId = booking.requester.toString();
+      const bookingName = booking.serviceName || 'your service';
+
+      try {
+        if (action === 'accept') {
+          await this.notificationsService.sendNotification(
+            requesterId,
+            '✅ Booking Accepted!',
+            `Your request for "${bookingName}" has been accepted! Your spot is confirmed.`,
+            'booking',
+            { bookingId: booking._id.toString(), status: 'accepted' },
+          );
+        } else {
+          const reason = responseMessage ? ` Reason: ${responseMessage}` : '';
+          await this.notificationsService.sendNotification(
+            requesterId,
+            '❌ Booking Declined',
+            `Your request for "${bookingName}" was declined.${reason}`,
+            'booking',
+            { bookingId: booking._id.toString(), status: 'rejected' },
+          );
+        }
+
+        // Notify provider if space just became full
+        if (spaceBecameFull) {
+          await this.notificationsService.sendNotification(
+            providerId,
+            '🅿️ Space Full!',
+            `"${bookingName}" is now fully occupied. No new bookings will be accepted until a spot frees up.`,
+            'system',
+            { serviceId: booking.serviceId?.toString() },
+          );
+
+          // Also reject all remaining pending requests for this full space
+          const pendingForSpace = await this.bookingModel.find({
+            serviceId: booking.serviceId,
+            status: 'pending',
+          });
+
+          for (const pendingBooking of pendingForSpace) {
+            pendingBooking.status = 'rejected';
+            pendingBooking.responseMessage = 'This parking space is no longer available — all spots are occupied.';
+            pendingBooking.respondedAt = new Date();
+            await pendingBooking.save();
+
+            // Notify each waiting user
+            try {
+              await this.notificationsService.sendNotification(
+                pendingBooking.requester.toString(),
+                '🅿️ Space No Longer Available',
+                `Sorry, "${bookingName}" is now fully booked. Your pending request has been automatically declined.`,
+                'booking',
+                { bookingId: pendingBooking._id.toString(), status: 'rejected' },
+              );
+            } catch (notifErr) {
+              this.logger.warn('Failed to notify user about auto-rejected booking', notifErr);
+            }
+          }
+
+          if (pendingForSpace.length > 0) {
+            this.logger.log(
+              `Auto-rejected ${pendingForSpace.length} pending requests for full space ${booking.serviceId}`,
+            );
+          }
+        }
+      } catch (notifErr) {
+        this.logger.warn('Failed to send booking response notification', notifErr);
+      }
 
       return {
         success: true,
@@ -249,6 +403,9 @@ export class BookingsService {
 
   /**
    * Cancel a booking request (by the requester)
+   * 
+   * If the booking was already accepted (parking), decrement occupiedSpots
+   * and re-enable the space if it was previously full.
    */
   async cancelBooking(requestId: string, requesterId: string): Promise<Response> {
     try {
@@ -266,8 +423,51 @@ export class BookingsService {
         return { success: false, message: `Cannot cancel a ${booking.status} booking` };
       }
 
+      const wasAccepted = booking.status === 'accepted';
+
       booking.status = 'cancelled';
       await booking.save();
+
+      // ── FIX BUG 6: Release the spot if the booking was already accepted ──
+      if (wasAccepted && booking.serviceType === 'parking' && booking.serviceId) {
+        const updatedSpace = await this.parkingSpaceModel.findByIdAndUpdate(
+          booking.serviceId,
+          { $inc: { occupiedSpots: -1 } },
+          { new: true },
+        );
+
+        if (updatedSpace) {
+          // Ensure occupiedSpots never goes below 0
+          if (updatedSpace.occupiedSpots < 0) {
+            updatedSpace.occupiedSpots = 0;
+            await updatedSpace.save();
+          }
+          // Re-enable if it was previously full
+          if (!updatedSpace.isAvailable && updatedSpace.occupiedSpots < updatedSpace.totalSpots) {
+            updatedSpace.isAvailable = true;
+            await updatedSpace.save();
+            this.logger.log(
+              `Parking space "${updatedSpace.name}" (${updatedSpace._id}) has a free spot again. ` +
+              `Marked as available (${updatedSpace.occupiedSpots}/${updatedSpace.totalSpots}).`,
+            );
+          }
+        }
+
+        // Notify the provider about the cancellation
+        if (booking.provider) {
+          try {
+            await this.notificationsService.sendNotification(
+              booking.provider.toString(),
+              '🔄 Booking Cancelled',
+              `A user cancelled their booking for "${booking.serviceName || 'your parking space'}". The spot is now available again.`,
+              'booking',
+              { bookingId: booking._id.toString(), status: 'cancelled' },
+            );
+          } catch (notifErr) {
+            this.logger.warn('Failed to send cancellation notification to provider', notifErr);
+          }
+        }
+      }
 
       return {
         success: true,
@@ -278,6 +478,160 @@ export class BookingsService {
       return {
         success: false,
         message: `Failed to cancel: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      };
+    }
+  }
+
+  /**
+   * FIX BUG 5: Complete a booking (by the provider or auto-triggered)
+   * 
+   * Marks the booking as completed, sets completedAt, decrements occupiedSpots,
+   * and re-enables the space if it was previously full.
+   */
+  async completeBooking(requestId: string, providerId: string): Promise<Response> {
+    try {
+      const booking = await this.bookingModel.findById(requestId);
+
+      if (!booking) {
+        return { success: false, message: 'Booking not found' };
+      }
+
+      if (booking.provider && booking.provider.toString() !== providerId.toString()) {
+        return { success: false, message: 'You are not authorized to complete this booking' };
+      }
+
+      if (booking.status !== 'accepted') {
+        return { success: false, message: `Cannot complete a ${booking.status} booking. Only accepted bookings can be completed.` };
+      }
+
+      booking.status = 'completed';
+      booking.completedAt = new Date();
+      await booking.save();
+
+      // Release the spot for parking bookings
+      if (booking.serviceType === 'parking' && booking.serviceId) {
+        const updatedSpace = await this.parkingSpaceModel.findByIdAndUpdate(
+          booking.serviceId,
+          { $inc: { occupiedSpots: -1 } },
+          { new: true },
+        );
+
+        if (updatedSpace) {
+          // Ensure occupiedSpots never goes below 0
+          if (updatedSpace.occupiedSpots < 0) {
+            updatedSpace.occupiedSpots = 0;
+            await updatedSpace.save();
+          }
+          // Re-enable if it was previously full
+          if (!updatedSpace.isAvailable && updatedSpace.occupiedSpots < updatedSpace.totalSpots) {
+            updatedSpace.isAvailable = true;
+            await updatedSpace.save();
+            this.logger.log(
+              `Parking space "${updatedSpace.name}" has a free spot after booking completion. ` +
+              `Now available (${updatedSpace.occupiedSpots}/${updatedSpace.totalSpots}).`,
+            );
+          }
+        }
+      }
+
+      // Notify the requester
+      try {
+        await this.notificationsService.sendNotification(
+          booking.requester.toString(),
+          '🏁 Booking Completed',
+          `Your booking for "${booking.serviceName || 'parking'}" has been completed. Thank you for using Gleezip!`,
+          'booking',
+          { bookingId: booking._id.toString(), status: 'completed' },
+        );
+      } catch (notifErr) {
+        this.logger.warn('Failed to send completion notification', notifErr);
+      }
+
+      const populated = await this.bookingModel
+        .findById(booking._id)
+        .populate('requester', 'firstName lastName email phoneNumber')
+        .populate('provider', 'firstName lastName')
+        .exec();
+
+      return {
+        success: true,
+        data: populated,
+        message: 'Booking completed successfully. The parking spot has been freed.',
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: `Failed to complete booking: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      };
+    }
+  }
+
+  /**
+   * Auto-complete expired bookings (call from a scheduled job or admin)
+   * Finds all accepted parking bookings whose endDate has passed and completes them.
+   */
+  async autoCompleteExpiredBookings(): Promise<Response> {
+    try {
+      const now = new Date();
+
+      const expiredBookings = await this.bookingModel.find({
+        status: 'accepted',
+        serviceType: 'parking',
+        endDate: { $lte: now },
+      });
+
+      let completedCount = 0;
+
+      for (const booking of expiredBookings) {
+        booking.status = 'completed';
+        booking.completedAt = now;
+        await booking.save();
+
+        // Release the spot
+        if (booking.serviceId) {
+          const updatedSpace = await this.parkingSpaceModel.findByIdAndUpdate(
+            booking.serviceId,
+            { $inc: { occupiedSpots: -1 } },
+            { new: true },
+          );
+
+          if (updatedSpace) {
+            if (updatedSpace.occupiedSpots < 0) {
+              updatedSpace.occupiedSpots = 0;
+              await updatedSpace.save();
+            }
+            if (!updatedSpace.isAvailable && updatedSpace.occupiedSpots < updatedSpace.totalSpots) {
+              updatedSpace.isAvailable = true;
+              await updatedSpace.save();
+            }
+          }
+        }
+
+        // Notify the user
+        try {
+          await this.notificationsService.sendNotification(
+            booking.requester.toString(),
+            '🏁 Parking Session Ended',
+            `Your parking session at "${booking.serviceName || 'the parking space'}" has ended. Thank you!`,
+            'booking',
+            { bookingId: booking._id.toString(), status: 'completed' },
+          );
+        } catch (notifErr) {
+          this.logger.warn('Failed to send auto-completion notification', notifErr);
+        }
+
+        completedCount++;
+      }
+
+      return {
+        success: true,
+        message: `Auto-completed ${completedCount} expired booking(s)`,
+        data: { completedCount },
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: `Failed to auto-complete: ${error instanceof Error ? error.message : 'Unknown error'}`,
       };
     }
   }
