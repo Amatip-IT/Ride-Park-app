@@ -1,8 +1,11 @@
 /** Extract a user-facing message from axios/API errors */
 export const getApiErrorMessage = (err: unknown, fallback = 'Something went wrong. Please try again.'): string => {
-  if (err && typeof err === 'object' && 'response' in err) {
-    const ax = err as { response?: { data?: { message?: string | string[] } }; message?: string };
-    const msg = ax.response?.data?.message;
+  if (err && typeof err === 'object') {
+    const withMessage = err as { message?: string; response?: { data?: { message?: string | string[] } } };
+    if (typeof withMessage.message === 'string' && withMessage.message.trim()) {
+      return withMessage.message;
+    }
+    const msg = withMessage.response?.data?.message;
     if (Array.isArray(msg)) return msg.join(', ');
     if (typeof msg === 'string' && msg.trim()) return msg;
   }

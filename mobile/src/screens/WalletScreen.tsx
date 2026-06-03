@@ -140,6 +140,9 @@ export function WalletScreenContent() {
       }
 
       const { setupIntent, ephemeralKey, customer } = res.data.data;
+      if (!setupIntent || !ephemeralKey || !customer) {
+        throw new Error('Stripe setup response is incomplete. Please try again.');
+      }
 
       const initRes = await initPaymentSheet({
         merchantDisplayName: 'Gleezip',

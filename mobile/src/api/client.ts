@@ -1,7 +1,11 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { useAuthStore } from '@/store/authStore';
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000/api';
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5001/api';
+
+if (__DEV__) {
+  console.log('[API] base URL:', API_BASE_URL);
+}
 
 class ApiClient {
   private client: AxiosInstance;
@@ -39,8 +43,23 @@ class ApiClient {
           // Optionally redirect to login screen
         }
 
+        const isTimeout =
+          error.code === 'ECONNABORTED' || error.message?.toLowerCase().includes('timeout');
+        const isNetwork =
+          error.code === 'ERR_NETWORK' ||
+          error.message === 'Network Error' ||
+          !error.response;
+
+        let message = (error.response?.data as any)?.message || error.message;
+        if (isTimeout || isNetwork) {
+          message =
+            `Cannot reach the server at ${API_BASE_URL}. ` +
+            'On a phone, use your PC IPv4 in mobile/.env (same Wi‑Fi), port 5001, then restart Expo. ' +
+            `(${error.code || 'network'})`;
+        }
+
         return Promise.reject({
-          message: (error.response?.data as any)?.message || error.message,
+          message,
           status: error.response?.status,
           code: error.code,
         });

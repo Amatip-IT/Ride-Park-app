@@ -280,18 +280,18 @@ export const RootNavigator = () => {
     return <SplashScreen />;
   }
 
-  const initialRouteName = !isOnboarded
+  const initialRouteName = !isAuthenticated
     ? 'Onboarding'
-    : !isAuthenticated
-      ? 'Auth'
-      : userRole === 'admin'
+    : userRole === 'admin'
         ? 'AdminApp'
         : userRole === 'user'
           ? 'ConsumerApp'
           : 'ProviderApp';
 
+  const navigatorKey = isAuthenticated ? `app-${userRole}` : 'auth';
+
   return (
-    <NavigationContainer>
+    <NavigationContainer key={navigatorKey}>
       <Stack.Navigator
         screenOptions={{ headerShown: false }}
         initialRouteName={initialRouteName}

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   ActivityIndicator, Alert, SafeAreaView, Platform, Linking,
-  Modal, TextInput,
+  Modal, TextInput, useWindowDimensions,
 } from 'react-native';
 import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
 import { adminApi } from '@/api';
@@ -44,7 +44,10 @@ const selectionKey = (id: string, providerType: string) => `${id}:${providerType
 
 export function AdminDriverQueueScreen() {
   const navigation = useNavigation<any>();
+  const { width: screenWidth } = useWindowDimensions();
+  const cardWidth = screenWidth - SPACING.md * 2;
   const [records, setRecords] = useState<any[]>([]);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [rejectModal, setRejectModal] = useState<{id: string; providerType: string; name: string; docField?: string; bulk?: boolean} | null>(null);
@@ -265,6 +268,15 @@ export function AdminDriverQueueScreen() {
     if (url) Linking.openURL(url).catch(() => Alert.alert('Error', 'Cannot open document'));
   };
 
+  const toggleExpanded = (id: string) => {
+    setExpandedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   const renderItem = ({ item }: { item: any }) => {
     const isProcessing = processingId === item._id;
     const userData = item.user || {};
@@ -272,58 +284,75 @@ export function AdminDriverQueueScreen() {
     const providerType = item.providerType || 'driver';
     const roleLabel = providerType === 'taxi_driver' ? 'Taxi Driver' : 'Chauffeur';
     const isSelected = selectedKeys.has(selectionKey(item._id, providerType));
+    const isExpanded = expandedIds.has(item._id);
 
     // Count uploaded documents
     const uploadedDocs = ALL_DOC_FIELDS.filter(f => item[f]);
     const totalDocs = ALL_DOC_FIELDS.length;
 
     return (
-      <View style={styles.card}>
-        {/* Header */}
-        <View style={styles.cardHeader}>
-          <TouchableOpacity
-            style={[styles.checkbox, isSelected && styles.checkboxSelected]}
-            onPress={() => toggleSelection(item._id, providerType)}
-          >
-            {isSelected && <Ionicons name="checkmark" size={14} color="#FFF" />}
-          </TouchableOpacity>
-          <View style={styles.avatarCircle}>
-            <Text style={styles.avatarText}>
-              {(userData.firstName?.[0] || '?').toUpperCase()}
-              {(userData.lastName?.[0] || '').toUpperCase()}
+      <View style={[styles.card, { width: cardWidth }]}>
+        <TouchableOpacity
+          onPress={() => toggleExpanded(item._id)}
+          activeOpacity={0.75}
+          style={styles.cardHeaderTouchable}
+        >
+          <View style={styles.cardHeader}>
+            <TouchableOpacity
+              style={[styles.checkbox, isSelected && styles.checkboxSelected]}
+              onPress={() => toggleSelection(item._id, providerType)}
+            >
+              {isSelected && <Ionicons name="checkmark" size={14} color="#FFF" />}
+            </TouchableOpacity>
+            <View style={styles.avatarCircle}>
+              <Text style={styles.avatarText}>
+                {(userData.firstName?.[0] || '?').toUpperCase()}
+                {(userData.lastName?.[0] || '').toUpperCase()}
+              </Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.nameText}>{fullName}</Text>
+              <Text style={styles.roleText}>{roleLabel}</Text>
+            </View>
+            <View style={styles.headerRight}>
+              <View style={styles.pendingBadge}>
+                <Text style={styles.pendingBadgeText}>{(item.status || 'PENDING').toUpperCase().replace(/_/g, ' ')}</Text>
+              </View>
+              <Ionicons
+                name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                size={22}
+                color={COLORS.textTertiary}
+              />
+            </View>
+          </View>
+
+          <View style={styles.detailRow}>
+            <Ionicons name="mail-outline" size={15} color={COLORS.textTertiary} />
+            <Text style={styles.detailText} numberOfLines={1}>{userData.email || 'No email'}</Text>
+          </View>
+
+          <View style={styles.progressRow}>
+            <Ionicons name="documents-outline" size={16} color={COLORS.electricTeal} />
+            <Text style={styles.progressText}>
+              {uploadedDocs.length} of {totalDocs} documents uploaded
             </Text>
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.nameText}>{fullName}</Text>
-            <Text style={styles.roleText}>{roleLabel}</Text>
-          </View>
-          <View style={styles.pendingBadge}>
-            <Text style={styles.pendingBadgeText}>{(item.status || 'PENDING').toUpperCase().replace(/_/g, ' ')}</Text>
-          </View>
-        </View>
 
-        {/* Contact */}
-        <View style={styles.detailRow}>
-          <Ionicons name="mail-outline" size={15} color={COLORS.textTertiary} />
-          <Text style={styles.detailText}>{userData.email || 'No email'}</Text>
-        </View>
-        {userData.phoneNumber && (
-          <View style={styles.detailRow}>
-            <Ionicons name="call-outline" size={15} color={COLORS.textTertiary} />
-            <Text style={styles.detailText}>{userData.phoneNumber}</Text>
-          </View>
-        )}
+          {!isExpanded && (
+            <Text style={styles.expandHint}>Tap to review all documents before approving</Text>
+          )}
+        </TouchableOpacity>
 
-        {/* Document progress */}
-        <View style={styles.progressRow}>
-          <Ionicons name="documents-outline" size={16} color={COLORS.electricTeal} />
-          <Text style={styles.progressText}>
-            {uploadedDocs.length} of {totalDocs} documents uploaded
-          </Text>
-        </View>
+        {isExpanded && (
+          <View style={styles.expandedBody}>
+            {userData.phoneNumber && (
+              <View style={styles.detailRow}>
+                <Ionicons name="call-outline" size={15} color={COLORS.textTertiary} />
+                <Text style={styles.detailText}>{userData.phoneNumber}</Text>
+              </View>
+            )}
 
-        {/* Individual documents section */}
-        <Text style={styles.documentsSectionTitle}>Documents</Text>
+            <Text style={styles.documentsSectionTitle}>Documents</Text>
         {ALL_DOC_FIELDS.map(field => {
           const hasDoc = !!item[field];
           const docStatus = item.documentStatuses?.[field];
@@ -385,37 +414,42 @@ export function AdminDriverQueueScreen() {
           );
         })}
 
-        {/* Date */}
-        <Text style={styles.dateText}>
-          Last updated: {item.updatedAt ? new Date(item.updatedAt).toLocaleDateString() : 'N/A'}
-        </Text>
-
-        {/* Overall action buttons */}
-        <View style={styles.actionRow}>
-          <TouchableOpacity
-            style={[styles.rejectBtn, isProcessing && styles.btnDisabled]}
-            disabled={isProcessing}
-            onPress={() => handleReject(item._id, providerType, fullName)}
-          >
-            <Ionicons name="close" size={18} color={COLORS.error} />
-            <Text style={styles.rejectBtnText}>Reject All</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.approveBtn, isProcessing && styles.btnDisabled]}
-            disabled={isProcessing}
-            onPress={() => handleApprove(item._id, providerType, fullName)}
-          >
-            {isProcessing ? (
-              <ActivityIndicator size="small" color="#FFF" />
-            ) : (
-              <>
-                <Ionicons name="checkmark" size={18} color="#FFF" />
-                <Text style={styles.approveBtnText}>Approve All</Text>
-              </>
+            <Text style={styles.dateText}>
+              Last updated: {item.updatedAt ? new Date(item.updatedAt).toLocaleString() : 'N/A'}
+            </Text>
+            {item.createdAt && (
+              <Text style={styles.dateText}>
+                Submitted: {new Date(item.createdAt).toLocaleString()}
+              </Text>
             )}
-          </TouchableOpacity>
-        </View>
+
+            <View style={styles.actionRow}>
+              <TouchableOpacity
+                style={[styles.rejectBtn, isProcessing && styles.btnDisabled]}
+                disabled={isProcessing}
+                onPress={() => handleReject(item._id, providerType, fullName)}
+              >
+                <Ionicons name="close" size={18} color={COLORS.error} />
+                <Text style={styles.rejectBtnText}>Reject All</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.approveBtn, isProcessing && styles.btnDisabled]}
+                disabled={isProcessing}
+                onPress={() => handleApprove(item._id, providerType, fullName)}
+              >
+                {isProcessing ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <>
+                    <Ionicons name="checkmark" size={18} color="#FFF" />
+                    <Text style={styles.approveBtnText}>Approve All</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
       </View>
     );
   };
@@ -678,7 +712,7 @@ const styles = StyleSheet.create({
   },
   bulkBtn: { alignItems: 'center', gap: 4 },
   bulkBtnText: { color: COLORS.textPrimary, fontSize: 11, fontWeight: FONT_WEIGHTS.medium },
-  listContainer: { padding: SPACING.lg },
+  listContainer: { paddingHorizontal: SPACING.md, paddingVertical: SPACING.md, alignItems: 'center' },
   centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   loadingText: { color: COLORS.textSecondary, marginTop: SPACING.md },
   emptyTitle: {
@@ -689,11 +723,32 @@ const styles = StyleSheet.create({
   // Card
   card: {
     backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.lg, marginBottom: SPACING.md,
+    marginBottom: SPACING.md,
     borderWidth: 1, borderColor: COLORS.border,
+    overflow: 'hidden',
+    alignSelf: 'center',
+  },
+  cardHeaderTouchable: {
+    padding: SPACING.md,
   },
   cardHeader: {
-    flexDirection: 'row', alignItems: 'center', marginBottom: SPACING.md,
+    flexDirection: 'row', alignItems: 'center', marginBottom: SPACING.sm,
+  },
+  headerRight: {
+    alignItems: 'flex-end',
+    gap: SPACING.xs,
+  },
+  expandHint: {
+    color: COLORS.electricTeal,
+    fontSize: 12,
+    marginTop: SPACING.xs,
+    fontWeight: FONT_WEIGHTS.medium,
+  },
+  expandedBody: {
+    paddingHorizontal: SPACING.md,
+    paddingBottom: SPACING.md,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
   },
   avatarCircle: {
     width: 44, height: 44, borderRadius: 22,
