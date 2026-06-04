@@ -201,6 +201,9 @@ export const adminApi = {
   getUsers: () =>
     api.get<ApiResponse>('/users'),
 
+  deleteUser: (userId: string) =>
+    api.delete<ApiResponse>(`/users/${userId}`),
+
   // ── Parking Space Verifications ──
   getPendingParkingVerifications: () =>
     api.get<ApiResponse>('/admin/verifications/parking'),
