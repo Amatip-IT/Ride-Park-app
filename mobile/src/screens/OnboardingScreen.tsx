@@ -39,7 +39,7 @@ export function OnboardingScreen() {
         {/* Header Section */}
         <View style={styles.header}>
           <Image
-            source={require('../../assets/images/logo.jpg')}
+            source={require('../../assets/images/auth_logo.jpg')}
             style={styles.logoImage}
             resizeMode="contain"
           />
