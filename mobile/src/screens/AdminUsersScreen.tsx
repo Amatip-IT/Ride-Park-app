@@ -8,6 +8,8 @@ import { COLORS, SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '@/cons
 import { Ionicons } from '@expo/vector-icons';
 import { UserRole } from '@/types';
 import { useNavigation } from '@react-navigation/native';
+import { useAuthStore } from '@/store/authStore';
+import { getApiErrorMessage } from '@/utils/helpers';
 
 type UserData = {
   _id: string;
@@ -41,6 +43,7 @@ const SUSPENSION_PRESETS = [7, 30, 90];
 
 export function AdminUsersScreen() {
   const navigation = useNavigation<any>();
+  const { user: currentUser } = useAuthStore();
   const [users, setUsers] = useState<UserData[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -149,6 +152,41 @@ export function AdminUsersScreen() {
         },
       },
     ]);
+  };
+
+  const handleDelete = (user: UserData) => {
+    if (currentUser?._id === user._id) {
+      Alert.alert('Not Allowed', 'You cannot delete your own admin account.');
+      return;
+    }
+
+    Alert.alert(
+      'Delete User Permanently?',
+      `${user.firstName} ${user.lastName} (${user.email}) will be removed from the database. This cannot be undone.\n\nUse Ban or Suspend if you only need to block access.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setProcessingId(user._id);
+              const res = await adminApi.deleteUser(user._id);
+              if (res.data?.success) {
+                Alert.alert('Deleted', res.data.message || 'User has been permanently deleted.');
+                fetchUsers();
+              } else {
+                Alert.alert('Error', res.data?.message || 'Failed to delete user');
+              }
+            } catch (err) {
+              Alert.alert('Error', getApiErrorMessage(err, 'Failed to delete user'));
+            } finally {
+              setProcessingId(null);
+            }
+          },
+        },
+      ],
+    );
   };
 
   const submitAction = async () => {
@@ -271,6 +309,20 @@ export function AdminUsersScreen() {
                 <Text style={[styles.actionBtnText, { color: COLORS.info }]}>Unban</Text>
               </TouchableOpacity>
             )}
+            <TouchableOpacity
+              style={[styles.actionBtn, styles.deleteBtn]}
+              onPress={() => handleDelete(item)}
+              disabled={isProcessing || currentUser?._id === item._id}
+            >
+              {isProcessing ? (
+                <ActivityIndicator size="small" color={COLORS.error} />
+              ) : (
+                <>
+                  <Ionicons name="trash-outline" size={16} color={COLORS.error} />
+                  <Text style={[styles.actionBtnText, { color: COLORS.error }]}>Delete</Text>
+                </>
+              )}
+            </TouchableOpacity>
           </View>
         )}
       </View>
@@ -442,6 +494,7 @@ const styles = StyleSheet.create({
   },
   suspendBtn: { borderColor: `${COLORS.amber}40` },
   banBtn: { borderColor: `${COLORS.error}40` },
+  deleteBtn: { borderColor: `${COLORS.error}50`, backgroundColor: `${COLORS.error}08` },
   actionBtnText: { fontSize: 13, fontWeight: FONT_WEIGHTS.semibold },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: SPACING.xl, marginTop: 40 },
   emptyText: { marginTop: SPACING.md, fontSize: 16, color: COLORS.textSecondary },

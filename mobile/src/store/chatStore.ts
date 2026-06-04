@@ -4,7 +4,7 @@ import { Constants } from 'expo-constants'; // fallback for EXPO_PUBLIC_API_URL 
 
 // We extract just the base URL for the socket connection (removing /api or /v1 paths)
 const getBaseUrl = () => {
-  const defaultUrl = 'http://127.0.0.1:5000';
+  const defaultUrl = 'http://127.0.0.1:5001';
   const apiUrl = process.env.EXPO_PUBLIC_API_URL || defaultUrl;
   
   try {

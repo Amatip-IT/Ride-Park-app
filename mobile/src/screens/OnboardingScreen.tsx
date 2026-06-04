@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, Image } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '@/navigation/RootNavigator';
 import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS } from '@/constants/theme';
@@ -13,6 +13,12 @@ export function OnboardingScreen() {
   const navigation = useNavigation<NavigationProp>();
   const { setIsOnboarded } = useAuthStore();
   const [showProviderOptions, setShowProviderOptions] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      setShowProviderOptions(false);
+    }, []),
+  );
 
   const navigateToAuth = async (isLogin: boolean, role?: 'user' | 'parking_provider' | 'driver' | 'taxi_driver') => {
     try {
@@ -32,9 +38,8 @@ export function OnboardingScreen() {
       <View style={styles.content}>
         {/* Header Section */}
         <View style={styles.header}>
-          {/* Logo placeholder - replace mobile/assets/images/logo.png with custom screenshot */}
           <Image
-            source={require('../../assets/images/logo.png')}
+            source={require('../../assets/images/logo.jpg')}
             style={styles.logoImage}
             resizeMode="contain"
           />
@@ -118,8 +123,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   logoImage: {
-    width: 200,
-    height: 120,
+    width: 260,
+    height: 100,
     marginBottom: SPACING.lg,
   },
   subtitle: {

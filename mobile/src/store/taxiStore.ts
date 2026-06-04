@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { io, Socket } from 'socket.io-client';
 
 const getBaseUrl = () => {
-  const defaultUrl = 'http://127.0.0.1:5000';
+  const defaultUrl = 'http://127.0.0.1:5001';
   const apiUrl = process.env.EXPO_PUBLIC_API_URL || defaultUrl;
   
   try {

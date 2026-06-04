@@ -167,7 +167,7 @@ export const providerApi = {
   uploadDocument: async (formData: any) => {
     const { useAuthStore } = require('@/store/authStore');
     const token = useAuthStore.getState().token;
-    const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000/api';
+    const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5001/api';
     
     const response = await fetch(`${API_BASE_URL}/provider/upload-document`, {
       method: 'POST',
@@ -200,6 +200,9 @@ export const adminApi = {
   // ── Users Management ──
   getUsers: () =>
     api.get<ApiResponse>('/users'),
+
+  deleteUser: (userId: string) =>
+    api.delete<ApiResponse>(`/users/${userId}`),
 
   // ── Parking Space Verifications ──
   getPendingParkingVerifications: () =>

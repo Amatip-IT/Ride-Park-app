@@ -87,7 +87,9 @@ export function AuthScreen() {
 
   const { sendOtp, sendLoginOtp, verifyOtp, formatTime, error, loading, otpAttempts, clearError } =
     useEmailOtp();
-  const { login: storeLogin, setIsLoading, setError: setStoreError } = useAuthStore();
+  const { login: storeLogin, setError: setStoreError } = useAuthStore();
+  const [submitting, setSubmitting] = useState(false);
+  const busy = submitting || loading;
 
   const totalSteps = isProvider ? 3 : 2;
 
@@ -190,7 +192,7 @@ export function AuthScreen() {
 
   // ── Full registration (called from Step 2 for users, Step 3 for providers) ──
   const handleRegister = async () => {
-    setIsLoading(true);
+    setSubmitting(true);
     try {
       const payload: any = {
         firstName: formData.firstName,
@@ -245,7 +247,7 @@ export function AuthScreen() {
       setStoreError(errorMsg);
       Alert.alert('Error', errorMsg);
     } finally {
-      setIsLoading(false);
+      setSubmitting(false);
     }
   };
 
@@ -256,7 +258,7 @@ export function AuthScreen() {
     }
 
     if (isLogin) {
-      setIsLoading(true);
+      setSubmitting(true);
       try {
         const loginRes = await authService.login({
           email: loginData.email,
@@ -276,7 +278,7 @@ export function AuthScreen() {
         setStoreError(errorMsg);
         Alert.alert('Error', errorMsg);
       } finally {
-        setIsLoading(false);
+        setSubmitting(false);
       }
     } else {
       const emailToVerify = formData.email;
@@ -297,7 +299,7 @@ export function AuthScreen() {
       return;
     }
 
-    setIsLoading(true);
+    setSubmitting(true);
     try {
       const response = await authService.login(loginData);
 
@@ -325,7 +327,7 @@ export function AuthScreen() {
       setStoreError(errorMsg);
       Alert.alert('Error', errorMsg);
     } finally {
-      setIsLoading(false);
+      setSubmitting(false);
     }
   };
 
@@ -335,6 +337,10 @@ export function AuthScreen() {
     } else {
       await sendOtp(formData.email);
     }
+  };
+
+  const goToSignUpChoices = () => {
+    navigation.navigate('Onboarding');
   };
 
   const toggleAuthMode = () => {
@@ -716,11 +722,11 @@ export function AuthScreen() {
             {error ? <Text style={styles.error}>{error}</Text> : null}
 
             <TouchableOpacity
-              style={[styles.button, loading && styles.buttonDisabled]}
+              style={[styles.button, busy && styles.buttonDisabled]}
               onPress={handleStep2Next}
-              disabled={loading}
+              disabled={busy}
             >
-              {loading && !isProvider ? (
+              {busy && !isProvider ? (
                 <ActivityIndicator color="#FFF" />
               ) : (
                 <Text style={styles.buttonText}>
@@ -793,11 +799,11 @@ export function AuthScreen() {
             {error ? <Text style={styles.error}>{error}</Text> : null}
 
             <TouchableOpacity
-              style={[styles.button, loading && styles.buttonDisabled]}
+              style={[styles.button, busy && styles.buttonDisabled]}
               onPress={handleStep3Register}
-              disabled={loading}
+              disabled={busy}
             >
-              {loading ? (
+              {busy ? (
                 <ActivityIndicator color="#FFF" />
               ) : (
                 <View style={styles.buttonRow}>
@@ -834,7 +840,7 @@ export function AuthScreen() {
                 onChangeText={(text) => setOtp(text.replace(/[^0-9]/g, '').slice(0, 6))}
                 keyboardType="numeric"
                 maxLength={6}
-                editable={!loading}
+                editable={!busy}
               />
             </View>
 
@@ -848,11 +854,11 @@ export function AuthScreen() {
             </View>
 
             <TouchableOpacity
-              style={[styles.button, loading && styles.buttonDisabled]}
+              style={[styles.button, busy && styles.buttonDisabled]}
               onPress={handleVerifyOtp}
-              disabled={loading}
+              disabled={busy}
             >
-              {loading ? (
+              {busy ? (
                 <ActivityIndicator color="#FFF" />
               ) : (
                 <Text style={styles.buttonText}>Verify Code & Login</Text>
@@ -911,11 +917,11 @@ export function AuthScreen() {
             {error ? <Text style={styles.error}>{error}</Text> : null}
 
             <TouchableOpacity
-              style={[styles.button, loading && styles.buttonDisabled]}
+              style={[styles.button, busy && styles.buttonDisabled]}
               onPress={handleLogin}
-              disabled={loading}
+              disabled={busy}
             >
-              {loading ? (
+              {busy ? (
                 <ActivityIndicator color="#FFF" />
               ) : (
                 <Text style={styles.buttonText}>Sign In</Text>
@@ -924,7 +930,7 @@ export function AuthScreen() {
 
             <View style={styles.toggleContainer}>
               <Text style={styles.toggleText}>Don't have an account? </Text>
-              <TouchableOpacity onPress={toggleAuthMode}>
+              <TouchableOpacity onPress={goToSignUpChoices}>
                 <Text style={styles.toggleLink}>Sign Up</Text>
               </TouchableOpacity>
             </View>
@@ -941,7 +947,7 @@ const styles = StyleSheet.create({
   inputIcon: { marginRight: SPACING.sm },
   eyeIcon: { padding: SPACING.xs },
   header: { alignItems: 'center', marginBottom: SPACING.xl, marginTop: Platform.OS === 'ios' ? 40 : 20 },
-  logoImage: { width: 220, height: 70, marginBottom: SPACING.sm },
+  logoImage: { width: 260, height: 100, marginBottom: SPACING.sm },
   appName: { fontSize: FONT_SIZES.hero, fontWeight: FONT_WEIGHTS.bold, color: COLORS.electricTeal, marginBottom: SPACING.sm },
   subtitle: { fontSize: FONT_SIZES.body, color: COLORS.textSecondary },
   formContainer: { width: '100%' },
