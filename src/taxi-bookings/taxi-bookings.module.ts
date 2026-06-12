@@ -12,6 +12,7 @@ import { Chauffeur, ChauffeurSchema } from 'src/schemas/chauffeur.schema';
 import { User, UserSchema } from 'src/schemas/user.schema';
 import { NotificationsModule } from 'src/notifications/notifications.module';
 import { PaymentsModule } from 'src/payments/payments.module';
+import { WalletModule } from 'src/wallet/wallet.module';
 import { RidesModule } from 'src/rides/rides.module';
 
 @Module({
@@ -24,6 +25,7 @@ import { RidesModule } from 'src/rides/rides.module';
     ]),
     NotificationsModule,
     PaymentsModule,
+    WalletModule,
     RidesModule,
   ],
   controllers: [TaxiBookingsController],

@@ -1,15 +1,16 @@
 import React, { useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, SafeAreaView,
-  Platform, ActivityIndicator, Alert, TextInput, ScrollView
+  View, Text, StyleSheet, TouchableOpacity,
+  ActivityIndicator, Alert, TextInput,
 } from 'react-native';
 import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { adminApi } from '@/api';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
+import { AdminScreenLayout } from '@/components/admin/AdminScreenLayout';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export function AdminPlatformSettingsScreen() {
-  const navigation = useNavigation();
   const [currentFee, setCurrentFee] = useState<number>(10);
   const [newFee, setNewFee] = useState('');
   const [loading, setLoading] = useState(true);
@@ -66,23 +67,14 @@ export function AdminPlatformSettingsScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <ActivityIndicator size="large" color={COLORS.electricTeal} style={{ flex: 1 }} />
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Platform Settings</Text>
-        <View style={{ width: 40 }} />
-      </View>
-
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+    <AdminScreenLayout title="Platform Settings" subtitle="Service fee & platform config" scroll contentContainerStyle={styles.scrollContent}>
         {/* Current Fee Display */}
         <View style={styles.feeCard}>
           <View style={styles.feeIconContainer}>
@@ -110,6 +102,8 @@ export function AdminPlatformSettingsScreen() {
               value={newFee}
               onChangeText={setNewFee}
               keyboardType="decimal-pad"
+              returnKeyType="done"
+              blurOnSubmit
             />
             <Text style={styles.percentSign}>%</Text>
           </View>
@@ -134,17 +128,13 @@ export function AdminPlatformSettingsScreen() {
             Example: If a provider earns £100 and the fee is 10%, we deduct £10 and the provider receives £90 in their available balance.
           </Text>
         </View>
-      </ScrollView>
-    </SafeAreaView>
+    </AdminScreenLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: COLORS.background },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACING.lg, paddingTop: Platform.OS === 'ios' ? 10 : 30, paddingBottom: SPACING.md, borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  backBtn: { padding: SPACING.xs },
-  headerTitle: { fontSize: FONT_SIZES.section, fontWeight: FONT_WEIGHTS.bold, color: COLORS.textPrimary },
-  scrollContent: { padding: SPACING.xl, paddingBottom: 100 },
+  safeArea: { flex: 1, backgroundColor: COLORS.background, justifyContent: 'center' },
+  scrollContent: { paddingTop: SPACING.md, paddingBottom: SPACING.xl },
 
   feeCard: { backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.xl, padding: SPACING.xl, alignItems: 'center', marginBottom: SPACING.xl, borderWidth: 1, borderColor: 'rgba(0,180,160,0.3)' },
   feeIconContainer: { width: 56, height: 56, borderRadius: 28, backgroundColor: `${COLORS.electricTeal}12`, justifyContent: 'center', alignItems: 'center', marginBottom: SPACING.md },

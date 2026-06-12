@@ -1073,9 +1073,17 @@ export class AdminService {
     audit?: AdminAuditContext,
   ): Promise<Response> {
     try {
+      if (adminUserId && userId === adminUserId) {
+        return { success: false, message: 'You cannot suspend your own account' };
+      }
+
       const user = await this.userModel.findById(userId).exec();
       if (!user) {
         return { success: false, message: 'User not found' };
+      }
+
+      if (user.role === 'admin') {
+        return { success: false, message: 'Admin accounts cannot be suspended through this endpoint' };
       }
 
       const suspensionEndDate = durationDays
@@ -1182,9 +1190,17 @@ export class AdminService {
     audit?: AdminAuditContext,
   ): Promise<Response> {
     try {
+      if (adminUserId && userId === adminUserId) {
+        return { success: false, message: 'You cannot ban your own account' };
+      }
+
       const user = await this.userModel.findById(userId).exec();
       if (!user) {
         return { success: false, message: 'User not found' };
+      }
+
+      if (user.role === 'admin') {
+        return { success: false, message: 'Admin accounts cannot be banned through this endpoint' };
       }
 
       user.accountStatus = 'banned';

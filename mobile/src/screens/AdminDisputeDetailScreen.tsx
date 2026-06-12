@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator,
-  Alert, Platform, Modal, TextInput,
+  View, Text, StyleSheet, TouchableOpacity, ActivityIndicator,
+  Alert, TextInput,
 } from 'react-native';
 import { disputesApi } from '@/api';
 import { COLORS, SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useRoute } from '@react-navigation/native';
+import { AdminScreenLayout } from '@/components/admin/AdminScreenLayout';
+import { AdminFormModal } from '@/components/admin/AdminFormModal';
 
 const RESOLUTIONS = [
   { id: 'override_driver_approval', label: 'Approve Driver', needsRecord: true },
@@ -18,7 +20,6 @@ const RESOLUTIONS = [
 ];
 
 export function AdminDisputeDetailScreen() {
-  const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const disputeId = route.params?.disputeId as string;
 
@@ -116,28 +117,34 @@ export function AdminDisputeDetailScreen() {
     }
   };
 
+  const resolutionMeta = RESOLUTIONS.find(r => r.id === selectedResolution);
+
   if (loading) {
-    return <View style={styles.center}><ActivityIndicator size="large" color={COLORS.electricTeal} /></View>;
+    return (
+      <AdminScreenLayout title="Dispute Case" subtitle="Loading...">
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color={COLORS.electricTeal} />
+        </View>
+      </AdminScreenLayout>
+    );
   }
 
   if (!dispute) {
-    return <View style={styles.center}><Text style={{ color: COLORS.error }}>Dispute not found</Text></View>;
+    return (
+      <AdminScreenLayout title="Dispute Case" subtitle="Not found">
+        <View style={styles.center}>
+          <Text style={{ color: COLORS.error }}>Dispute not found</Text>
+        </View>
+      </AdminScreenLayout>
+    );
   }
 
   const filer = dispute.filedBy || {};
   const about = dispute.complaintAbout;
-  const resolutionMeta = RESOLUTIONS.find(r => r.id === selectedResolution);
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Dispute Case</Text>
-      </View>
-
-      <ScrollView contentContainerStyle={styles.scroll}>
+    <>
+    <AdminScreenLayout title="Dispute Case" subtitle={dispute.category?.replace(/_/g, ' ')} scroll contentContainerStyle={styles.scroll}>
         <View style={styles.badgeRow}>
           <View style={[styles.badge, { backgroundColor: `${COLORS.amber}20` }]}>
             <Text style={[styles.badgeText, { color: COLORS.amber }]}>{dispute.status}</Text>
@@ -175,12 +182,14 @@ export function AdminDisputeDetailScreen() {
 
         <Text style={styles.label}>Internal Notes</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, { minHeight: 88 }]}
           value={adminNotes}
           onChangeText={setAdminNotes}
           placeholder="Add investigation notes..."
           placeholderTextColor={COLORS.textTertiary}
           multiline
+          textAlignVertical="top"
+          blurOnSubmit
         />
 
         {dispute.status !== 'resolved' && dispute.status !== 'closed' && (
@@ -197,90 +206,103 @@ export function AdminDisputeDetailScreen() {
             </TouchableOpacity>
           </View>
         )}
-      </ScrollView>
+    </AdminScreenLayout>
 
-      <Modal visible={resolveModal} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Resolve Dispute</Text>
+      <AdminFormModal
+        visible={resolveModal}
+        onClose={() => setResolveModal(false)}
+        title="Resolve Dispute"
+        maxHeightRatio={0.92}
+      >
+        <Text style={styles.label}>Resolution Action</Text>
+        {RESOLUTIONS.map(r => (
+          <TouchableOpacity
+            key={r.id}
+            style={[styles.resOption, selectedResolution === r.id && styles.resOptionActive]}
+            onPress={() => setSelectedResolution(r.id)}
+          >
+            <Text style={[styles.resOptionText, selectedResolution === r.id && styles.resOptionTextActive]}>
+              {r.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
 
-            <Text style={styles.label}>Resolution Action</Text>
-            {RESOLUTIONS.map(r => (
-              <TouchableOpacity
-                key={r.id}
-                style={[styles.resOption, selectedResolution === r.id && styles.resOptionActive]}
-                onPress={() => setSelectedResolution(r.id)}
-              >
-                <Text style={[styles.resOptionText, selectedResolution === r.id && styles.resOptionTextActive]}>
-                  {r.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
+        {resolutionMeta?.needsRefund && (
+          <>
+            <Text style={styles.label}>Refund Amount (£)</Text>
+            <TextInput
+              style={styles.input}
+              value={refundAmount}
+              onChangeText={setRefundAmount}
+              keyboardType="decimal-pad"
+              placeholderTextColor={COLORS.textTertiary}
+            />
+          </>
+        )}
 
-            {resolutionMeta?.needsRefund && (
-              <>
-                <Text style={styles.label}>Refund Amount (£)</Text>
-                <TextInput style={styles.input} value={refundAmount} onChangeText={setRefundAmount} keyboardType="decimal-pad" placeholderTextColor={COLORS.textTertiary} />
-              </>
-            )}
-
-            {resolutionMeta?.needsRecord && (
-              <>
-                <Text style={styles.label}>Record ID</Text>
-                <TextInput style={styles.input} value={recordId} onChangeText={setRecordId} placeholderTextColor={COLORS.textTertiary} autoCapitalize="none" />
-                <Text style={styles.label}>Provider Type</Text>
-                <View style={styles.typeRow}>
-                  {['driver', 'taxi_driver'].map(t => (
-                    <TouchableOpacity
-                      key={t}
-                      style={[styles.typeChip, providerType === t && styles.typeChipActive]}
-                      onPress={() => setProviderType(t)}
-                    >
-                      <Text style={[styles.typeText, providerType === t && styles.typeTextActive]}>{t}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </>
-            )}
-
-            {resolutionMeta?.needsSuspend && (
-              <>
-                <Text style={styles.label}>Suspension Reason</Text>
-                <TextInput style={styles.input} value={suspendReason} onChangeText={setSuspendReason} placeholderTextColor={COLORS.textTertiary} />
-              </>
-            )}
-
-            <Text style={styles.label}>Message to User</Text>
-            <TextInput style={[styles.input, { minHeight: 80 }]} value={notes} onChangeText={setNotes} multiline placeholderTextColor={COLORS.textTertiary} textAlignVertical="top" />
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setResolveModal(false)}>
-                <Text style={styles.cancelText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.resolveBtn} onPress={handleResolve} disabled={processing}>
-                <Text style={styles.resolveBtnText}>{processing ? 'Processing...' : 'Confirm Resolve'}</Text>
-              </TouchableOpacity>
+        {resolutionMeta?.needsRecord && (
+          <>
+            <Text style={styles.label}>Record ID</Text>
+            <TextInput
+              style={styles.input}
+              value={recordId}
+              onChangeText={setRecordId}
+              placeholderTextColor={COLORS.textTertiary}
+              autoCapitalize="none"
+            />
+            <Text style={styles.label}>Provider Type</Text>
+            <View style={styles.typeRow}>
+              {['driver', 'taxi_driver'].map(t => (
+                <TouchableOpacity
+                  key={t}
+                  style={[styles.typeChip, providerType === t && styles.typeChipActive]}
+                  onPress={() => setProviderType(t)}
+                >
+                  <Text style={[styles.typeText, providerType === t && styles.typeTextActive]}>{t}</Text>
+                </TouchableOpacity>
+              ))}
             </View>
-          </View>
+          </>
+        )}
+
+        {resolutionMeta?.needsSuspend && (
+          <>
+            <Text style={styles.label}>Suspension Reason</Text>
+            <TextInput
+              style={styles.input}
+              value={suspendReason}
+              onChangeText={setSuspendReason}
+              placeholderTextColor={COLORS.textTertiary}
+            />
+          </>
+        )}
+
+        <Text style={styles.label}>Message to User</Text>
+        <TextInput
+          style={[styles.input, { minHeight: 80 }]}
+          value={notes}
+          onChangeText={setNotes}
+          multiline
+          placeholderTextColor={COLORS.textTertiary}
+          textAlignVertical="top"
+        />
+
+        <View style={styles.modalActions}>
+          <TouchableOpacity style={styles.cancelBtn} onPress={() => setResolveModal(false)}>
+            <Text style={styles.cancelText}>Cancel</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.resolveBtn} onPress={handleResolve} disabled={processing}>
+            <Text style={styles.resolveBtnText}>{processing ? 'Processing...' : 'Confirm Resolve'}</Text>
+          </TouchableOpacity>
         </View>
-      </Modal>
-    </View>
+      </AdminFormModal>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  header: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: SPACING.lg,
-    paddingTop: Platform.OS === 'android' ? SPACING.xl : SPACING.sm,
-    paddingBottom: SPACING.md,
-    borderBottomWidth: 1, borderBottomColor: COLORS.border,
-  },
-  backBtn: { padding: SPACING.xs, marginRight: SPACING.sm },
-  headerTitle: { color: COLORS.textPrimary, fontSize: FONT_SIZES.section, fontWeight: FONT_WEIGHTS.bold },
-  scroll: { padding: SPACING.lg, paddingBottom: 40 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: SPACING.xl },
+  scroll: { paddingBottom: SPACING.xl },
   badgeRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginBottom: SPACING.lg },
   badge: { paddingHorizontal: SPACING.sm, paddingVertical: 4, borderRadius: BORDER_RADIUS.sm },
   badgeText: { fontSize: 12, fontWeight: FONT_WEIGHTS.bold, textTransform: 'capitalize' },
@@ -305,12 +327,6 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.electricTeal, padding: SPACING.md, borderRadius: BORDER_RADIUS.md,
   },
   resolveBtnText: { color: '#FFF', fontWeight: FONT_WEIGHTS.semibold },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modalContent: {
-    backgroundColor: COLORS.background, borderTopLeftRadius: BORDER_RADIUS.xl,
-    borderTopRightRadius: BORDER_RADIUS.xl, padding: SPACING.lg, maxHeight: '90%',
-  },
-  modalTitle: { color: COLORS.textPrimary, fontSize: FONT_SIZES.section, fontWeight: FONT_WEIGHTS.bold, marginBottom: SPACING.md },
   resOption: {
     padding: SPACING.md, borderRadius: BORDER_RADIUS.md,
     borderWidth: 1, borderColor: COLORS.border, marginBottom: SPACING.xs,

@@ -1,12 +1,13 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator,
-  RefreshControl, Platform,
+  RefreshControl,
 } from 'react-native';
 import { disputesApi } from '@/api';
 import { COLORS, SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { AdminScreenLayout } from '@/components/admin/AdminScreenLayout';
 
 const STATUS_FILTERS = [
   { id: 'all', label: 'All' },
@@ -47,6 +48,20 @@ export function AdminDisputesScreen() {
 
   useFocusEffect(useCallback(() => { fetchDisputes(); }, [statusFilter]));
 
+  const filterRow = (
+    <View style={styles.filterRow}>
+      {STATUS_FILTERS.map(f => (
+        <TouchableOpacity
+          key={f.id}
+          style={[styles.filterChip, statusFilter === f.id && styles.filterChipActive]}
+          onPress={() => setStatusFilter(f.id)}
+        >
+          <Text style={[styles.filterText, statusFilter === f.id && styles.filterTextActive]}>{f.label}</Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+
   const renderItem = ({ item }: { item: any }) => {
     const filer = item.filedBy || {};
     return (
@@ -70,31 +85,15 @@ export function AdminDisputesScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
-        </TouchableOpacity>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>Dispute Queue</Text>
-          <Text style={styles.headerSub}>{disputes.length} case{disputes.length !== 1 ? 's' : ''}</Text>
-        </View>
-      </View>
-
-      <View style={styles.filterRow}>
-        {STATUS_FILTERS.map(f => (
-          <TouchableOpacity
-            key={f.id}
-            style={[styles.filterChip, statusFilter === f.id && styles.filterChipActive]}
-            onPress={() => setStatusFilter(f.id)}
-          >
-            <Text style={[styles.filterText, statusFilter === f.id && styles.filterTextActive]}>{f.label}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
+    <AdminScreenLayout
+      title="Dispute Queue"
+      subtitle={`${disputes.length} case${disputes.length !== 1 ? 's' : ''}`}
+      headerBottom={filterRow}
+    >
       {loading ? (
-        <View style={styles.center}><ActivityIndicator size="large" color={COLORS.electricTeal} /></View>
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color={COLORS.electricTeal} />
+        </View>
       ) : disputes.length === 0 ? (
         <View style={styles.center}>
           <Ionicons name="checkmark-done-circle-outline" size={64} color={COLORS.success} />
@@ -106,27 +105,17 @@ export function AdminDisputesScreen() {
           keyExtractor={item => item._id}
           renderItem={renderItem}
           contentContainerStyle={styles.list}
+          keyboardDismissMode="on-drag"
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={() => fetchDisputes(true)} tintColor={COLORS.electricTeal} />
           }
         />
       )}
-    </View>
+    </AdminScreenLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  header: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: SPACING.lg,
-    paddingTop: Platform.OS === 'android' ? SPACING.xl : SPACING.sm,
-    paddingBottom: SPACING.md,
-    borderBottomWidth: 1, borderBottomColor: COLORS.border,
-  },
-  backBtn: { padding: SPACING.xs, marginRight: SPACING.sm },
-  headerTitle: { color: COLORS.textPrimary, fontSize: FONT_SIZES.section, fontWeight: FONT_WEIGHTS.bold },
-  headerSub: { color: COLORS.textSecondary, fontSize: FONT_SIZES.small },
   filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.xs, padding: SPACING.md },
   filterChip: {
     paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm,
@@ -136,9 +125,9 @@ const styles = StyleSheet.create({
   filterChipActive: { backgroundColor: `${COLORS.electricTeal}15`, borderColor: COLORS.electricTeal },
   filterText: { color: COLORS.textSecondary, fontSize: FONT_SIZES.small },
   filterTextActive: { color: COLORS.electricTeal },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: SPACING.xl },
   emptyTitle: { color: COLORS.textSecondary, marginTop: SPACING.md },
-  list: { padding: SPACING.lg },
+  list: { padding: SPACING.md, paddingBottom: SPACING.xl },
   card: {
     backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.md, marginBottom: SPACING.sm,

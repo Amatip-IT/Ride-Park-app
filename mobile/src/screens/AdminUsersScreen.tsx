@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator,
-  RefreshControl, Platform, Modal, TextInput, Alert, ScrollView,
+  RefreshControl, TextInput, Alert, Platform,
 } from 'react-native';
 import { adminApi } from '@/api';
 import { COLORS, SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '@/constants/theme';
@@ -10,6 +10,8 @@ import { UserRole } from '@/types';
 import { useNavigation } from '@react-navigation/native';
 import { useAuthStore } from '@/store/authStore';
 import { getApiErrorMessage } from '@/utils/helpers';
+import { AdminScreenLayout } from '@/components/admin/AdminScreenLayout';
+import { AdminFormModal } from '@/components/admin/AdminFormModal';
 
 type UserData = {
   _id: string;
@@ -48,6 +50,7 @@ export function AdminUsersScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const [actionModal, setActionModal] = useState<ActionModal>(null);
   const [reason, setReason] = useState('');
   const [durationDays, setDurationDays] = useState('7');
@@ -225,7 +228,13 @@ export function AdminUsersScreen() {
     }
   };
 
-  const filteredUsers = users.filter(user => activeTab === 'all' || user.role === activeTab);
+  const query = searchQuery.trim().toLowerCase();
+  const filteredUsers = users.filter((user) => {
+    if (activeTab !== 'all' && user.role !== activeTab) return false;
+    if (!query) return true;
+    const fullName = `${user.firstName ?? ''} ${user.lastName ?? ''}`.toLowerCase();
+    return fullName.includes(query) || user.email.toLowerCase().includes(query);
+  });
 
   const renderUser = ({ item }: { item: UserData }) => {
     const status = item.accountStatus || 'active';
@@ -329,18 +338,29 @@ export function AdminUsersScreen() {
     );
   };
 
-  return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={22} color={COLORS.textPrimary} />
-        </TouchableOpacity>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>All Users</Text>
-          <Text style={styles.headerSubtitle}>Manage accounts & access</Text>
+  const headerFilters = (
+    <View>
+      <View style={styles.searchRow}>
+        <View style={styles.searchInputWrap}>
+          <Ionicons name="search-outline" size={18} color={COLORS.textTertiary} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search by name or email..."
+            placeholderTextColor={COLORS.textTertiary}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="search"
+            clearButtonMode="while-editing"
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Ionicons name="close-circle" size={18} color={COLORS.textTertiary} />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
-
       <View style={styles.tabsContainer}>
         <FlatList
           horizontal
@@ -360,102 +380,125 @@ export function AdminUsersScreen() {
           contentContainerStyle={{ paddingHorizontal: SPACING.md }}
         />
       </View>
+    </View>
+  );
 
-      {loading ? (
-        <View style={styles.centered}>
-          <ActivityIndicator size="large" color={COLORS.electricTeal} />
-        </View>
-      ) : (
-        <FlatList
-          data={filteredUsers}
-          keyExtractor={(item) => item._id}
-          renderItem={renderUser}
-          contentContainerStyle={styles.listContent}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.electricTeal} />}
-          ListEmptyComponent={
-            <View style={styles.centered}>
-              <Ionicons name="people-outline" size={48} color={COLORS.textTertiary} />
-              <Text style={styles.emptyText}>No users found in this category.</Text>
-            </View>
-          }
+  return (
+    <>
+      <AdminScreenLayout
+        title="All Users"
+        subtitle="Manage accounts & access"
+        headerBottom={headerFilters}
+      >
+        {loading ? (
+          <View style={styles.centered}>
+            <ActivityIndicator size="large" color={COLORS.electricTeal} />
+          </View>
+        ) : (
+          <FlatList
+            data={filteredUsers}
+            keyExtractor={(item) => item._id}
+            renderItem={renderUser}
+            contentContainerStyle={styles.listContent}
+            keyboardDismissMode="on-drag"
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.electricTeal} />
+            }
+            ListEmptyComponent={
+              <View style={styles.centered}>
+                <Ionicons name="people-outline" size={48} color={COLORS.textTertiary} />
+                <Text style={styles.emptyText}>
+                  {query ? 'No users match your search.' : 'No users found in this category.'}
+                </Text>
+              </View>
+            }
+          />
+        )}
+      </AdminScreenLayout>
+
+      <AdminFormModal
+        visible={!!actionModal}
+        onClose={() => { setActionModal(null); setReason(''); }}
+        title={actionModal?.type === 'suspend' ? 'Suspend User' : 'Ban User'}
+        subtitle={actionModal ? `${actionModal.user.firstName} ${actionModal.user.lastName}` : undefined}
+      >
+        <TextInput
+          style={styles.modalInput}
+          placeholder="Reason (required)"
+          placeholderTextColor={COLORS.textTertiary}
+          value={reason}
+          onChangeText={setReason}
+          multiline
+          textAlignVertical="top"
         />
-      )}
 
-      <Modal visible={!!actionModal} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>
-              {actionModal?.type === 'suspend' ? 'Suspend User' : 'Ban User'}
-            </Text>
-            <Text style={styles.modalSubtitle}>
-              {actionModal?.user.firstName} {actionModal?.user.lastName}
-            </Text>
-
+        {actionModal?.type === 'suspend' && (
+          <>
+            <Text style={styles.presetLabel}>Duration (days)</Text>
+            <View style={styles.presetRow}>
+              {SUSPENSION_PRESETS.map((days) => (
+                <TouchableOpacity
+                  key={days}
+                  style={[styles.presetBtn, durationDays === String(days) && styles.presetBtnActive]}
+                  onPress={() => setDurationDays(String(days))}
+                >
+                  <Text style={[styles.presetBtnText, durationDays === String(days) && styles.presetBtnTextActive]}>
+                    {days}d
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
             <TextInput
               style={styles.modalInput}
-              placeholder="Reason (required)"
+              placeholder="Custom days"
               placeholderTextColor={COLORS.textTertiary}
-              value={reason}
-              onChangeText={setReason}
-              multiline
+              value={durationDays}
+              onChangeText={setDurationDays}
+              keyboardType="numeric"
+              returnKeyType="done"
             />
+          </>
+        )}
 
-            {actionModal?.type === 'suspend' && (
-              <>
-                <Text style={styles.presetLabel}>Duration (days)</Text>
-                <View style={styles.presetRow}>
-                  {SUSPENSION_PRESETS.map((days) => (
-                    <TouchableOpacity
-                      key={days}
-                      style={[styles.presetBtn, durationDays === String(days) && styles.presetBtnActive]}
-                      onPress={() => setDurationDays(String(days))}
-                    >
-                      <Text style={[styles.presetBtnText, durationDays === String(days) && styles.presetBtnTextActive]}>
-                        {days}d
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-                <TextInput
-                  style={styles.modalInput}
-                  placeholder="Custom days"
-                  placeholderTextColor={COLORS.textTertiary}
-                  value={durationDays}
-                  onChangeText={setDurationDays}
-                  keyboardType="numeric"
-                />
-              </>
-            )}
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.modalCancel}
-                onPress={() => { setActionModal(null); setReason(''); }}
-              >
-                <Text style={styles.modalCancelText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.modalConfirm} onPress={submitAction}>
-                <Text style={styles.modalConfirmText}>Confirm</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+        <View style={styles.modalActions}>
+          <TouchableOpacity
+            style={styles.modalCancel}
+            onPress={() => { setActionModal(null); setReason(''); }}
+          >
+            <Text style={styles.modalCancelText}>Cancel</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.modalConfirm} onPress={submitAction}>
+            <Text style={styles.modalConfirmText}>Confirm</Text>
+          </TouchableOpacity>
         </View>
-      </Modal>
-    </View>
+      </AdminFormModal>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  header: {
-    flexDirection: 'row', alignItems: 'center', gap: SPACING.md,
-    padding: SPACING.xl, paddingTop: Platform.OS === 'ios' ? 60 : 40,
-    backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: COLORS.border,
+  searchRow: {
+    paddingHorizontal: SPACING.md,
+    paddingTop: SPACING.sm,
   },
-  backBtn: { padding: SPACING.sm },
-  headerTitle: { fontSize: FONT_SIZES.section, fontWeight: FONT_WEIGHTS.bold, color: COLORS.textPrimary },
-  headerSubtitle: { fontSize: FONT_SIZES.body, color: COLORS.textSecondary, marginTop: 4 },
-  tabsContainer: { backgroundColor: '#FFF', paddingVertical: SPACING.sm, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  searchInputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: BORDER_RADIUS.lg,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: Platform.OS === 'ios' ? 10 : 6,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: COLORS.textPrimary,
+    paddingVertical: 0,
+  },
+  tabsContainer: { paddingVertical: SPACING.sm },
   tab: {
     paddingHorizontal: SPACING.lg, paddingVertical: 8, marginRight: SPACING.sm,
     borderRadius: 20, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border,
@@ -496,15 +539,8 @@ const styles = StyleSheet.create({
   banBtn: { borderColor: `${COLORS.error}40` },
   deleteBtn: { borderColor: `${COLORS.error}50`, backgroundColor: `${COLORS.error}08` },
   actionBtnText: { fontSize: 13, fontWeight: FONT_WEIGHTS.semibold },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: SPACING.xl, marginTop: 40 },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: SPACING.xl },
   emptyText: { marginTop: SPACING.md, fontSize: 16, color: COLORS.textSecondary },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modalContent: {
-    backgroundColor: COLORS.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    padding: SPACING.xl, paddingBottom: 40,
-  },
-  modalTitle: { fontSize: 20, fontWeight: FONT_WEIGHTS.bold, color: COLORS.textPrimary },
-  modalSubtitle: { fontSize: 14, color: COLORS.textSecondary, marginTop: 4, marginBottom: SPACING.lg },
   modalInput: {
     backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border,
     borderRadius: BORDER_RADIUS.lg, padding: SPACING.md, color: COLORS.textPrimary,

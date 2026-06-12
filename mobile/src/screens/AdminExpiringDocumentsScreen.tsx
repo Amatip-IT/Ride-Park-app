@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator,
-  RefreshControl, Platform, Modal, TextInput, Alert,
+  RefreshControl, TextInput, Alert,
 } from 'react-native';
 import { adminApi } from '@/api';
 import { COLORS, SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { AdminScreenLayout } from '@/components/admin/AdminScreenLayout';
+import { AdminFormModal } from '@/components/admin/AdminFormModal';
 
 const DOC_LABELS: Record<string, string> = {
   natInsuranceUrl: 'National Insurance',
@@ -56,7 +57,6 @@ type RenewModal = {
 } | null;
 
 export function AdminExpiringDocumentsScreen() {
-  const navigation = useNavigation<any>();
   const [records, setRecords] = useState<ExpiringRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -187,103 +187,95 @@ export function AdminExpiringDocumentsScreen() {
     );
   };
 
-  return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={22} color={COLORS.textPrimary} />
+  const tabsRow = (
+    <View style={styles.tabsRow}>
+      {FILTER_TABS.map((tab) => (
+        <TouchableOpacity
+          key={tab.id}
+          style={[styles.filterTab, activeFilter === tab.id && styles.filterTabActive]}
+          onPress={() => { setLoading(true); setActiveFilter(tab.id); }}
+        >
+          <Text style={[styles.filterTabText, activeFilter === tab.id && styles.filterTabTextActive]}>
+            {tab.label}
+          </Text>
         </TouchableOpacity>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>Expiring Documents</Text>
-          <Text style={styles.headerSubtitle}>{records.length} driver(s) need attention</Text>
-        </View>
-      </View>
-
-      <View style={styles.tabsRow}>
-        {FILTER_TABS.map((tab) => (
-          <TouchableOpacity
-            key={tab.id}
-            style={[styles.filterTab, activeFilter === tab.id && styles.filterTabActive]}
-            onPress={() => { setLoading(true); setActiveFilter(tab.id); }}
-          >
-            <Text style={[styles.filterTabText, activeFilter === tab.id && styles.filterTabTextActive]}>
-              {tab.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {loading ? (
-        <View style={styles.centered}>
-          <ActivityIndicator size="large" color={COLORS.electricTeal} />
-        </View>
-      ) : (
-        <FlatList
-          data={records}
-          keyExtractor={(item) => item._id}
-          renderItem={renderRecord}
-          contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.electricTeal} />
-          }
-          ListEmptyComponent={
-            <View style={styles.centered}>
-              <Ionicons name="document-text-outline" size={48} color={COLORS.textTertiary} />
-              <Text style={styles.emptyText}>No expiring documents in this category.</Text>
-            </View>
-          }
-        />
-      )}
-
-      <Modal visible={!!renewModal} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Approve Renewal</Text>
-            <Text style={styles.modalSubtitle}>
-              {renewModal?.driverName} — {DOC_LABELS[renewModal?.docField || ''] || renewModal?.docField}
-            </Text>
-            <TextInput
-              style={styles.modalInput}
-              placeholder="New expiry date (YYYY-MM-DD)"
-              placeholderTextColor={COLORS.textTertiary}
-              value={newExpiryDate}
-              onChangeText={setNewExpiryDate}
-            />
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.modalCancel}
-                onPress={() => { setRenewModal(null); setNewExpiryDate(''); }}
-              >
-                <Text style={styles.modalCancelText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.modalConfirm} onPress={handleRenew} disabled={processing}>
-                {processing ? (
-                  <ActivityIndicator size="small" color="#FFF" />
-                ) : (
-                  <Text style={styles.modalConfirmText}>Approve</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      ))}
     </View>
+  );
+
+  return (
+    <>
+      <AdminScreenLayout
+        title="Expiring Documents"
+        subtitle={`${records.length} driver(s) need attention`}
+        headerBottom={tabsRow}
+      >
+        {loading ? (
+          <View style={styles.centered}>
+            <ActivityIndicator size="large" color={COLORS.electricTeal} />
+          </View>
+        ) : (
+          <FlatList
+            data={records}
+            keyExtractor={(item) => item._id}
+            renderItem={renderRecord}
+            contentContainerStyle={styles.listContent}
+            keyboardDismissMode="on-drag"
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.electricTeal} />
+            }
+            ListEmptyComponent={
+              <View style={styles.centered}>
+                <Ionicons name="document-text-outline" size={48} color={COLORS.textTertiary} />
+                <Text style={styles.emptyText}>No expiring documents in this category.</Text>
+              </View>
+            }
+          />
+        )}
+      </AdminScreenLayout>
+
+      <AdminFormModal
+        visible={!!renewModal}
+        onClose={() => { setRenewModal(null); setNewExpiryDate(''); }}
+        title="Approve Renewal"
+        subtitle={
+          renewModal
+            ? `${renewModal.driverName} — ${DOC_LABELS[renewModal.docField] || renewModal.docField}`
+            : undefined
+        }
+      >
+        <TextInput
+          style={styles.modalInput}
+          placeholder="New expiry date (YYYY-MM-DD)"
+          placeholderTextColor={COLORS.textTertiary}
+          value={newExpiryDate}
+          onChangeText={setNewExpiryDate}
+          returnKeyType="done"
+        />
+        <View style={styles.modalActions}>
+          <TouchableOpacity
+            style={styles.modalCancel}
+            onPress={() => { setRenewModal(null); setNewExpiryDate(''); }}
+          >
+            <Text style={styles.modalCancelText}>Cancel</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.modalConfirm} onPress={handleRenew} disabled={processing}>
+            {processing ? (
+              <ActivityIndicator size="small" color="#FFF" />
+            ) : (
+              <Text style={styles.modalConfirmText}>Approve</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      </AdminFormModal>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  header: {
-    flexDirection: 'row', alignItems: 'center', gap: SPACING.md,
-    padding: SPACING.xl, paddingTop: Platform.OS === 'ios' ? 60 : 40,
-    backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: COLORS.border,
-  },
-  backBtn: { padding: SPACING.sm },
-  headerTitle: { fontSize: FONT_SIZES.section, fontWeight: FONT_WEIGHTS.bold, color: COLORS.textPrimary },
-  headerSubtitle: { fontSize: FONT_SIZES.body, color: COLORS.textSecondary, marginTop: 4 },
   tabsRow: {
     flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm,
-    padding: SPACING.md, backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: COLORS.border,
+    padding: SPACING.md,
   },
   filterTab: {
     paddingHorizontal: SPACING.md, paddingVertical: 6, borderRadius: 16,
@@ -318,15 +310,8 @@ const styles = StyleSheet.create({
     borderRadius: BORDER_RADIUS.sm, backgroundColor: COLORS.electricTeal,
   },
   renewBtnText: { color: '#FFF', fontSize: 12, fontWeight: FONT_WEIGHTS.bold },
-  centered: { alignItems: 'center', padding: SPACING.xl, marginTop: 40 },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: SPACING.xl },
   emptyText: { marginTop: SPACING.md, fontSize: 15, color: COLORS.textSecondary, textAlign: 'center' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modalContent: {
-    backgroundColor: COLORS.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    padding: SPACING.xl, paddingBottom: 40,
-  },
-  modalTitle: { fontSize: 20, fontWeight: FONT_WEIGHTS.bold, color: COLORS.textPrimary },
-  modalSubtitle: { fontSize: 14, color: COLORS.textSecondary, marginTop: 4, marginBottom: SPACING.lg },
   modalInput: {
     backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border,
     borderRadius: BORDER_RADIUS.lg, padding: SPACING.md, color: COLORS.textPrimary, fontSize: 14,

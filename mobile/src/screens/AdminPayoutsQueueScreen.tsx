@@ -1,15 +1,16 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  SafeAreaView, Platform, ActivityIndicator, Alert, TextInput, Modal
+  ActivityIndicator, Alert, TextInput,
 } from 'react-native';
 import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { adminApi } from '@/api';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
+import { AdminScreenLayout } from '@/components/admin/AdminScreenLayout';
+import { AdminFormModal } from '@/components/admin/AdminFormModal';
 
 export function AdminPayoutsQueueScreen() {
-  const navigation = useNavigation();
   const [withdrawals, setWithdrawals] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -74,16 +75,8 @@ export function AdminPayoutsQueueScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Payouts Queue</Text>
-        <View style={{ width: 40 }} />
-      </View>
-
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+    <>
+    <AdminScreenLayout title="Payouts Queue" subtitle="Pending provider withdrawals" scroll contentContainerStyle={styles.scrollContent}>
         {loading ? (
           <ActivityIndicator size="large" color={COLORS.electricTeal} style={{ marginTop: 40 }} />
         ) : withdrawals.length === 0 ? (
@@ -123,35 +116,45 @@ export function AdminPayoutsQueueScreen() {
             );
           })
         )}
-      </ScrollView>
+    </AdminScreenLayout>
 
-      {/* Reject Modal */}
-      <Modal visible={!!rejectModal} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Rejection Reason</Text>
-            <TextInput style={styles.modalInput} placeholder="Why are you rejecting this withdrawal?" placeholderTextColor={COLORS.textTertiary} value={rejectReason} onChangeText={setRejectReason} multiline numberOfLines={3} />
-            <View style={{ flexDirection: 'row', gap: SPACING.md }}>
-              <TouchableOpacity style={[styles.rejectBtn, { flex: 1, justifyContent: 'center' }]} onPress={() => { setRejectModal(null); setRejectReason(''); }}>
-                <Text style={styles.rejectBtnText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.approveBtn, { flex: 1, backgroundColor: COLORS.error }]} onPress={handleReject}>
-                <Text style={styles.approveBtnText}>Reject</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+      <AdminFormModal
+        visible={!!rejectModal}
+        onClose={() => { setRejectModal(null); setRejectReason(''); }}
+        title="Rejection Reason"
+        subtitle="Explain why this withdrawal is rejected"
+      >
+        <TextInput
+          style={styles.modalInput}
+          placeholder="Why are you rejecting this withdrawal?"
+          placeholderTextColor={COLORS.textTertiary}
+          value={rejectReason}
+          onChangeText={setRejectReason}
+          multiline
+          numberOfLines={4}
+          textAlignVertical="top"
+        />
+        <View style={styles.modalActions}>
+          <TouchableOpacity
+            style={[styles.rejectBtn, { flex: 1, justifyContent: 'center' }]}
+            onPress={() => { setRejectModal(null); setRejectReason(''); }}
+          >
+            <Text style={styles.rejectBtnText}>Cancel</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.approveBtn, { flex: 1, backgroundColor: COLORS.error }]}
+            onPress={handleReject}
+          >
+            <Text style={styles.approveBtnText}>Reject</Text>
+          </TouchableOpacity>
         </View>
-      </Modal>
-    </SafeAreaView>
+      </AdminFormModal>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: COLORS.background },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACING.lg, paddingTop: Platform.OS === 'ios' ? 10 : 30, paddingBottom: SPACING.md, borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  backBtn: { padding: SPACING.xs },
-  headerTitle: { fontSize: FONT_SIZES.section, fontWeight: FONT_WEIGHTS.bold, color: COLORS.textPrimary },
-  scrollContent: { padding: SPACING.lg, paddingBottom: 100 },
+  scrollContent: { paddingBottom: SPACING.xl },
 
   emptyState: { alignItems: 'center', marginTop: 60 },
   emptyText: { color: COLORS.textSecondary, fontSize: FONT_SIZES.body, marginTop: SPACING.md },
@@ -169,8 +172,10 @@ const styles = StyleSheet.create({
   rejectBtn: { flex: 1, backgroundColor: `${COLORS.error}10`, borderRadius: BORDER_RADIUS.md, paddingVertical: SPACING.md, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1, borderColor: `${COLORS.error}30` },
   rejectBtnText: { color: COLORS.error, fontWeight: FONT_WEIGHTS.bold, fontSize: FONT_SIZES.label },
 
-  modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
-  modalContent: { backgroundColor: COLORS.background, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: SPACING.xl, paddingBottom: 40 },
-  modalTitle: { fontSize: FONT_SIZES.section, fontWeight: FONT_WEIGHTS.bold, color: COLORS.textPrimary, marginBottom: SPACING.lg },
-  modalInput: { backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.md, padding: SPACING.md, color: COLORS.textPrimary, fontSize: FONT_SIZES.body, borderWidth: 1, borderColor: COLORS.border, minHeight: 80, textAlignVertical: 'top', marginBottom: SPACING.lg },
+  modalInput: {
+    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.md, padding: SPACING.md,
+    color: COLORS.textPrimary, fontSize: FONT_SIZES.body, borderWidth: 1, borderColor: COLORS.border,
+    minHeight: 100, textAlignVertical: 'top', marginBottom: SPACING.lg,
+  },
+  modalActions: { flexDirection: 'row', gap: SPACING.md },
 });

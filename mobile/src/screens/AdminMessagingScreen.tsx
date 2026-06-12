@@ -1,12 +1,15 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView,
-  ActivityIndicator, Alert, Platform, FlatList, Modal,
+  ActivityIndicator, Alert, FlatList,
 } from 'react-native';
 import { adminApi } from '@/api';
 import { COLORS, SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
+import { useRoute, useFocusEffect } from '@react-navigation/native';
+import { AdminScreenLayout } from '@/components/admin/AdminScreenLayout';
+import { AdminFormModal } from '@/components/admin/AdminFormModal';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 type Template = {
   _id: string;
@@ -39,8 +42,31 @@ const CHANNELS = [
   { id: 'all', label: 'Push + Email' },
 ];
 
+const TEMPLATE_CATEGORY_ORDER = [
+  'verification',
+  'approval',
+  'rejection',
+  'booking',
+  'earnings',
+  'expiry',
+  'suspension',
+  'general',
+  'custom',
+] as const;
+
+const TEMPLATE_CATEGORY_LABELS: Record<string, string> = {
+  verification: 'Under review & submissions',
+  approval: 'Approved',
+  rejection: 'Rejected — action needed',
+  booking: 'Bookings',
+  earnings: 'Earnings & payouts',
+  expiry: 'Document expiry',
+  suspension: 'Account status',
+  general: 'General',
+  custom: 'Custom templates',
+};
+
 export function AdminMessagingScreen() {
-  const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const preselectedUserId = route.params?.userId as string | undefined;
   const preselectedUserName = route.params?.userName as string | undefined;
@@ -170,6 +196,24 @@ export function AdminMessagingScreen() {
     }
   };
 
+  const templatesByCategory = useMemo(() => {
+    const groups = new Map<string, Template[]>();
+    for (const t of templates) {
+      const cat = t.category || 'general';
+      if (!groups.has(cat)) groups.set(cat, []);
+      groups.get(cat)!.push(t);
+    }
+    const orderedCategories = [
+      ...TEMPLATE_CATEGORY_ORDER.filter(c => groups.has(c)),
+      ...[...groups.keys()].filter(c => !TEMPLATE_CATEGORY_ORDER.includes(c as typeof TEMPLATE_CATEGORY_ORDER[number])),
+    ];
+    return orderedCategories.map(category => ({
+      category,
+      label: TEMPLATE_CATEGORY_LABELS[category] || category.replace(/_/g, ' '),
+      items: groups.get(category)!,
+    }));
+  }, [templates]);
+
   const filteredUsers = users.filter(u => {
     const q = userSearch.toLowerCase();
     return (
@@ -179,42 +223,40 @@ export function AdminMessagingScreen() {
     );
   });
 
+  const tabRow = (
+    <View style={styles.tabRow}>
+      <TouchableOpacity
+        style={[styles.tab, tab === 'compose' && styles.tabActive]}
+        onPress={() => setTab('compose')}
+      >
+        <Text style={[styles.tabText, tab === 'compose' && styles.tabTextActive]}>Compose</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.tab, tab === 'history' && styles.tabActive]}
+        onPress={() => setTab('history')}
+      >
+        <Text style={[styles.tabText, tab === 'history' && styles.tabTextActive]}>History</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
   if (loading) {
     return (
-      <View style={styles.center}>
+      <SafeAreaView style={styles.centerSafe} edges={['top', 'bottom']}>
         <ActivityIndicator size="large" color={COLORS.electricTeal} />
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
-        </TouchableOpacity>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>Admin Messaging</Text>
-          <Text style={styles.headerSub}>Templates, compose & history</Text>
-        </View>
-      </View>
-
-      <View style={styles.tabRow}>
-        <TouchableOpacity
-          style={[styles.tab, tab === 'compose' && styles.tabActive]}
-          onPress={() => setTab('compose')}
-        >
-          <Text style={[styles.tabText, tab === 'compose' && styles.tabTextActive]}>Compose</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, tab === 'history' && styles.tabActive]}
-          onPress={() => setTab('history')}
-        >
-          <Text style={[styles.tabText, tab === 'history' && styles.tabTextActive]}>History</Text>
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+    <>
+    <AdminScreenLayout
+      title="Admin Messaging"
+      subtitle="Templates, compose & history"
+      scroll
+      headerBottom={tabRow}
+      contentContainerStyle={styles.scrollContent}
+    >
         <TouchableOpacity style={styles.userPicker} onPress={() => setShowUserPicker(true)}>
           <Ionicons name="person-outline" size={20} color={COLORS.electricTeal} />
           <Text style={styles.userPickerText}>
@@ -228,24 +270,36 @@ export function AdminMessagingScreen() {
         {tab === 'compose' && (
           <>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Templates</Text>
+              <Text style={styles.sectionTitle}>Message templates</Text>
               <TouchableOpacity onPress={() => setShowNewTemplate(true)}>
-                <Text style={styles.linkText}>+ New</Text>
+                <Text style={styles.linkText}>+ Custom</Text>
               </TouchableOpacity>
             </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.templateScroll}>
-              {templates.map(t => (
-                <TouchableOpacity
-                  key={t._id}
-                  style={[styles.templateChip, selectedTemplate?._id === t._id && styles.templateChipActive]}
-                  onPress={() => applyTemplate(t)}
-                >
-                  <Text style={[styles.templateChipText, selectedTemplate?._id === t._id && styles.templateChipTextActive]}>
-                    {t.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+            <Text style={styles.sectionHint}>
+              Tap a template — these are the messages users should receive at each step (e.g. documents under review).
+            </Text>
+            {templatesByCategory.map(group => (
+              <View key={group.category} style={styles.templateGroup}>
+                <Text style={styles.templateGroupLabel}>{group.label}</Text>
+                <View style={styles.templateChipRow}>
+                  {group.items.map(t => {
+                    const isActive = selectedTemplate?._id === t._id;
+                    return (
+                      <TouchableOpacity
+                        key={t._id}
+                        style={[styles.templateChip, isActive && styles.templateChipActive]}
+                        onPress={() => applyTemplate(t)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[styles.templateChipText, isActive && styles.templateChipTextActive]} numberOfLines={2}>
+                          {t.name}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            ))}
 
             <Text style={styles.label}>Subject</Text>
             <TextInput
@@ -253,6 +307,8 @@ export function AdminMessagingScreen() {
               value={subject}
               onChangeText={setSubject}
               placeholderTextColor={COLORS.textTertiary}
+              returnKeyType="done"
+              blurOnSubmit
             />
 
             <Text style={styles.label}>Message</Text>
@@ -264,6 +320,7 @@ export function AdminMessagingScreen() {
               textAlignVertical="top"
               placeholder="Write your message..."
               placeholderTextColor={COLORS.textTertiary}
+              blurOnSubmit
             />
 
             <Text style={styles.label}>Delivery Channel</Text>
@@ -326,103 +383,107 @@ export function AdminMessagingScreen() {
             )}
           </>
         )}
-      </ScrollView>
+    </AdminScreenLayout>
 
-      {/* User Picker Modal */}
-      <Modal visible={showUserPicker} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select User</Text>
-              <TouchableOpacity onPress={() => setShowUserPicker(false)}>
-                <Ionicons name="close" size={24} color={COLORS.textPrimary} />
-              </TouchableOpacity>
-            </View>
-            <TextInput
-              style={styles.input}
-              placeholder="Search users..."
-              placeholderTextColor={COLORS.textTertiary}
-              value={userSearch}
-              onChangeText={setUserSearch}
-            />
-            <FlatList
-              data={filteredUsers}
-              keyExtractor={item => item._id}
-              style={{ maxHeight: 320 }}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={styles.userRow}
-                  onPress={() => {
-                    setSelectedUser(item);
-                    setShowUserPicker(false);
-                  }}
-                >
-                  <Text style={styles.userRowName}>{item.firstName} {item.lastName}</Text>
-                  <Text style={styles.userRowEmail}>{item.email}</Text>
-                </TouchableOpacity>
-              )}
-            />
-          </View>
-        </View>
-      </Modal>
-
-      {/* Preview Modal */}
-      <Modal visible={showPreview} animationType="fade" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Message Preview</Text>
-            <Text style={styles.previewSubject}>{subject}</Text>
-            <Text style={styles.previewBody}>{message || 'No message yet.'}</Text>
-            <Text style={styles.previewMeta}>To: {selectedUser ? `${selectedUser.firstName} ${selectedUser.lastName}` : 'No recipient'}</Text>
-            <TouchableOpacity style={styles.sendBtn} onPress={() => setShowPreview(false)}>
-              <Text style={styles.sendBtnText}>Close Preview</Text>
+      <AdminFormModal
+        visible={showUserPicker}
+        onClose={() => { setShowUserPicker(false); setUserSearch(''); }}
+        title="Select User"
+        subtitle="Search and choose a recipient"
+      >
+        <TextInput
+          style={styles.input}
+          placeholder="Search users..."
+          placeholderTextColor={COLORS.textTertiary}
+          value={userSearch}
+          onChangeText={setUserSearch}
+          returnKeyType="search"
+        />
+        <FlatList
+          data={filteredUsers}
+          keyExtractor={item => item._id}
+          style={{ maxHeight: 280 }}
+          keyboardShouldPersistTaps="handled"
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={styles.userRow}
+              onPress={() => {
+                setSelectedUser(item);
+                setShowUserPicker(false);
+                setUserSearch('');
+              }}
+            >
+              <Text style={styles.userRowName}>{item.firstName} {item.lastName}</Text>
+              <Text style={styles.userRowEmail}>{item.email}</Text>
             </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+          )}
+        />
+      </AdminFormModal>
 
-      {/* New Template Modal */}
-      <Modal visible={showNewTemplate} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>New Template</Text>
-            <TextInput style={styles.input} placeholder="Template name" placeholderTextColor={COLORS.textTertiary} value={newTemplate.name} onChangeText={v => setNewTemplate(p => ({ ...p, name: v }))} />
-            <TextInput style={styles.input} placeholder="Subject" placeholderTextColor={COLORS.textTertiary} value={newTemplate.subject} onChangeText={v => setNewTemplate(p => ({ ...p, subject: v }))} />
-            <TextInput style={[styles.input, styles.messageInput]} placeholder="Body" placeholderTextColor={COLORS.textTertiary} value={newTemplate.body} onChangeText={v => setNewTemplate(p => ({ ...p, body: v }))} multiline textAlignVertical="top" />
-            <View style={styles.actionRow}>
-              <TouchableOpacity style={styles.previewBtn} onPress={() => setShowNewTemplate(false)}>
-                <Text style={styles.previewBtnText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.sendBtn} onPress={handleCreateTemplate}>
-                <Text style={styles.sendBtnText}>Save Template</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+      <AdminFormModal
+        visible={showPreview}
+        onClose={() => setShowPreview(false)}
+        title="Message Preview"
+      >
+        <Text style={styles.previewSubject}>{subject}</Text>
+        <Text style={styles.previewBody}>{message || 'No message yet.'}</Text>
+        <Text style={styles.previewMeta}>
+          To: {selectedUser ? `${selectedUser.firstName} ${selectedUser.lastName}` : 'No recipient'}
+        </Text>
+        <TouchableOpacity style={styles.sendBtn} onPress={() => setShowPreview(false)}>
+          <Text style={styles.sendBtnText}>Close Preview</Text>
+        </TouchableOpacity>
+      </AdminFormModal>
+
+      <AdminFormModal
+        visible={showNewTemplate}
+        onClose={() => setShowNewTemplate(false)}
+        title="New Template"
+      >
+        <TextInput
+          style={styles.input}
+          placeholder="Template name"
+          placeholderTextColor={COLORS.textTertiary}
+          value={newTemplate.name}
+          onChangeText={v => setNewTemplate(p => ({ ...p, name: v }))}
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Subject"
+          placeholderTextColor={COLORS.textTertiary}
+          value={newTemplate.subject}
+          onChangeText={v => setNewTemplate(p => ({ ...p, subject: v }))}
+        />
+        <TextInput
+          style={[styles.input, styles.messageInput]}
+          placeholder="Body"
+          placeholderTextColor={COLORS.textTertiary}
+          value={newTemplate.body}
+          onChangeText={v => setNewTemplate(p => ({ ...p, body: v }))}
+          multiline
+          textAlignVertical="top"
+        />
+        <View style={styles.actionRow}>
+          <TouchableOpacity style={styles.previewBtn} onPress={() => setShowNewTemplate(false)}>
+            <Text style={styles.previewBtnText}>Cancel</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.sendBtn} onPress={handleCreateTemplate}>
+            <Text style={styles.sendBtnText}>Save Template</Text>
+          </TouchableOpacity>
         </View>
-      </Modal>
-    </View>
+      </AdminFormModal>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  header: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: SPACING.lg,
-    paddingTop: Platform.OS === 'android' ? SPACING.xl : SPACING.sm,
-    paddingBottom: SPACING.md,
-    borderBottomWidth: 1, borderBottomColor: COLORS.border,
-  },
-  backBtn: { padding: SPACING.xs, marginRight: SPACING.sm },
-  headerTitle: { color: COLORS.textPrimary, fontSize: FONT_SIZES.section, fontWeight: FONT_WEIGHTS.bold },
-  headerSub: { color: COLORS.textSecondary, fontSize: FONT_SIZES.small, marginTop: 2 },
+  centerSafe: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.background },
   tabRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: COLORS.border },
   tab: { flex: 1, paddingVertical: SPACING.md, alignItems: 'center' },
   tabActive: { borderBottomWidth: 2, borderBottomColor: COLORS.electricTeal },
   tabText: { color: COLORS.textSecondary, fontWeight: FONT_WEIGHTS.medium },
   tabTextActive: { color: COLORS.electricTeal },
-  scrollContent: { padding: SPACING.lg, paddingBottom: 40 },
+  scrollContent: { paddingBottom: SPACING.xl },
   userPicker: {
     flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
     backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.md,
@@ -432,16 +493,39 @@ const styles = StyleSheet.create({
   userPickerText: { flex: 1, color: COLORS.textPrimary, fontSize: FONT_SIZES.small },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.sm },
   sectionTitle: { color: COLORS.textPrimary, fontWeight: FONT_WEIGHTS.semibold },
-  linkText: { color: COLORS.electricTeal, fontWeight: FONT_WEIGHTS.medium },
-  templateScroll: { marginBottom: SPACING.lg },
-  templateChip: {
-    paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm,
-    borderRadius: BORDER_RADIUS.full, borderWidth: 1, borderColor: COLORS.border,
-    marginRight: SPACING.sm, backgroundColor: COLORS.surface,
+  sectionHint: {
+    color: COLORS.textSecondary,
+    fontSize: 12,
+    lineHeight: 17,
+    marginBottom: SPACING.md,
   },
-  templateChipActive: { backgroundColor: `${COLORS.electricTeal}15`, borderColor: COLORS.electricTeal },
-  templateChipText: { color: COLORS.textSecondary, fontSize: FONT_SIZES.small },
-  templateChipTextActive: { color: COLORS.electricTeal },
+  linkText: { color: COLORS.electricTeal, fontWeight: FONT_WEIGHTS.medium, fontSize: FONT_SIZES.small },
+  templateGroup: { marginBottom: SPACING.md },
+  templateGroupLabel: {
+    color: COLORS.textTertiary,
+    fontSize: 11,
+    fontWeight: FONT_WEIGHTS.semibold,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    marginBottom: SPACING.xs,
+  },
+  templateChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACING.xs,
+  },
+  templateChip: {
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 6,
+    borderRadius: BORDER_RADIUS.full,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surface,
+    maxWidth: '100%',
+  },
+  templateChipActive: { backgroundColor: `${COLORS.electricTeal}12`, borderColor: COLORS.electricTeal },
+  templateChipText: { color: COLORS.textSecondary, fontSize: 12, maxWidth: 220 },
+  templateChipTextActive: { color: COLORS.electricTeal, fontWeight: FONT_WEIGHTS.semibold },
   label: { color: COLORS.textSecondary, fontSize: FONT_SIZES.small, marginBottom: SPACING.xs },
   input: {
     backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.md,
@@ -483,13 +567,6 @@ const styles = StyleSheet.create({
   statusPillText: { fontSize: 10, fontWeight: FONT_WEIGHTS.bold },
   historyMessage: { color: COLORS.textSecondary, marginBottom: SPACING.xs },
   historyMeta: { color: COLORS.textTertiary, fontSize: 11 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modalContent: {
-    backgroundColor: COLORS.background, borderTopLeftRadius: BORDER_RADIUS.xl,
-    borderTopRightRadius: BORDER_RADIUS.xl, padding: SPACING.lg, maxHeight: '85%',
-  },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.md },
-  modalTitle: { color: COLORS.textPrimary, fontSize: FONT_SIZES.section, fontWeight: FONT_WEIGHTS.bold },
   userRow: { paddingVertical: SPACING.md, borderBottomWidth: 1, borderBottomColor: COLORS.divider },
   userRowName: { color: COLORS.textPrimary, fontWeight: FONT_WEIGHTS.medium },
   userRowEmail: { color: COLORS.textSecondary, fontSize: FONT_SIZES.small },

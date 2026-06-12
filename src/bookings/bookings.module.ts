@@ -6,6 +6,8 @@ import { BookingRequest, BookingRequestSchema } from 'src/schemas/booking-reques
 import { ParkingSpace, ParkingSpaceSchema } from 'src/schemas/parking-space.schema';
 import { User, UserSchema } from 'src/schemas/user.schema';
 import { NotificationsModule } from 'src/notifications/notifications.module';
+import { WalletModule } from 'src/wallet/wallet.module';
+import { PaymentsModule } from 'src/payments/payments.module';
 
 @Module({
   imports: [
@@ -15,6 +17,8 @@ import { NotificationsModule } from 'src/notifications/notifications.module';
       { name: User.name, schema: UserSchema },
     ]),
     NotificationsModule,
+    WalletModule,
+    PaymentsModule,
   ],
   controllers: [BookingsController],
   providers: [BookingsService],

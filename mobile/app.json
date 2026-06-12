@@ -67,6 +67,13 @@
         {
           "locationWhenInUsePermission": "Allow Gleezip to use your location to find parking and rides nearby."
         }
+      ],
+      [
+        "@stripe/stripe-react-native",
+        {
+          "merchantIdentifier": "merchant.com.gleezip.mobile",
+          "enableGooglePay": true
+        }
       ]
     ],
     "experiments": {

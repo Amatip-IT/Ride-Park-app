@@ -8,6 +8,7 @@ import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/cons
 import { adminApi } from '@/api';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
+import { useAdminDashboardBack } from '@/components/admin/AdminScreenLayout';
 
 function DetailRow({ label, value }: { label: string; value?: string | null }) {
   const display = value?.trim() ? value : '—';
@@ -43,6 +44,7 @@ const detailStyles = StyleSheet.create({
 
 export function AdminIdentityQueueScreen() {
   const navigation = useNavigation<any>();
+  const goToDashboard = useAdminDashboardBack();
   const { width: screenWidth } = useWindowDimensions();
   const cardWidth = screenWidth - SPACING.md * 2;
 
@@ -152,8 +154,15 @@ export function AdminIdentityQueueScreen() {
         );
   };
 
-  const openDocument = (url: string) => {
-    if (url) Linking.openURL(url).catch(() => Alert.alert('Error', 'Cannot open document'));
+  const openDocument = async (url: string) => {
+    if (!url) return;
+    try {
+      const res = await adminApi.getPresignedUrl(url);
+      const presigned = res.data?.url || url;
+      await Linking.openURL(presigned);
+    } catch {
+      Alert.alert('Error', 'Cannot open document');
+    }
   };
 
   const renderItem = ({ item }: { item: any }) => {
@@ -288,10 +297,15 @@ export function AdminIdentityQueueScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Identity Documents</Text>
-        <Text style={styles.headerSub}>
-          {records.length} pending · expand each card to review before approval
-        </Text>
+        <TouchableOpacity style={styles.backBtn} onPress={goToDashboard}>
+          <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
+        </TouchableOpacity>
+        <View style={styles.headerText}>
+          <Text style={styles.headerTitle}>Identity Documents</Text>
+          <Text style={styles.headerSub}>
+            {records.length} pending · expand each card to review before approval
+          </Text>
+        </View>
       </View>
 
       {loading ? (
@@ -321,12 +335,16 @@ export function AdminIdentityQueueScreen() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: COLORS.background },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: SPACING.md,
     paddingTop: Platform.OS === 'android' ? SPACING.xl : SPACING.sm,
     paddingBottom: SPACING.md,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
+  backBtn: { padding: SPACING.xs, marginRight: SPACING.sm },
+  headerText: { flex: 1, minWidth: 0 },
   headerTitle: {
     color: COLORS.textPrimary, fontSize: FONT_SIZES.section, fontWeight: FONT_WEIGHTS.bold,
   },

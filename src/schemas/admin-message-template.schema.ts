@@ -10,7 +10,7 @@ export class AdminMessageTemplate {
 
   @Prop({
     required: true,
-    enum: ['rejection', 'expiry', 'suspension', 'earnings', 'general', 'custom'],
+    enum: ['verification', 'approval', 'rejection', 'expiry', 'suspension', 'earnings', 'booking', 'general', 'custom'],
     default: 'general',
   })
   category: string;

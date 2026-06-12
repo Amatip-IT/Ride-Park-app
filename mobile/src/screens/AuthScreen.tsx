@@ -23,6 +23,7 @@ import PhoneInput from 'react-native-phone-number-input';
 import { Picker } from '@react-native-picker/picker';
 import { useRef } from 'react';
 import * as ImagePicker from 'expo-image-picker';
+import { providerApi } from '@/api';
 
 type AuthStep = 'register_step1' | 'register_step2' | 'register_step3' | 'otp' | 'login';
 
@@ -84,6 +85,9 @@ export function AuthScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [showLoginPassword, setShowLoginPassword] = useState(false);
+
+  // Track whether we arrived at login after a fresh registration (docs need uploading)
+  const [pendingDocUpload, setPendingDocUpload] = useState(false);
 
   const { sendOtp, sendLoginOtp, verifyOtp, formatTime, error, loading, otpAttempts, clearError } =
     useEmailOtp();
@@ -217,11 +221,8 @@ export function AuthScreen() {
         termsAccepted: true,
       };
 
-      // Add identity verification data for providers
       if (isProvider) {
         payload.idType = idType;
-        payload.identityDocumentUrl = identityDocUri;
-        payload.proofOfAddressUrl = proofOfAddressUri;
         payload.identityStatus = 'pending';
       }
 
@@ -287,8 +288,45 @@ export function AuthScreen() {
       if (success) {
         Alert.alert('Success', 'Email verified! Please sign in.');
         setLoginData({ email: formData.email, password: formData.password });
+        if (isProvider && (identityDocUri || proofOfAddressUri)) {
+          setPendingDocUpload(true);
+        }
         setIsLogin(true);
         setCurrentStep('login');
+      }
+    }
+  };
+
+  const uploadIdentityDocs = async () => {
+    const uploads: { field: string; uri: string }[] = [];
+    if (identityDocUri) uploads.push({ field: 'identityDocumentUrl', uri: identityDocUri });
+    if (proofOfAddressUri) uploads.push({ field: 'proofOfAddressUrl', uri: proofOfAddressUri });
+    if (!uploads.length) return;
+
+    const profilePatch: Record<string, string> = {};
+
+    for (const { field, uri } of uploads) {
+      try {
+        const fd = new FormData();
+        const fileName = uri.split('/').pop() || 'document.jpg';
+        const fileExt = fileName.split('.').pop()?.toLowerCase() || 'jpg';
+        const mimeType = fileExt === 'pdf' ? 'application/pdf' : `image/${fileExt === 'jpg' ? 'jpeg' : fileExt}`;
+
+        fd.append('file', { uri, name: fileName, type: mimeType } as any);
+        const res = await providerApi.uploadDocument(fd);
+        if (res.data?.url) {
+          profilePatch[field] = res.data.url;
+        }
+      } catch (err) {
+        console.warn(`Failed to upload ${field}:`, err);
+      }
+    }
+
+    if (Object.keys(profilePatch).length) {
+      try {
+        await authService.updateProfile(profilePatch);
+      } catch (err) {
+        console.warn('Failed to update profile with doc URLs:', err);
       }
     }
   };
@@ -319,6 +357,11 @@ export function AuthScreen() {
 
       if (res.token && res.data) {
         await storeLogin(res.data as any, res.token);
+
+        if (pendingDocUpload) {
+          uploadIdentityDocs().catch(() => {});
+          setPendingDocUpload(false);
+        }
       } else {
         setStoreError('Invalid server payload structure');
       }

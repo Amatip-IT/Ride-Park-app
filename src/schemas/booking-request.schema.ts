@@ -58,6 +58,10 @@ export class BookingRequest {
   pricingUnit?: string; // 'per_hour', 'per_day', 'flat'
 
   // Timestamps for status changes
+  // Stripe PaymentIntent ID (stored after successful charge on accept)
+  @Prop({ type: String })
+  paymentIntentId?: string;
+
   @Prop({ type: Date })
   respondedAt?: Date;
 
