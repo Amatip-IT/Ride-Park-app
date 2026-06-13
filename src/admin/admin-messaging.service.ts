@@ -16,41 +16,131 @@ import { EmailService } from 'src/verification/services/email/email.service';
 import { AdminAuditService } from './admin-audit.service';
 import { AdminAuditContext } from './admin-audit.types';
 
-const DEFAULT_TEMPLATES = [
+/** System templates admins send for common user journeys (upserted by name on each fetch). */
+const DEFAULT_TEMPLATES: Array<{
+  name: string;
+  category: string;
+  subject: string;
+  body: string;
+}> = [
+  {
+    name: 'Documents Submitted — Under Review',
+    category: 'verification',
+    subject: 'Your documents are under review',
+    body:
+      'Thank you for submitting your documents to Gleezip. Our team has received them and your application is now under review. You will receive another message once we have made a decision. No further action is needed right now.',
+  },
+  {
+    name: 'Driver / Taxi Documents Under Review',
+    category: 'verification',
+    subject: 'Driver verification under review',
+    body:
+      'We have received your driver documents and they are now under admin review. You cannot accept rides until your verification is approved. We will notify you as soon as your account is cleared to go online.',
+  },
+  {
+    name: 'Parking Application Under Review',
+    category: 'verification',
+    subject: 'Parking listing under review',
+    body:
+      'Thank you for submitting your parking space details. Your application is now under review by our team. Your listing will not appear to customers until it has been approved. We will contact you when the review is complete.',
+  },
+  {
+    name: 'Identity Documents Under Review',
+    category: 'verification',
+    subject: 'Identity verification under review',
+    body:
+      'Your identity documents have been submitted successfully and are now under review. You will be notified once verification is complete. Please keep the app installed so you do not miss updates.',
+  },
+  {
+    name: 'Verification Approved — Driver / Taxi',
+    category: 'approval',
+    subject: 'You are approved to accept rides',
+    body:
+      'Good news! Your driver verification has been approved. You can now go online in the app and accept ride requests. Thank you for completing the process with Gleezip.',
+  },
+  {
+    name: 'Parking Space Approved',
+    category: 'approval',
+    subject: 'Your parking space is now live',
+    body:
+      'Congratulations! Your parking space has been approved and is now visible to customers on Gleezip. You can manage your listing and bookings from your provider dashboard.',
+  },
+  {
+    name: 'Identity Verification Approved',
+    category: 'approval',
+    subject: 'Identity verification complete',
+    body:
+      'Your identity has been verified successfully. You now have full access to the provider features linked to your account. Thank you for helping us keep Gleezip safe.',
+  },
+  {
+    name: 'Documents Rejected — Please Resubmit',
+    category: 'rejection',
+    subject: 'Action required: resubmit your documents',
+    body:
+      'Unfortunately, one or more of your submitted documents could not be approved. Please open the app, review the feedback, and upload corrected documents so we can continue your verification.',
+  },
+  {
+    name: 'Parking Application Rejected',
+    category: 'rejection',
+    subject: 'Parking application not approved',
+    body:
+      'Your parking space application was not approved at this time. Please check the app for details, update your information or photos if needed, and resubmit when you are ready.',
+  },
   {
     name: 'Documents Expiring Soon',
     category: 'expiry',
-    subject: 'Action Required: Document Renewal',
+    subject: 'Action required: renew your documents',
     body:
-      'Your document is expiring soon. Please upload a renewed copy through the app to continue accepting rides without interruption.',
+      'One or more of your documents are expiring soon. Please upload renewed copies in the app as soon as possible so you can continue using Gleezip without interruption.',
   },
   {
-    name: 'Resubmit Rejected Document',
-    category: 'rejection',
-    subject: 'Please Resubmit Your Document',
+    name: 'New Parking Booking Request',
+    category: 'booking',
+    subject: 'New booking request for your space',
     body:
-      'One or more of your submitted documents were rejected. Please review the feedback in the app and upload corrected documents.',
+      'A customer has sent a booking request for your parking space. Please open the app and accept or decline the request promptly so they know whether their spot is confirmed.',
   },
   {
-    name: 'Account Suspended',
-    category: 'suspension',
-    subject: 'Account Suspension Notice',
+    name: 'Booking Accepted — Customer',
+    category: 'booking',
+    subject: 'Your parking booking was accepted',
     body:
-      'Your account has been temporarily suspended. Please contact support if you believe this was done in error.',
+      'Your parking booking request has been accepted by the space owner. Open the app to view the details and plan your arrival.',
+  },
+  {
+    name: 'Booking Declined — Customer',
+    category: 'booking',
+    subject: 'Your parking booking was not accepted',
+    body:
+      'Unfortunately, your parking booking request was not accepted. You can search for another available space in the app.',
   },
   {
     name: 'Earnings Ready to Withdraw',
     category: 'earnings',
-    subject: 'Your Earnings Are Ready',
+    subject: 'Your earnings are ready',
     body:
-      'Great news! Your earnings are available in your wallet and ready to withdraw. Open the app to request a payout.',
+      'You have earnings available in your Gleezip wallet. Open the app, go to Earnings, and request a withdrawal when you are ready.',
   },
   {
-    name: 'Verification Under Review',
-    category: 'general',
-    subject: 'Application Update',
+    name: 'Withdrawal Approved',
+    category: 'earnings',
+    subject: 'Your withdrawal has been processed',
     body:
-      'Thank you for your submission. Our team is reviewing your application and will notify you once a decision is made.',
+      'Your withdrawal request has been approved and funds are being sent to your linked bank account. Processing times may vary depending on your bank.',
+  },
+  {
+    name: 'Account Suspended',
+    category: 'suspension',
+    subject: 'Your account has been suspended',
+    body:
+      'Your Gleezip account has been temporarily suspended. If you believe this was a mistake, please contact support through the app.',
+  },
+  {
+    name: 'Account Ban Notice',
+    category: 'suspension',
+    subject: 'Your account access has been restricted',
+    body:
+      'Your Gleezip account has been restricted due to a policy violation. Please contact support if you have questions about this decision.',
   },
 ];
 
@@ -69,16 +159,27 @@ export class AdminMessagingService {
     private auditService: AdminAuditService,
   ) {}
 
-  async ensureDefaultTemplates(): Promise<void> {
-    const count = await this.templateModel.countDocuments().exec();
-    if (count > 0) return;
-
-    await this.templateModel.insertMany(DEFAULT_TEMPLATES);
+  /** Upsert system templates so new copy appears even when DB already has older templates. */
+  async syncDefaultTemplates(): Promise<void> {
+    for (const template of DEFAULT_TEMPLATES) {
+      await this.templateModel.updateOne(
+        { name: template.name },
+        {
+          $set: {
+            category: template.category,
+            subject: template.subject,
+            body: template.body,
+            isActive: true,
+          },
+        },
+        { upsert: true },
+      );
+    }
   }
 
   async getTemplates(): Promise<Response> {
     try {
-      await this.ensureDefaultTemplates();
+      await this.syncDefaultTemplates();
       const templates = await this.templateModel
         .find({ isActive: true })
         .sort({ category: 1, name: 1 })

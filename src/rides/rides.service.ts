@@ -157,14 +157,30 @@ export class RidesService {
         durationMinutes,
       );
 
+      // Store pricing on the ride regardless of payment outcome
       ride.distanceMiles = Math.round(distanceMiles * 100) / 100;
       ride.durationMinutes = Math.round(durationMinutes);
       ride.distanceCost = pricing.distanceCost;
       ride.timeCost = pricing.timeCost;
       ride.totalCost = pricing.totalCost;
+
+      // Charge the passenger BEFORE marking ride as completed
+      let paymentSucceeded = false;
+      try {
+        await this.paymentsService.chargeCustomer(
+          ride.passenger.toString(),
+          pricing.totalCost,
+          `Payment for Ride ${ride._id.toString()}`,
+        );
+        paymentSucceeded = true;
+      } catch (paymentErr: any) {
+        console.warn(`Payment failed for ride ${ride._id.toString()}: ${paymentErr?.message}`);
+      }
+
+      // Mark ride as completed with the actual payment status
       ride.status = 'completed';
       ride.completedAt = new Date();
-
+      (ride as any).paymentStatus = paymentSucceeded ? 'charged' : 'payment_failed';
       await ride.save();
 
       // Set driver availability back to 'online'
@@ -180,47 +196,52 @@ export class RidesService {
         );
       }
 
-      // ACTUALLY CHARGE THE PASSENGER!
-      try {
-        await this.paymentsService.chargeCustomer(
-          ride.passenger.toString(),
-          pricing.totalCost,
-          `Payment for Ride ${ride._id.toString()}`
-        );
-
-        // Process payment / Add earning to driver's wallet (only if charge succeeds)
+      if (paymentSucceeded) {
         await this.walletService.addEarning(
           ride.driver.toString(),
           pricing.totalCost,
-          ride._id.toString()
+          ride._id.toString(),
         );
-      } catch (paymentErr) {
-        console.warn(`Payment failed for ride ${ride._id.toString()}: ${paymentErr}`);
-        // We still let the ride complete, but we could mark it as 'payment_pending' in a real app
+
+        await this.notificationsService.sendNotification(
+          ride.passenger.toString(),
+          'Payment Completed',
+          `Your ride has been completed and £${pricing.totalCost.toFixed(2)} has been charged successfully.`,
+          'payment',
+          { rideId: ride._id },
+        );
+
+        await this.notificationsService.sendNotification(
+          ride.driver.toString(),
+          'Payment Received',
+          `Ride completed. £${pricing.totalCost.toFixed(2)} (gross) has been added to your earnings.`,
+          'payment',
+          { rideId: ride._id },
+        );
+      } else {
+        await this.notificationsService.sendNotification(
+          ride.passenger.toString(),
+          'Payment Issue',
+          `Your ride is complete, but we couldn't process your payment of £${pricing.totalCost.toFixed(2)}. Please check your payment method — we'll retry shortly.`,
+          'payment',
+          { rideId: ride._id },
+        );
+
+        await this.notificationsService.sendNotification(
+          ride.driver.toString(),
+          'Ride Completed',
+          `Ride completed. Payment is being processed — earnings will appear once confirmed.`,
+          'ride',
+          { rideId: ride._id },
+        );
       }
-
-      // Notify Passenger
-      await this.notificationsService.sendNotification(
-        ride.passenger.toString(),
-        'Payment Completed',
-        `Your ride has been completed and £${pricing.totalCost.toFixed(2)} has been charged successfully.`,
-        'payment',
-        { rideId: ride._id }
-      );
-
-      // Notify Driver
-      await this.notificationsService.sendNotification(
-        ride.driver.toString(),
-        'Payment Received',
-        `Ride completed. £${pricing.totalCost.toFixed(2)} (gross) has been added to your earnings.`,
-        'payment',
-        { rideId: ride._id }
-      );
 
       return {
         success: true,
         data: ride,
-        message: `Ride completed. Total cost: £${pricing.totalCost.toFixed(2)}`,
+        message: paymentSucceeded
+          ? `Ride completed. Total cost: £${pricing.totalCost.toFixed(2)}`
+          : `Ride completed but payment failed. Total cost: £${pricing.totalCost.toFixed(2)}`,
       };
     } catch (error) {
       return {
@@ -291,11 +312,13 @@ export class RidesService {
         totalCost: ride.totalCost,
         ratePerMile: ride.ratePerMile,
         ratePerMinute: ride.ratePerMinute,
-        paymentStatus: 'charged',
+        paymentStatus: (ride as any).paymentStatus || 'charged',
         paymentNote:
-          requestingUserId === passengerId
-            ? 'Charged to your saved payment method.'
-            : 'Earnings credited to your wallet (after platform fee).',
+          (ride as any).paymentStatus === 'payment_failed'
+            ? 'Payment could not be processed. We will retry automatically.'
+            : requestingUserId === passengerId
+              ? 'Charged to your saved payment method.'
+              : 'Earnings credited to your wallet (after platform fee).',
         vehicle: taxiRequest?.driverVehicle || null,
         estimatedCost: taxiRequest?.estimatedCost,
       };

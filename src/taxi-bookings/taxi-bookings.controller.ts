@@ -146,6 +146,7 @@ export class TaxiBookingsController {
    */
   @Patch(':id/status')
   async updateStatus(
+    @Req() req: any,
     @Param('id') id: string,
     @Body() body: { status: string; rideId?: string },
   ) {
@@ -153,6 +154,23 @@ export class TaxiBookingsController {
       throw new HttpException(
         { success: false, message: 'Status is required' },
         HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const callerId = (req.user._id || req.user.id)?.toString();
+
+    const booking = await this.taxiBookingsService.getRideRequest(id);
+    if (!booking.success) {
+      throw new HttpException(booking, HttpStatus.NOT_FOUND);
+    }
+
+    const acceptedDriverId = (booking.data as any)?.acceptedDriver?._id?.toString()
+      || (booking.data as any)?.acceptedDriver?.toString();
+
+    if (callerId !== acceptedDriverId && req.user.role !== 'admin') {
+      throw new HttpException(
+        { success: false, message: 'Only the accepted driver can update ride status' },
+        HttpStatus.FORBIDDEN,
       );
     }
 
@@ -224,11 +242,24 @@ export class TaxiBookingsController {
    * Get ride request details (must be LAST — catches all unmatched paths)
    */
   @Get(':id')
-  async getRequest(@Param('id') id: string) {
+  async getRequest(@Req() req: any, @Param('id') id: string) {
     const result = await this.taxiBookingsService.getRideRequest(id);
     if (!result.success) {
       throw new HttpException(result, HttpStatus.NOT_FOUND);
     }
+
+    const callerId = (req.user._id || req.user.id)?.toString();
+    const booking = result.data as any;
+    const passengerId = booking.passenger?._id?.toString() || booking.passenger?.toString();
+    const acceptedDriverId = booking.acceptedDriver?._id?.toString() || booking.acceptedDriver?.toString();
+
+    if (callerId !== passengerId && callerId !== acceptedDriverId && req.user.role !== 'admin') {
+      throw new HttpException(
+        { success: false, message: 'You do not have access to this booking' },
+        HttpStatus.FORBIDDEN,
+      );
+    }
+
     return result;
   }
 }

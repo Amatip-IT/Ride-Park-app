@@ -4,7 +4,9 @@ import {
   S3Client,
   PutObjectCommand,
   DeleteObjectCommand,
+  GetObjectCommand,
 } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { randomUUID } from 'crypto';
 
 // Define the Multer File type
@@ -135,6 +137,38 @@ export class FileUploadService {
       console.error('Failed to delete file from S3:', error);
       return false;
     }
+  }
+
+  /**
+   * Generate a presigned URL for reading a private S3 object.
+   * Accepts the full public URL stored in the DB and returns a
+   * time-limited signed URL (default 1 hour).
+   */
+  async getPresignedUrl(url: string, expiresIn = 3600): Promise<string> {
+    if (!this.s3Client) {
+      return url;
+    }
+
+    let key: string;
+    try {
+      const parsed = new URL(url);
+      if (parsed.hostname.startsWith('s3.')) {
+        const pathParts = parsed.pathname.substring(1).split('/');
+        pathParts.shift();
+        key = pathParts.join('/');
+      } else {
+        key = parsed.pathname.substring(1);
+      }
+    } catch {
+      key = url;
+    }
+
+    const command = new GetObjectCommand({
+      Bucket: this.bucketName,
+      Key: key,
+    });
+
+    return getSignedUrl(this.s3Client, command, { expiresIn });
   }
 
   /**

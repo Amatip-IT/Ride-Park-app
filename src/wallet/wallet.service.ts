@@ -19,7 +19,11 @@ export class WalletService {
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     private readonly paymentsService: PaymentsService,
   ) {
-    this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_mock');
+    const key = process.env.STRIPE_SECRET_KEY;
+    if (!key && process.env.NODE_ENV !== 'test') {
+      throw new Error('STRIPE_SECRET_KEY is required');
+    }
+    this.stripe = new Stripe(key || 'sk_test_mock');
   }
 
   async getPlatformFee(): Promise<number> {
@@ -122,21 +126,25 @@ export class WalletService {
   }
 
   async requestWithdrawal(providerId: string, amount: number) {
-    const wallet = await this.getWallet(providerId);
-    
     if (amount <= 0) {
       throw new HttpException('Amount must be greater than zero', HttpStatus.BAD_REQUEST);
     }
-    if (wallet.balance < amount) {
-      throw new HttpException('Insufficient balance', HttpStatus.BAD_REQUEST);
-    }
+
+    const wallet = await this.getWallet(providerId);
     if (!wallet.bankDetails || !wallet.stripeConnectId) {
       throw new HttpException('Please add bank details first', HttpStatus.BAD_REQUEST);
     }
 
-    // Deduct from wallet immediately to prevent double spending
-    wallet.balance -= amount;
-    await wallet.save();
+    // Atomic balance check and decrement to prevent double-spend race condition
+    const result = await this.walletModel.findOneAndUpdate(
+      { providerId: new Types.ObjectId(providerId), balance: { $gte: amount } },
+      { $inc: { balance: -amount } },
+      { new: true },
+    );
+
+    if (!result) {
+      throw new HttpException('Insufficient balance', HttpStatus.BAD_REQUEST);
+    }
 
     // Create pending transaction
     const transaction = await this.transactionModel.create({

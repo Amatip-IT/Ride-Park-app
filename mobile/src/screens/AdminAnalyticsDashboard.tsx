@@ -1,12 +1,14 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  ActivityIndicator, RefreshControl, Platform, Share, Alert,
+  ActivityIndicator, RefreshControl, Share, Alert,
 } from 'react-native';
 import { adminApi } from '@/api';
 import { COLORS, SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
+import { AdminScreenLayout } from '@/components/admin/AdminScreenLayout';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const PERIODS = [
   { id: 'week', label: 'Week' },
@@ -54,7 +56,6 @@ function SimpleBarChart({ data, title }: { data: Array<{ label: string; value: n
 }
 
 export function AdminAnalyticsDashboard() {
-  const navigation = useNavigation<any>();
   const [period, setPeriod] = useState<Period>('month');
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -100,9 +101,9 @@ export function AdminAnalyticsDashboard() {
 
   if (loading && !data) {
     return (
-      <View style={styles.center}>
+      <SafeAreaView style={styles.center} edges={['top', 'bottom']}>
         <ActivityIndicator size="large" color={COLORS.electricTeal} />
-      </View>
+      </SafeAreaView>
     );
   }
 
@@ -111,40 +112,36 @@ export function AdminAnalyticsDashboard() {
   const users = data?.users || {};
   const queue = data?.queue || {};
 
-  return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
+  const periodRow = (
+    <View style={styles.periodRow}>
+      {PERIODS.map(p => (
+        <TouchableOpacity
+          key={p.id}
+          style={[styles.periodChip, period === p.id && styles.periodChipActive]}
+          onPress={() => setPeriod(p.id)}
+        >
+          <Text style={[styles.periodText, period === p.id && styles.periodTextActive]}>{p.label}</Text>
         </TouchableOpacity>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>Analytics</Text>
-          <Text style={styles.headerSub}>Business intelligence dashboard</Text>
-        </View>
+      ))}
+    </View>
+  );
+
+  return (
+    <AdminScreenLayout
+      title="Analytics"
+      subtitle="Business intelligence dashboard"
+      headerBottom={periodRow}
+      rightSlot={(
         <TouchableOpacity onPress={handleExport} style={styles.exportBtn}>
           <Ionicons name="download-outline" size={22} color={COLORS.electricTeal} />
         </TouchableOpacity>
-      </View>
-
+      )}
+    >
       <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.periodScroll}
-        contentContainerStyle={styles.periodContent}
-      >
-        {PERIODS.map(p => (
-          <TouchableOpacity
-            key={p.id}
-            style={[styles.periodChip, period === p.id && styles.periodChipActive]}
-            onPress={() => setPeriod(p.id)}
-          >
-            <Text style={[styles.periodText, period === p.id && styles.periodTextActive]}>{p.label}</Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-
-      <ScrollView
+        style={styles.analyticsScroll}
         contentContainerStyle={styles.scrollContent}
+        keyboardDismissMode="on-drag"
+        showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={() => fetchAnalytics(period, true)} tintColor={COLORS.electricTeal} />
         }
@@ -213,35 +210,35 @@ export function AdminAnalyticsDashboard() {
           sub={`${queue.approvalsPerDay || 0} approvals/day`}
         />
       </ScrollView>
-    </View>
+    </AdminScreenLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  header: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: SPACING.lg,
-    paddingTop: Platform.OS === 'android' ? SPACING.xl : SPACING.sm,
-    paddingBottom: SPACING.md,
-    borderBottomWidth: 1, borderBottomColor: COLORS.border,
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.background },
+  exportBtn: { padding: SPACING.sm, width: 40, alignItems: 'center' },
+  periodRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACING.xs,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
   },
-  backBtn: { padding: SPACING.xs, marginRight: SPACING.sm },
-  exportBtn: { padding: SPACING.sm },
-  headerTitle: { color: COLORS.textPrimary, fontSize: FONT_SIZES.section, fontWeight: FONT_WEIGHTS.bold },
-  headerSub: { color: COLORS.textSecondary, fontSize: FONT_SIZES.small, marginTop: 2 },
-  periodScroll: { maxHeight: 52, borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  periodContent: { paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm, gap: SPACING.sm },
+  analyticsScroll: { flex: 1 },
   periodChip: {
-    paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm,
-    borderRadius: BORDER_RADIUS.full, borderWidth: 1, borderColor: COLORS.border,
-    marginRight: SPACING.sm, backgroundColor: COLORS.surface,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 6,
+    borderRadius: BORDER_RADIUS.full,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surface,
   },
   periodChipActive: { backgroundColor: `${COLORS.electricTeal}15`, borderColor: COLORS.electricTeal },
   periodText: { color: COLORS.textSecondary, fontSize: FONT_SIZES.small, fontWeight: FONT_WEIGHTS.medium },
   periodTextActive: { color: COLORS.electricTeal },
-  scrollContent: { padding: SPACING.lg, paddingBottom: 40 },
+  scrollContent: { padding: SPACING.md, paddingBottom: SPACING.xl },
   sectionTitle: {
     color: COLORS.textPrimary, fontSize: FONT_SIZES.body, fontWeight: FONT_WEIGHTS.bold,
     marginBottom: SPACING.md, marginTop: SPACING.sm,

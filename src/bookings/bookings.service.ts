@@ -4,6 +4,8 @@ import { Model } from 'mongoose';
 import { BookingRequest, BookingRequestDocument } from 'src/schemas/booking-request.schema';
 import { ParkingSpace, ParkingSpaceDocument } from 'src/schemas/parking-space.schema';
 import { NotificationsService } from 'src/notifications/notifications.service';
+import { WalletService } from 'src/wallet/wallet.service';
+import { PaymentsService } from 'src/payments/payments.service';
 import { Response } from 'src/common/interfaces/response.interface';
 
 @Injectable()
@@ -14,6 +16,8 @@ export class BookingsService {
     @InjectModel(BookingRequest.name) private bookingModel: Model<BookingRequestDocument>,
     @InjectModel(ParkingSpace.name) private parkingSpaceModel: Model<ParkingSpaceDocument>,
     private readonly notificationsService: NotificationsService,
+    private readonly walletService: WalletService,
+    private readonly paymentsService: PaymentsService,
   ) {}
 
   /**
@@ -273,13 +277,50 @@ export class BookingsService {
         return { success: false, message: `This request has already been ${booking.status}` };
       }
 
-      // ── For parking: validate capacity before accepting ──
+      // ── For parking: validate capacity atomically before accepting ──
+      let parkingSpace: any = null;
       if (action === 'accept' && booking.serviceType === 'parking' && booking.serviceId) {
         const space = await this.parkingSpaceModel.findById(booking.serviceId);
-        if (space && space.occupiedSpots >= space.totalSpots) {
+        if (!space) {
+          return { success: false, message: 'Parking space not found' };
+        }
+        // Atomic check-and-increment to prevent race condition where two accepts pass the capacity check
+        parkingSpace = await this.parkingSpaceModel.findOneAndUpdate(
+          { _id: booking.serviceId, occupiedSpots: { $lt: space.totalSpots } },
+          { $inc: { occupiedSpots: 1 } },
+          { new: true },
+        );
+        if (!parkingSpace) {
           return {
             success: false,
             message: `Cannot accept — all ${space.totalSpots} spots are already occupied. Reject this request or wait for a spot to free up.`,
+          };
+        }
+      }
+
+      // ── Charge the customer before accepting ──
+      if (action === 'accept' && booking.quotedPrice && booking.quotedPrice > 0) {
+        try {
+          const paymentIntent = await this.paymentsService.chargeCustomer(
+            booking.requester.toString(),
+            booking.quotedPrice,
+            `Parking booking at ${booking.serviceName || 'parking space'}`,
+          );
+          booking.paymentIntentId = paymentIntent.id;
+        } catch (chargeErr) {
+          // Roll back the atomic spot increment if payment fails
+          if (parkingSpace) {
+            await this.parkingSpaceModel.findByIdAndUpdate(
+              booking.serviceId,
+              { $inc: { occupiedSpots: -1 } },
+            );
+          }
+          this.logger.error(
+            `Payment failed for booking ${booking._id}: ${chargeErr}`,
+          );
+          return {
+            success: false,
+            message: `Payment failed — could not charge customer. ${chargeErr instanceof Error ? chargeErr.message : 'Please try again.'}`,
           };
         }
       }
@@ -289,26 +330,17 @@ export class BookingsService {
       booking.respondedAt = new Date();
       await booking.save();
 
-      // ── FIX BUG 1+2: Update occupiedSpots on the parking space ──
+      // ── Check if the space just became full (already incremented atomically above) ──
       let spaceBecameFull = false;
-      if (action === 'accept' && booking.serviceType === 'parking' && booking.serviceId) {
-        const updatedSpace = await this.parkingSpaceModel.findByIdAndUpdate(
-          booking.serviceId,
-          { $inc: { occupiedSpots: 1 } },
-          { new: true },
-        );
-
-        if (updatedSpace) {
-          // Check if space is now full → auto-disable availability
-          if (updatedSpace.occupiedSpots >= updatedSpace.totalSpots) {
-            updatedSpace.isAvailable = false;
-            await updatedSpace.save();
-            spaceBecameFull = true;
-            this.logger.log(
-              `Parking space "${updatedSpace.name}" (${updatedSpace._id}) is now FULL ` +
-              `(${updatedSpace.occupiedSpots}/${updatedSpace.totalSpots}). Marked as unavailable.`,
-            );
-          }
+      if (action === 'accept' && booking.serviceType === 'parking' && parkingSpace) {
+        if (parkingSpace.occupiedSpots >= parkingSpace.totalSpots) {
+          parkingSpace.isAvailable = false;
+          await parkingSpace.save();
+          spaceBecameFull = true;
+          this.logger.log(
+            `Parking space "${parkingSpace.name}" (${parkingSpace._id}) is now FULL ` +
+            `(${parkingSpace.occupiedSpots}/${parkingSpace.totalSpots}). Marked as unavailable.`,
+          );
         }
       }
 
@@ -425,6 +457,19 @@ export class BookingsService {
 
       const wasAccepted = booking.status === 'accepted';
 
+      // ── Refund the customer if they were already charged ──
+      if (wasAccepted && booking.paymentIntentId && booking.quotedPrice && booking.quotedPrice > 0) {
+        try {
+          await this.paymentsService.refundCustomer(booking.paymentIntentId);
+          this.logger.log(`Refund issued for booking ${booking._id} (PaymentIntent: ${booking.paymentIntentId})`);
+        } catch (refundErr) {
+          this.logger.error(
+            `Refund failed for booking ${booking._id} (PaymentIntent: ${booking.paymentIntentId}). ` +
+            `Manual resolution required. Error: ${refundErr}`,
+          );
+        }
+      }
+
       booking.status = 'cancelled';
       await booking.save();
 
@@ -507,6 +552,21 @@ export class BookingsService {
       booking.status = 'completed';
       booking.completedAt = new Date();
       await booking.save();
+
+      // ── Credit the provider's wallet ──
+      if (booking.quotedPrice && booking.quotedPrice > 0 && booking.provider) {
+        try {
+          await this.walletService.addEarning(
+            booking.provider.toString(),
+            booking.quotedPrice,
+            booking._id.toString(),
+          );
+        } catch (walletErr) {
+          this.logger.error(
+            `Failed to credit provider wallet for booking ${booking._id}: ${walletErr}`,
+          );
+        }
+      }
 
       // Release the spot for parking bookings
       if (booking.serviceType === 'parking' && booking.serviceId) {

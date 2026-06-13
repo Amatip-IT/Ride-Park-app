@@ -12,6 +12,7 @@ import { Response } from 'src/common/interfaces/response.interface';
 import { NotificationsService } from 'src/notifications/notifications.service';
 import { TaxiBookingsGateway } from './taxi-bookings.gateway';
 import { PaymentsService } from 'src/payments/payments.service';
+import { WalletService } from 'src/wallet/wallet.service';
 
 // Pricing constants
 const RATE_PER_MILE = 1.10;
@@ -27,6 +28,7 @@ export class TaxiBookingsService {
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     private readonly notificationsService: NotificationsService,
     private readonly paymentsService: PaymentsService,
+    private readonly walletService: WalletService,
     @Inject(forwardRef(() => TaxiBookingsGateway))
     private readonly taxiGateway: TaxiBookingsGateway,
   ) {}
@@ -233,21 +235,6 @@ export class TaxiBookingsService {
     },
   ): Promise<Response> {
     try {
-      const request = await this.taxiRequestModel.findById(requestId);
-
-      if (!request) {
-        return { success: false, message: 'Ride request not found' };
-      }
-
-      if (request.status !== 'searching') {
-        return {
-          success: false,
-          message: request.status === 'accepted'
-            ? 'This ride has already been accepted by another driver'
-            : `This ride request is ${request.status}`,
-        };
-      }
-
       // Check if driver's documents are approved
       const taxiRecord = await this.taxiModel.findOne({ user: driverId });
       const chauffeurRecord = await this.chauffeurModel.findOne({ user: driverId });
@@ -261,26 +248,39 @@ export class TaxiBookingsService {
       }
 
       // Look up the driver's number and vehicle details
-      const driverRecord: any =
-        (await this.taxiModel.findOne({ user: driverId })) ||
-        (await this.chauffeurModel.findOne({ user: driverId }));
+      const driverRecord: any = taxiRecord || chauffeurRecord;
 
-      // Update the request
-      request.status = 'accepted';
-      request.acceptedDriver = driverId;
-      
-      // Auto-populate vehicle details directly from the driver's registered profile
-      request.driverVehicle = {
-        make: driverRecord?.vehicleInfo?.make || 'Standard',
-        model: driverRecord?.vehicleInfo?.model || 'Vehicle',
-        color: driverRecord?.vehicleInfo?.color || 'Black',
-        plateNumber: driverRecord?.vehicleInfo?.plateNumber || driverRecord?.vehicleInfo?.registration || 'N/A',
-      };
-      request.driverEtaMinutes = data.etaMinutes;
-      request.driverNumber = driverRecord?.driverNumber || undefined;
-      request.acceptedAt = new Date();
+      // Atomic status update to prevent two drivers accepting the same ride
+      const request = await this.taxiRequestModel.findOneAndUpdate(
+        { _id: requestId, status: 'searching' },
+        {
+          status: 'accepted',
+          acceptedDriver: driverId,
+          driverVehicle: {
+            make: driverRecord?.vehicleInfo?.make || 'Standard',
+            model: driverRecord?.vehicleInfo?.model || 'Vehicle',
+            color: driverRecord?.vehicleInfo?.color || 'Black',
+            plateNumber: driverRecord?.vehicleInfo?.plateNumber || driverRecord?.vehicleInfo?.registration || 'N/A',
+          },
+          driverEtaMinutes: data.etaMinutes,
+          driverNumber: driverRecord?.driverNumber || undefined,
+          acceptedAt: new Date(),
+        },
+        { new: true },
+      );
 
-      await request.save();
+      if (!request) {
+        const existing = await this.taxiRequestModel.findById(requestId);
+        if (!existing) {
+          return { success: false, message: 'Ride request not found' };
+        }
+        return {
+          success: false,
+          message: existing.status === 'accepted'
+            ? 'This ride has already been accepted by another driver'
+            : `This ride request is ${existing.status}`,
+        };
+      }
 
       // Set driver to busy
       if (driverRecord) {
@@ -467,6 +467,93 @@ export class TaxiBookingsService {
         return { success: false, message: 'Ride request not found' };
       }
 
+      // When completing, charge the passenger before marking as completed
+      if (status === 'completed') {
+        const fare = request.estimatedCost || 0;
+        if (fare <= 0) {
+          return { success: false, message: 'Cannot complete ride: no fare calculated' };
+        }
+        if (!request.acceptedDriver) {
+          return { success: false, message: 'Cannot complete ride: no driver assigned' };
+        }
+
+        try {
+          await this.paymentsService.chargeCustomer(
+            request.passenger.toString(),
+            fare,
+            `Taxi ride payment for request ${request._id.toString()}`,
+          );
+        } catch (chargeErr: any) {
+          // Charge failed — don't mark as completed
+          await this.notificationsService.sendNotification(
+            request.passenger.toString(),
+            'Payment Issue',
+            `We couldn't process your payment of £${fare.toFixed(2)}. Please check your payment method — we'll retry shortly.`,
+            'payment',
+            { rideId: request._id },
+          );
+          return {
+            success: false,
+            message: `Payment failed: ${chargeErr?.message || 'Unknown error'}. Ride not marked as completed.`,
+          };
+        }
+
+        // Charge succeeded — credit the driver's wallet
+        await this.walletService.addEarning(
+          request.acceptedDriver.toString(),
+          fare,
+          request._id.toString(),
+        );
+
+        // Now mark the request as completed
+        request.status = 'completed';
+        if (rideId) {
+          request.ride = rideId as any;
+        }
+        await request.save();
+
+        const populated = await this.taxiRequestModel
+          .findById(requestId)
+          .populate('passenger', 'firstName lastName phoneNumber')
+          .populate('acceptedDriver', 'firstName lastName phoneNumber')
+          .exec();
+
+        this.taxiGateway.pushRequestUpdate(requestId, populated);
+
+        await this.notificationsService.sendNotification(
+          request.passenger.toString(),
+          'Payment Completed',
+          `Your ride is complete. £${fare.toFixed(2)} has been charged successfully.`,
+          'payment',
+          { rideId: request._id },
+        );
+
+        await this.notificationsService.sendNotification(
+          request.acceptedDriver.toString(),
+          'Payment Received',
+          `Ride completed. £${fare.toFixed(2)} (gross) has been added to your earnings.`,
+          'payment',
+          { rideId: request._id },
+        );
+
+        // Free up driver availability
+        await this.taxiModel.updateOne(
+          { user: request.acceptedDriver },
+          { $set: { availability: 'online' } },
+        );
+        await this.chauffeurModel.updateOne(
+          { user: request.acceptedDriver },
+          { $set: { availability: 'online' } },
+        );
+
+        return {
+          success: true,
+          data: populated,
+          message: `Ride completed. Fare: £${fare.toFixed(2)}`,
+        };
+      }
+
+      // Non-completion status updates
       request.status = status as any;
       if (rideId) {
         request.ride = rideId as any;
@@ -479,17 +566,15 @@ export class TaxiBookingsService {
         .populate('acceptedDriver', 'firstName lastName phoneNumber')
         .exec();
 
-      // Trigger WebSockets update
       this.taxiGateway.pushRequestUpdate(requestId, populated);
 
-      // Send push notifications
       if (status === 'arrived') {
         await this.notificationsService.sendNotification(
           request.passenger.toString(),
           'Driver Arrived',
           'Your driver has arrived at the pickup location!',
           'ride',
-          { rideId: request._id }
+          { rideId: request._id },
         );
       } else if (status === 'in_progress') {
         await this.notificationsService.sendNotification(
@@ -497,15 +582,7 @@ export class TaxiBookingsService {
           'Ride Started',
           'Your ride is now in progress. Have a safe trip!',
           'ride',
-          { rideId: request._id }
-        );
-      } else if (status === 'completed') {
-        await this.notificationsService.sendNotification(
-          request.passenger.toString(),
-          'Ride Completed',
-          'Your ride has been successfully completed. Thank you!',
-          'payment',
-          { rideId: request._id }
+          { rideId: request._id },
         );
       }
 

@@ -425,19 +425,21 @@ export function TaxiBookingScreen() {
               </TouchableOpacity>
             )}
 
-            {/* Cancel button */}
-            <TouchableOpacity 
-              style={[styles.cancelBtn, isCancelling && { opacity: 0.6 }]} 
-              onPress={handleCancel} 
-              activeOpacity={0.7}
-              disabled={isCancelling}
-            >
-              {isCancelling ? (
-                <ActivityIndicator size="small" color={COLORS.error} />
-              ) : (
-                <Text style={styles.cancelBtnText}>Cancel Ride</Text>
-              )}
-            </TouchableOpacity>
+            {/* Cancel button — only for statuses the API actually supports */}
+            {['searching', 'accepted'].includes(activeRequest.status) && (
+              <TouchableOpacity 
+                style={[styles.cancelBtn, isCancelling && { opacity: 0.6 }]} 
+                onPress={handleCancel} 
+                activeOpacity={0.7}
+                disabled={isCancelling}
+              >
+                {isCancelling ? (
+                  <ActivityIndicator size="small" color={COLORS.error} />
+                ) : (
+                  <Text style={styles.cancelBtnText}>Cancel Ride</Text>
+                )}
+              </TouchableOpacity>
+            )}
           </ScrollView>
         </View>
       </SafeAreaView>

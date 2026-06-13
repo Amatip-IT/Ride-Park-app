@@ -7,6 +7,7 @@ import { generateToken, generateRefreshToken, verifyRefreshToken } from 'src/uti
 import { user_settings } from 'src/schemas/user-settings-schema';
 import { EmailVerificationService } from 'src/verification/email/verification.service';
 import { Response } from 'src/common/interfaces/response.interface';
+import { CreateUserDto } from './dto/create-user.dto';
 
 import { Taxi, TaxiDocument } from 'src/schemas/taxi.schema';
 
@@ -25,9 +26,8 @@ export class UsersService {
   ) {}
 
   /* METHOD TO CREATE A NEW USER (NON-ADMIN) */
-  async createUser(createUserDTO: any): Promise<Response> {
+  async createUser(createUserDTO: CreateUserDto): Promise<Response> {
     try {
-      // find if user with the same email or username already exists
       const existingUser: User | null = await this.userModel.findOne({
         $or: [
           { email: createUserDTO.email },
@@ -42,7 +42,6 @@ export class UsersService {
         };
       }
 
-      // Validate password strength
       const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
       if (!passwordRegex.test(createUserDTO.password || '')) {
         return {
@@ -51,7 +50,6 @@ export class UsersService {
         };
       }
 
-      // Validate terms acceptance
       if (!createUserDTO.termsAccepted) {
         return {
           success: false,
@@ -59,22 +57,27 @@ export class UsersService {
         };
       }
 
-      // Validate role — only allow specific roles during registration
       const allowedRoles = ['user', 'parking_provider', 'driver', 'taxi_driver'];
-      const role = allowedRoles.includes(createUserDTO.role) ? createUserDTO.role : 'user';
+      const role = createUserDTO.role && allowedRoles.includes(createUserDTO.role)
+        ? createUserDTO.role
+        : 'user';
 
-      // Build user data with identity verification for providers
       const providerRoles = ['parking_provider', 'driver', 'taxi_driver'];
       const isProvider = providerRoles.includes(role);
 
-      const userData: any = {
-        ...createUserDTO,
+      const userData: Record<string, any> = {
+        firstName: createUserDTO.firstName,
+        lastName: createUserDTO.lastName,
+        username: createUserDTO.username,
+        email: createUserDTO.email,
+        phoneNumber: createUserDTO.phoneNumber,
+        password: createUserDTO.password,
+        postCode: createUserDTO.postCode,
         role,
         termsAccepted: true,
         termsAcceptedAt: new Date(),
       };
 
-      // Store identity verification data for providers
       if (isProvider && createUserDTO.idType) {
         userData.idType = createUserDTO.idType;
         userData.identityDocumentUrl = createUserDTO.identityDocumentUrl || '';
@@ -163,6 +166,32 @@ export class UsersService {
           success: false,
           message: 'Invalid email or password',
         };
+      }
+
+      // Block banned users
+      if (user.accountStatus === 'banned') {
+        return {
+          success: false,
+          message: 'This account has been permanently banned.',
+        };
+      }
+
+      // Block suspended users (auto-clear if suspension expired)
+      if (user.accountStatus === 'suspended') {
+        if (user.suspensionEndDate && new Date(user.suspensionEndDate) <= new Date()) {
+          user.accountStatus = 'active';
+          user.suspensionReason = undefined;
+          user.suspensionEndDate = undefined;
+          await user.save();
+        } else {
+          const until = user.suspensionEndDate
+            ? ` until ${new Date(user.suspensionEndDate).toLocaleDateString()}`
+            : '';
+          return {
+            success: false,
+            message: `This account is temporarily suspended${until}.`,
+          };
+        }
       }
 
       // Update lastLoggedInAt to current time
@@ -367,7 +396,22 @@ export class UsersService {
       if (!user || user.refreshToken !== refreshToken) {
         return { success: false, message: 'Invalid or revoked refresh token' };
       }
-      
+
+      if (user.accountStatus === 'banned') {
+        return { success: false, message: 'This account has been permanently banned.' };
+      }
+
+      if (user.accountStatus === 'suspended') {
+        if (user.suspensionEndDate && new Date(user.suspensionEndDate) <= new Date()) {
+          user.accountStatus = 'active';
+          user.suspensionReason = undefined;
+          user.suspensionEndDate = undefined;
+          await user.save();
+        } else {
+          return { success: false, message: 'This account is currently suspended.' };
+        }
+      }
+
       const newAccessToken = generateToken({
         _id: user._id.toString(),
         role: user.role,
@@ -431,7 +475,7 @@ export class UsersService {
     }
   }
 
-  async remove(id: string): Promise<Response> {
+  async remove(id: string, requestingUserId?: string): Promise<Response> {
     try {
       // Check if user exists
       const user = await this.userModel.findById(id);
@@ -440,6 +484,25 @@ export class UsersService {
           success: false,
           message: 'User not found',
         };
+      }
+
+      // Prevent admin self-deletion
+      if (requestingUserId && id === requestingUserId) {
+        return {
+          success: false,
+          message: 'You cannot delete your own account through this endpoint',
+        };
+      }
+
+      // Protect admin accounts — ensure at least one admin remains
+      if (user.role === 'admin') {
+        const adminCount = await this.userModel.countDocuments({ role: 'admin' });
+        if (adminCount <= 1) {
+          return {
+            success: false,
+            message: 'Cannot delete the last admin account',
+          };
+        }
       }
 
       // If user is a taxi driver, delete associated taxi record

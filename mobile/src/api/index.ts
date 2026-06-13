@@ -29,8 +29,8 @@ export const authApi = {
     api.post<ApiResponse>('/verification/verify-phone-otp', data),
 
   // Create Stripe Identity session
-  createIdentitySession: (email: string) =>
-    api.post<ApiResponse<IdentitySessionResponse>>('/verification/create-identity-session', { email }),
+  createIdentitySession: (returnUrl: string) =>
+    api.post<ApiResponse<IdentitySessionResponse>>('/verification/identity/create-session', { returnUrl }),
 
   // Get current user profile
   getProfile: () =>
@@ -378,6 +378,10 @@ export const adminApi = {
 
   getQueueHealth: () =>
     api.get<ApiResponse>('/admin/analytics/queue-health'),
+
+  // ── Document Presigned URLs ──
+  getPresignedUrl: (url: string) =>
+    api.get<ApiResponse>(`/provider/document-url?url=${encodeURIComponent(url)}`),
 };
 
 // ── Disputes API ──

@@ -74,6 +74,13 @@ export class Ride {
   })
   status: string;
 
+  // Payment status (tracks whether the Stripe charge succeeded)
+  @Prop({
+    default: 'pending',
+    enum: ['pending', 'charged', 'payment_failed'],
+  })
+  paymentStatus: string;
+
   // Timestamps for the ride lifecycle
   @Prop({ type: Date })
   startedAt?: Date;

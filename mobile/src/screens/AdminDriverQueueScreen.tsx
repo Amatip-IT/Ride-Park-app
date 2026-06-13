@@ -7,7 +7,7 @@ import {
 import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
 import { adminApi } from '@/api';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useAdminDashboardBack } from '@/components/admin/AdminScreenLayout';
 
 // Human-readable labels for each doc field
 const DOC_LABELS: Record<string, string> = {
@@ -43,7 +43,7 @@ const SORT_OPTIONS = [
 const selectionKey = (id: string, providerType: string) => `${id}:${providerType}`;
 
 export function AdminDriverQueueScreen() {
-  const navigation = useNavigation<any>();
+  const goToDashboard = useAdminDashboardBack();
   const { width: screenWidth } = useWindowDimensions();
   const cardWidth = screenWidth - SPACING.md * 2;
   const [records, setRecords] = useState<any[]>([]);
@@ -264,8 +264,15 @@ export function AdminDriverQueueScreen() {
     }
   };
 
-  const openDocument = (url: string) => {
-    if (url) Linking.openURL(url).catch(() => Alert.alert('Error', 'Cannot open document'));
+  const openDocument = async (url: string) => {
+    if (!url) return;
+    try {
+      const res = await adminApi.getPresignedUrl(url);
+      const presigned = res.data?.url || url;
+      await Linking.openURL(presigned);
+    } catch {
+      Alert.alert('Error', 'Cannot open document');
+    }
   };
 
   const toggleExpanded = (id: string) => {
@@ -457,7 +464,7 @@ export function AdminDriverQueueScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+        <TouchableOpacity style={styles.backBtn} onPress={goToDashboard}>
           <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>

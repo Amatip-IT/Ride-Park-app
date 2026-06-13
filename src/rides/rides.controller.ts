@@ -67,10 +67,16 @@ export class RidesController {
       );
     }
 
-    const passengerId = body.passengerId;
+    const callerId = (req.user._id || req.user.id)?.toString();
+    if (callerId !== body.passengerId && callerId !== body.driverId) {
+      throw new HttpException(
+        { success: false, message: 'You can only start rides you are part of' },
+        HttpStatus.FORBIDDEN,
+      );
+    }
 
     const result = await this.ridesService.createRide({
-      passengerId,
+      passengerId: body.passengerId,
       driverId: body.driverId,
       serviceType: body.serviceType,
       bookingId: body.bookingId,
@@ -91,12 +97,29 @@ export class RidesController {
   @Post(':id/complete')
   @UseGuards(AuthGuard)
   async completeRide(
+    @Req() req: any,
     @Param('id') id: string,
     @Body() body: {
       distanceMiles: number;
       durationMinutes: number;
     },
   ) {
+    const callerId = (req.user._id || req.user.id)?.toString();
+
+    const rideResult = await this.ridesService.getRide(id);
+    if (!rideResult.success) {
+      throw new HttpException(rideResult, HttpStatus.NOT_FOUND);
+    }
+
+    const ride = rideResult.data as any;
+    const driverId = ride.driver?._id?.toString() || ride.driver?.toString();
+    if (callerId !== driverId) {
+      throw new HttpException(
+        { success: false, message: 'Only the driver can complete this ride' },
+        HttpStatus.FORBIDDEN,
+      );
+    }
+
     const result = await this.ridesService.completeRide(
       id,
       body.distanceMiles,
@@ -130,11 +153,24 @@ export class RidesController {
    */
   @Get(':id')
   @UseGuards(AuthGuard)
-  async getRide(@Param('id') id: string) {
+  async getRide(@Req() req: any, @Param('id') id: string) {
     const result = await this.ridesService.getRide(id);
     if (!result.success) {
       throw new HttpException(result, HttpStatus.NOT_FOUND);
     }
+
+    const callerId = (req.user._id || req.user.id)?.toString();
+    const ride = result.data as any;
+    const passengerId = ride.passenger?._id?.toString() || ride.passenger?.toString();
+    const driverId = ride.driver?._id?.toString() || ride.driver?.toString();
+
+    if (callerId !== passengerId && callerId !== driverId && req.user.role !== 'admin') {
+      throw new HttpException(
+        { success: false, message: 'You do not have access to this ride' },
+        HttpStatus.FORBIDDEN,
+      );
+    }
+
     return result;
   }
 }

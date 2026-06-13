@@ -14,9 +14,10 @@ import {
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { User } from 'src/schemas/user.schema';
-import type { UserDocument } from 'src/schemas/user.schema'; // Import UserDocument type
+import type { UserDocument } from 'src/schemas/user.schema';
 import { AdminGuard } from 'src/guards/admin.guard';
 import { AuthGuard } from 'src/guards/auth.guard';
+import { CreateUserDto } from './dto/create-user.dto';
 
 @Controller('users')
 export class UsersController {
@@ -38,7 +39,7 @@ export class UsersController {
 
   //route to create a new user(non-admin)
   @Post('register')
-  async createUser(@Body() createUserDto: any) {
+  async createUser(@Body() createUserDto: CreateUserDto) {
     const result = await this.usersService.createUser(createUserDto);
 
     // Check if result is an error response with success false
@@ -126,13 +127,13 @@ export class UsersController {
       throw new HttpException('User not found', HttpStatus.NOT_FOUND);
     }
     
-    // Quick update logic to support generic patching without full DTO override
     if (updateData.pushToken) user.pushToken = updateData.pushToken;
     if (updateData.firstName) user.firstName = updateData.firstName;
     if (updateData.lastName) user.lastName = updateData.lastName;
     if (updateData.profileImageUrl) user.profileImageUrl = updateData.profileImageUrl;
     if (updateData.phoneNumber) user.phoneNumber = updateData.phoneNumber;
-    if (updateData.pushToken) user.pushToken = updateData.pushToken;
+    if (updateData.identityDocumentUrl) user.identityDocumentUrl = updateData.identityDocumentUrl;
+    if (updateData.proofOfAddressUrl) user.proofOfAddressUrl = updateData.proofOfAddressUrl;
     
     await user.save();
     return { success: true, message: 'Profile updated successfully', data: user };
@@ -150,8 +151,9 @@ export class UsersController {
 
   @Delete(':id')
   @UseGuards(AuthGuard, AdminGuard)
-  async remove(@Param('id') id: string) {
-    const result = await this.usersService.remove(id);
+  async remove(@Param('id') id: string, @Req() req: any) {
+    const requestingUserId = (req.user?._id || req.user?.id)?.toString();
+    const result = await this.usersService.remove(id, requestingUserId);
     if (!result.success) {
       throw new HttpException({ message: result.message }, HttpStatus.BAD_REQUEST);
     }

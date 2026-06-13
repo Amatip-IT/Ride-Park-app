@@ -5,6 +5,7 @@ import {
   Patch,
   Param,
   Body,
+  Query,
   Req,
   UseGuards,
   HttpException,
@@ -16,6 +17,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ProviderService } from './provider.service';
 import { FileUploadService } from '../verification/services/file/file-upload.service';
 import { AuthGuard } from 'src/guards/auth.guard';
+import { AdminGuard } from 'src/guards/admin.guard';
 
 @Controller('provider')
 @UseGuards(AuthGuard)
@@ -301,6 +303,30 @@ export class ProviderController {
       return { success: true, url, message: 'Document uploaded successfully' };
     } catch (error: any) {
       throw new HttpException({ message: `S3 Error: ${error.message}` }, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  /**
+   * GET /provider/document-url
+   * Returns a time-limited presigned S3 URL so admins can view private documents.
+   */
+  @Get('document-url')
+  @UseGuards(AuthGuard, AdminGuard)
+  async getDocumentUrl(@Query('url') url: string) {
+    if (!url) {
+      throw new HttpException(
+        { message: 'url query parameter is required' },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    try {
+      const presignedUrl = await this.fileUploadService.getPresignedUrl(url);
+      return { success: true, url: presignedUrl };
+    } catch (error: any) {
+      throw new HttpException(
+        { message: `Failed to generate presigned URL: ${error.message}` },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 }

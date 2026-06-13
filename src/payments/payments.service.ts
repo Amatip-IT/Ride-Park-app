@@ -11,7 +11,11 @@ export class PaymentsService {
   constructor(
     @InjectModel(User.name) private userModel: Model<UserDocument>,
   ) {
-    this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_mock', {
+    const key = process.env.STRIPE_SECRET_KEY;
+    if (!key && process.env.NODE_ENV !== 'test') {
+      throw new Error('STRIPE_SECRET_KEY is required');
+    }
+    this.stripe = new Stripe(key || 'sk_test_mock', {
       apiVersion: '2023-10-16' as any,
     });
   }
@@ -55,7 +59,7 @@ export class PaymentsService {
         setupIntent: setupIntent.client_secret,
         ephemeralKey: ephemeralKey.secret,
         customer: customerId,
-        publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || 'pk_test_mock',
+        publishableKey: process.env.STRIPE_PUBLISHABLE_KEY,
       };
     } catch (e: any) {
       throw new HttpException(e.message, HttpStatus.INTERNAL_SERVER_ERROR);
@@ -110,6 +114,20 @@ export class PaymentsService {
       throw new HttpException(
         e.type === 'StripeCardError' ? 'Payment declined: ' + e.message : 'Payment failed: ' + e.message, 
         HttpStatus.BAD_REQUEST
+      );
+    }
+  }
+
+  async refundCustomer(paymentIntentId: string): Promise<Stripe.Refund> {
+    try {
+      const refund = await this.stripe.refunds.create({
+        payment_intent: paymentIntentId,
+      });
+      return refund;
+    } catch (e: any) {
+      throw new HttpException(
+        'Refund failed: ' + e.message,
+        HttpStatus.BAD_REQUEST,
       );
     }
   }
