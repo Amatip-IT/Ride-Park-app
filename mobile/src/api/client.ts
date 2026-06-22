@@ -16,6 +16,7 @@ if (__DEV__) {
 
 class ApiClient {
   private client: AxiosInstance;
+  private isLoggingOut = false;
 
   constructor() {
     console.log('🚀 API BASE URL:', API_BASE_URL); // Debug log
@@ -49,10 +50,12 @@ class ApiClient {
     this.client.interceptors.response.use(
       (response) => response,
       (error: AxiosError) => {
-        console.log('❌ API ERROR:', error.message);
-
-        if (error.response?.status === 401) {
-          useAuthStore.getState().logout();
+        // Handle 401 Unauthorized - Token expired or invalid
+        if (error.response?.status === 401 && !this.isLoggingOut) {
+          this.isLoggingOut = true;
+          useAuthStore.getState().logout().finally(() => {
+            this.isLoggingOut = false;
+          });
         }
 
         const isTimeout =

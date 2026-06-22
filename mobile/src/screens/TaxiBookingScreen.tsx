@@ -1,13 +1,14 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Platform, SafeAreaView, ActivityIndicator, Alert, TextInput, Modal
+  Platform, SafeAreaView, ActivityIndicator, Alert, TextInput, Modal, FlatList
 } from 'react-native';
 import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
 import { AmazonMap } from '@/components/AmazonMap';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, NavigationProp, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
 import { taxiBookingsApi, ridesApi } from '@/api';
+import { searchLocationByText } from '@/api/amazonLocation';
 import * as Location from 'expo-location';
 import { getApiErrorMessage, haversineDistanceMiles, estimateDurationMinutes } from '@/utils/helpers';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -52,6 +53,11 @@ export function TaxiBookingScreen() {
 
   // Taxi Type
   const [taxiType, setTaxiType] = useState<'Normal car' | 'Mini Bus' | 'Bus'>('Normal car');
+
+  // Destination autocomplete
+  const [destinationSuggestions, setDestinationSuggestions] = useState<any[]>([]);
+  const [showDestinationSuggestions, setShowDestinationSuggestions] = useState(false);
+  const destinationSearchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Submission
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -246,6 +252,7 @@ export function TaxiBookingScreen() {
         scheduledTime: timingType !== 'now' ? scheduledTime.toISOString() : undefined,
         passengerNote: passengerNote || undefined,
         taxiType,
+        targetDriverId: targetServiceId || undefined,
         estimatedDistanceMiles: estimatedMiles,
         estimatedDurationMinutes: estimatedDuration,
         estimatedCost,
@@ -520,13 +527,57 @@ export function TaxiBookingScreen() {
 
           {/* ── Destination Section ── */}
           <Text style={[styles.sectionLabel, { marginTop: SPACING.xl }]}>Destination</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Destination address"
-            placeholderTextColor={COLORS.textTertiary}
-            value={destinationAddress}
-            onChangeText={setDestinationAddress}
-          />
+          <View style={{ zIndex: 10 }}>
+            <TextInput
+              style={styles.input}
+              placeholder="Destination address"
+              placeholderTextColor={COLORS.textTertiary}
+              value={destinationAddress}
+              onChangeText={(text) => {
+                setDestinationAddress(text);
+                setDestinationCoords(null);
+                if (destinationSearchTimeout.current) clearTimeout(destinationSearchTimeout.current);
+                if (text.length >= 3) {
+                  destinationSearchTimeout.current = setTimeout(async () => {
+                    const results = await searchLocationByText(text);
+                    setDestinationSuggestions(results);
+                    setShowDestinationSuggestions(results.length > 0);
+                  }, 300);
+                } else {
+                  setDestinationSuggestions([]);
+                  setShowDestinationSuggestions(false);
+                }
+              }}
+            />
+            {showDestinationSuggestions && destinationSuggestions.length > 0 && (
+              <View style={styles.suggestionsContainer}>
+                <FlatList
+                  data={destinationSuggestions}
+                  keyExtractor={(_, i) => `dest-${i}`}
+                  keyboardShouldPersistTaps="handled"
+                  scrollEnabled={false}
+                  renderItem={({ item }) => (
+                    <TouchableOpacity
+                      style={styles.suggestionItem}
+                      onPress={() => {
+                        setDestinationAddress(item.label);
+                        if (item.point?.lat && item.point?.lng) {
+                          setDestinationCoords({ lat: item.point.lat, lng: item.point.lng });
+                        }
+                        if (item.postalCode) setDestinationPostcode(item.postalCode);
+                        setShowDestinationSuggestions(false);
+                        setDestinationSuggestions([]);
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="location-outline" size={16} color={COLORS.electricTeal} style={{ marginTop: 2 }} />
+                      <Text style={styles.suggestionText} numberOfLines={2}>{item.label}</Text>
+                    </TouchableOpacity>
+                  )}
+                />
+              </View>
+            )}
+          </View>
           <TextInput
             style={styles.input}
             placeholder="Destination postcode (e.g. E1 6AN)"
@@ -953,4 +1004,30 @@ const styles = StyleSheet.create({
   
   matchBtn: { backgroundColor: '#FFF', paddingVertical: 18, borderRadius: 100, alignItems: 'center', justifyContent: 'center' },
   matchBtnText: { color: '#000', fontSize: 18, fontWeight: 'bold' as any },
+
+  // Autocomplete suggestions
+  suggestionsContainer: {
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginTop: -SPACING.sm + 2,
+    marginBottom: SPACING.sm,
+    overflow: 'hidden',
+  },
+  suggestionItem: {
+    flexDirection: 'row' as const,
+    alignItems: 'flex-start',
+    gap: SPACING.sm,
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  suggestionText: {
+    flex: 1,
+    color: COLORS.textPrimary,
+    fontSize: FONT_SIZES.small,
+    lineHeight: 18,
+  },
 });

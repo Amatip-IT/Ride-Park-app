@@ -10,6 +10,10 @@ import { Response } from 'src/common/interfaces/response.interface';
 import { CreateUserDto } from './dto/create-user.dto';
 
 import { Taxi, TaxiDocument } from 'src/schemas/taxi.schema';
+import { Wallet, WalletDocument } from 'src/schemas/wallet.schema';
+import { BookingRequest, BookingRequestDocument } from 'src/schemas/booking-request.schema';
+import { ParkingVerification, ParkingVerificationDocument } from 'src/schemas/parking-verification.schema';
+import { Chauffeur, ChauffeurDocument } from 'src/schemas/chauffeur.schema';
 
 interface UserWithId extends User {
   _id: string;
@@ -22,6 +26,10 @@ export class UsersService {
     @InjectModel(Taxi.name) private taxiModel: Model<TaxiDocument>,
     @InjectModel(user_settings.name)
     private userSettingsModel: Model<user_settings>,
+    @InjectModel(Wallet.name) private walletModel: Model<WalletDocument>,
+    @InjectModel(BookingRequest.name) private bookingRequestModel: Model<BookingRequestDocument>,
+    @InjectModel(ParkingVerification.name) private parkingVerificationModel: Model<ParkingVerificationDocument>,
+    @InjectModel(Chauffeur.name) private chauffeurModel: Model<ChauffeurDocument>,
     private emailVerificationService: EmailVerificationService,
   ) {}
 
@@ -198,6 +206,9 @@ export class UsersService {
       const currentTime = new Date();
       user.lastLoggedInAt = currentTime;
 
+      // LOCAL TESTING: OTP disabled — sign in with email/password only.
+      // Re-enable before deployment.
+      /*
       // Always require OTP for every login to enforce security
       if (!loginDto.otp) {
         // Send OTP to user's email (non-blocking to avoid SMTP timeout)
@@ -225,6 +236,7 @@ export class UsersService {
       if (!verifyResponse.success) {
         return verifyResponse;
       }
+      */
 
       // OTP verified successfully, save user (which updates lastLoggedInAt)
       await user.save();
@@ -510,8 +522,14 @@ export class UsersService {
         await this.taxiModel.deleteMany({ user: id });
       }
 
-      // Delete user settings if any
-      await this.userSettingsModel.deleteOne({ userId: id });
+      // Cascade cleanup of related records
+      await Promise.all([
+        this.userSettingsModel.deleteOne({ userId: id }),
+        this.walletModel.deleteMany({ user: id }),
+        this.bookingRequestModel.deleteMany({ requester: id }),
+        this.parkingVerificationModel.deleteMany({ user: id }),
+        this.chauffeurModel.deleteMany({ user: id }),
+      ]);
 
       // Delete the user
       await this.userModel.findByIdAndDelete(id);

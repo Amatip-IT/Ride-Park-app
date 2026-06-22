@@ -1,11 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { usersApi } from '@/api';
+import { handleNotificationNavigation } from '@/utils/notificationRouting';
 
-// Require notifications to show up even when app is open
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
@@ -14,18 +14,23 @@ Notifications.setNotificationHandler({
   }),
 });
 
+function routeFromNotificationResponse(response: Notifications.NotificationResponse | null) {
+  if (!response) return;
+  const content = response.notification.request.content;
+  const data = (content.data || {}) as Record<string, any>;
+  const type = (data.type as string) || undefined;
+  handleNotificationNavigation(type, data);
+}
+
 export function usePushNotifications(isAuthenticated: boolean) {
-  const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
-  const notificationListener = useRef<any>(null);
-  const responseListener = useRef<any>(null);
+  const notificationListener = useRef<Notifications.Subscription | null>(null);
+  const responseListener = useRef<Notifications.Subscription | null>(null);
 
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    registerForPushNotificationsAsync().then(token => {
+    registerForPushNotificationsAsync().then((token) => {
       if (token) {
-        setExpoPushToken(token);
-        // Send to backend
         try {
           usersApi.updatePushToken(token);
         } catch (e) {
@@ -34,22 +39,25 @@ export function usePushNotifications(isAuthenticated: boolean) {
       }
     });
 
-    notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
-      // You can handle foreground messages here! (e.g. refresh requests)
+    notificationListener.current = Notifications.addNotificationReceivedListener((notification) => {
       console.log('Notification Received:', notification);
     });
 
-    responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
-      console.log('Notification Clicked:', response);
+    responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
+      routeFromNotificationResponse(response);
+    });
+
+    Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (response) {
+        routeFromNotificationResponse(response);
+      }
     });
 
     return () => {
-      if (notificationListener.current) Notifications.removeNotificationSubscription(notificationListener.current);
-      if (responseListener.current) Notifications.removeNotificationSubscription(responseListener.current);
+      notificationListener.current?.remove();
+      responseListener.current?.remove();
     };
   }, [isAuthenticated]);
-
-  return { expoPushToken };
 }
 
 async function registerForPushNotificationsAsync() {
@@ -75,9 +83,10 @@ async function registerForPushNotificationsAsync() {
       return null;
     }
 
-    const projectId = Constants.expoConfig?.extra?.eas?.projectId 
-        || Constants.easConfig?.projectId 
-        || "you-need-to-set-eas-project-id";
+    const projectId =
+      Constants.expoConfig?.extra?.eas?.projectId ||
+      Constants.easConfig?.projectId ||
+      'you-need-to-set-eas-project-id';
 
     try {
       token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;

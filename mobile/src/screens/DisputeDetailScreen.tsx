@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Platform,
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Platform, Image, Linking,
 } from 'react-native';
 import { disputesApi } from '@/api';
 import { COLORS, SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '@/constants/theme';
@@ -75,6 +75,19 @@ export function DisputeDetailScreen() {
         <Text style={styles.sectionLabel}>Description</Text>
         <Text style={styles.bodyText}>{dispute.description}</Text>
 
+        {dispute.evidenceUrls?.length > 0 && (
+          <>
+            <Text style={styles.sectionLabel}>Evidence</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {dispute.evidenceUrls.map((url: string, index: number) => (
+                <TouchableOpacity key={`${url}-${index}`} onPress={() => Linking.openURL(url)}>
+                  <Image source={{ uri: url }} style={styles.evidenceImage} />
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </>
+        )}
+
         {about && (
           <>
             <Text style={styles.sectionLabel}>Complaint About</Text>
@@ -126,6 +139,14 @@ const styles = StyleSheet.create({
   statusValue: { color: COLORS.electricTeal, fontWeight: FONT_WEIGHTS.bold, textTransform: 'capitalize' },
   sectionLabel: { color: COLORS.textTertiary, fontSize: FONT_SIZES.small, marginBottom: SPACING.xs, marginTop: SPACING.md },
   bodyText: { color: COLORS.textPrimary, lineHeight: 22 },
+  evidenceImage: {
+    width: 100,
+    height: 100,
+    borderRadius: BORDER_RADIUS.md,
+    marginRight: SPACING.sm,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
   notesText: { color: COLORS.textSecondary, marginTop: SPACING.sm, fontStyle: 'italic' },
   dateText: { color: COLORS.textTertiary, fontSize: FONT_SIZES.small, marginTop: SPACING.xl },
 });

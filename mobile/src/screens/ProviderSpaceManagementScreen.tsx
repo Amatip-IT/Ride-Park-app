@@ -34,9 +34,18 @@ interface ParkingSpace {
   stats: SpaceStats;
 }
 
+interface Verification {
+  _id: string;
+  status: string;
+  documents?: Record<string, any>;
+  createdAt?: string;
+  rejectionReason?: string;
+}
+
 export function ProviderSpaceManagementScreen() {
   const navigation = useNavigation<any>();
   const [spaces, setSpaces] = useState<ParkingSpace[]>([]);
+  const [verifications, setVerifications] = useState<Verification[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -52,9 +61,15 @@ export function ProviderSpaceManagementScreen() {
     if (isRefresh) setRefreshing(true);
     setFetchError(null);
     try {
-      const res = await providerApi.getMySpaces();
-      if (res.data?.success) {
-        setSpaces(res.data.data || []);
+      const [spacesRes, verifRes] = await Promise.all([
+        providerApi.getMySpaces(),
+        providerApi.getVerificationStatus(),
+      ]);
+      if (spacesRes.data?.success) {
+        setSpaces(spacesRes.data.data || []);
+      }
+      if (verifRes.data?.success && verifRes.data.data?.verifications) {
+        setVerifications(verifRes.data.data.verifications);
       }
     } catch (err) {
       setFetchError(getApiErrorMessage(err, 'Could not load your parking spaces.'));
@@ -167,7 +182,9 @@ export function ProviderSpaceManagementScreen() {
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>My Parking Spaces</Text>
-          <Text style={styles.headerSub}>{spaces.length} space{spaces.length !== 1 ? 's' : ''} managed</Text>
+          <Text style={styles.headerSub}>
+            {spaces.length} approved · {verifications.filter(v => v.status === 'pending').length} pending
+          </Text>
         </View>
       </View>
 
@@ -185,15 +202,60 @@ export function ProviderSpaceManagementScreen() {
           </View>
         )}
 
-        {spaces.length === 0 ? (
+        {/* Pending Verifications Section */}
+        {verifications.filter(v => v.status !== 'approved').length > 0 && (
+          <>
+            <Text style={styles.sectionLabel}>Pending Verifications</Text>
+            {verifications
+              .filter(v => v.status !== 'approved')
+              .map((v) => (
+                <View key={v._id} style={styles.verifCard}>
+                  <View style={styles.verifHeader}>
+                    <Text style={styles.verifName}>
+                      {v.documents?.parkName || 'Unnamed Park'}
+                    </Text>
+                    <View style={[
+                      styles.verifBadge,
+                      { backgroundColor: v.status === 'rejected' ? `${COLORS.coralRed}20` : `${COLORS.amber}20` },
+                    ]}>
+                      <Text style={[
+                        styles.verifBadgeText,
+                        { color: v.status === 'rejected' ? COLORS.coralRed : COLORS.amber },
+                      ]}>
+                        {v.status.charAt(0).toUpperCase() + v.status.slice(1)}
+                      </Text>
+                    </View>
+                  </View>
+                  {v.documents?.parkPostcode && (
+                    <Text style={styles.verifDetail}>{v.documents.parkPostcode}</Text>
+                  )}
+                  {v.rejectionReason && (
+                    <Text style={styles.verifRejection}>Reason: {v.rejectionReason}</Text>
+                  )}
+                  {v.createdAt && (
+                    <Text style={styles.verifDate}>
+                      Submitted {new Date(v.createdAt).toLocaleDateString()}
+                    </Text>
+                  )}
+                </View>
+              ))}
+          </>
+        )}
+
+        {/* Approved Spaces Section */}
+        {spaces.length > 0 && (
+          <Text style={styles.sectionLabel}>Approved Spaces</Text>
+        )}
+
+        {spaces.length === 0 && verifications.filter(v => v.status !== 'approved').length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="business-outline" size={64} color={COLORS.softSlate} />
-            <Text style={styles.emptyTitle}>No Approved Spaces Yet</Text>
+            <Text style={styles.emptyTitle}>No Parking Spaces Yet</Text>
             <Text style={styles.emptySub}>
-              Once your parking verification is approved by an admin, your spaces will appear here.
+              Submit a parking verification to get started. Once approved by an admin, your spaces will appear here.
             </Text>
           </View>
-        ) : (
+        ) : spaces.length === 0 ? null : (
           spaces.map((space) => {
             const occupancyPct = getOccupancyPercent(space);
             const occColor = getOccupancyColor(occupancyPct);
@@ -430,6 +492,26 @@ const styles = StyleSheet.create({
   },
   errorBannerText: { flex: 1, color: COLORS.coralRed, fontSize: 13 },
   retryLink: { color: COLORS.electricTeal, fontWeight: FONT_WEIGHTS.bold, fontSize: 13 },
+
+  // Section label
+  sectionLabel: {
+    color: COLORS.textPrimary, fontSize: 16, fontWeight: FONT_WEIGHTS.bold,
+    marginBottom: SPACING.md, marginTop: SPACING.sm,
+  },
+
+  // Verification cards
+  verifCard: {
+    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.md, marginBottom: SPACING.sm,
+    borderWidth: 1, borderColor: COLORS.border,
+  },
+  verifHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  verifName: { color: COLORS.textPrimary, fontSize: 15, fontWeight: FONT_WEIGHTS.semibold, flex: 1 },
+  verifBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  verifBadgeText: { fontSize: 11, fontWeight: FONT_WEIGHTS.bold },
+  verifDetail: { color: COLORS.textSecondary, fontSize: 13, marginTop: 2 },
+  verifRejection: { color: COLORS.coralRed, fontSize: 12, marginTop: 4, fontStyle: 'italic' },
+  verifDate: { color: COLORS.textTertiary, fontSize: 11, marginTop: 4 },
 
   // Empty
   emptyState: { alignItems: 'center', paddingVertical: 80 },

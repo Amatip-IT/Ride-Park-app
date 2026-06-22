@@ -34,9 +34,27 @@ export function DriverRideRequestsScreen() {
       const res = await providerApi.getVerificationStatus();
       if (res.data?.success) {
         setIsOnline(res.data.data?.availability === 'online');
+      } else {
+        setIsOnline(false);
       }
     } catch {
       setIsOnline(false);
+    } finally {
+      setStatusLoading(false);
+    }
+  };
+
+  const handleGoOnline = async () => {
+    try {
+      setStatusLoading(true);
+      const res = await providerApi.toggleStatus('online');
+      if (res.data?.success) {
+        setIsOnline(true);
+      } else {
+        Alert.alert('Error', res.data?.message || 'Failed to go online');
+      }
+    } catch (err) {
+      Alert.alert('Error', getApiErrorMessage(err, 'Failed to go online'));
     } finally {
       setStatusLoading(false);
     }
@@ -79,14 +97,6 @@ export function DriverRideRequestsScreen() {
   const handleAccept = async () => {
     if (!selectedRequest) return;
 
-    if (!isOnline) {
-      Alert.alert(
-        'Go online first',
-        'Turn on online status from your home screen before accepting live rides.',
-      );
-      return;
-    }
-    
     if (!etaMinutes || isNaN(Number(etaMinutes))) {
       Alert.alert('ETA Required', 'Please select an estimated arrival time.');
       return;
@@ -221,8 +231,11 @@ export function DriverRideRequestsScreen() {
           <View style={styles.offlineBanner}>
             <Ionicons name="cloud-offline-outline" size={20} color={COLORS.amber} />
             <Text style={styles.offlineBannerText}>
-              You are offline. Go online from Home to receive live ride requests.
+              You are offline. Go online to receive live ride requests.
             </Text>
+            <TouchableOpacity style={styles.goOnlineBtn} onPress={handleGoOnline}>
+              <Text style={styles.goOnlineBtnText}>Go Online</Text>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -348,6 +361,7 @@ const styles = StyleSheet.create({
 
   offlineBanner: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     gap: SPACING.sm,
     marginHorizontal: SPACING.lg,
@@ -356,7 +370,15 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(245, 158, 11, 0.15)',
     borderRadius: BORDER_RADIUS.md,
   },
-  offlineBannerText: { flex: 1, color: COLORS.amber, fontSize: 13, lineHeight: 18 },
+  offlineBannerText: { flex: 1, color: COLORS.amber, fontSize: 13, lineHeight: 18, marginBottom: SPACING.sm },
+  goOnlineBtn: {
+    backgroundColor: COLORS.electricTeal,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    alignSelf: 'flex-start',
+  },
+  goOnlineBtnText: { color: '#FFF', fontSize: 13, fontWeight: FONT_WEIGHTS.bold },
   errorBanner: {
     flexDirection: 'row',
     alignItems: 'center',

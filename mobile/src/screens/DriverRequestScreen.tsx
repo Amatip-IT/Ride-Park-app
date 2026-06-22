@@ -1,12 +1,13 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Platform, SafeAreaView, ActivityIndicator, Alert, TextInput,
+  Platform, SafeAreaView, ActivityIndicator, Alert, TextInput, FlatList,
 } from 'react-native';
 import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, NavigationProp, useRoute, RouteProp } from '@react-navigation/native';
 import { bookingsApi } from '@/api';
+import { searchLocationByText } from '@/api/amazonLocation';
 import * as Location from 'expo-location';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
@@ -26,6 +27,11 @@ export function DriverRequestScreen() {
   const [fetchingLocation, setFetchingLocation] = useState(false);
   const [usingGps, setUsingGps] = useState(false);
   const [pickupCoords, setPickupCoords] = useState<{ lat: number; lng: number } | null>(null);
+
+  // Pickup autocomplete
+  const [pickupSuggestions, setPickupSuggestions] = useState<any[]>([]);
+  const [showPickupSuggestions, setShowPickupSuggestions] = useState(false);
+  const pickupSearchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Duration
   const [startTime, setStartTime] = useState(new Date());
@@ -118,7 +124,7 @@ export function DriverRequestScreen() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [pickupAddress, pickupPostcode, pickupCoords, startTime, endTime, notes, navigation]);
+  }, [pickupAddress, pickupPostcode, pickupCoords, startTime, endTime, notes, navigation, targetServiceId]);
 
   const durationHours = Math.max(0, (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60));
 
@@ -177,13 +183,58 @@ export function DriverRequestScreen() {
 
           <Text style={styles.orText}>— or enter manually —</Text>
 
-          <TextInput
-            style={styles.input}
-            placeholder="Address"
-            placeholderTextColor={COLORS.textTertiary}
-            value={pickupAddress}
-            onChangeText={(t) => { setPickupAddress(t); setUsingGps(false); }}
-          />
+          <View style={{ zIndex: 10 }}>
+            <TextInput
+              style={styles.input}
+              placeholder="Address"
+              placeholderTextColor={COLORS.textTertiary}
+              value={pickupAddress}
+              onChangeText={(text) => {
+                setPickupAddress(text);
+                setUsingGps(false);
+                setPickupCoords(null);
+                if (pickupSearchTimeout.current) clearTimeout(pickupSearchTimeout.current);
+                if (text.length >= 3) {
+                  pickupSearchTimeout.current = setTimeout(async () => {
+                    const results = await searchLocationByText(text);
+                    setPickupSuggestions(results);
+                    setShowPickupSuggestions(results.length > 0);
+                  }, 300);
+                } else {
+                  setPickupSuggestions([]);
+                  setShowPickupSuggestions(false);
+                }
+              }}
+            />
+            {showPickupSuggestions && pickupSuggestions.length > 0 && (
+              <View style={styles.suggestionsContainer}>
+                <FlatList
+                  data={pickupSuggestions}
+                  keyExtractor={(_, i) => `pickup-${i}`}
+                  keyboardShouldPersistTaps="handled"
+                  scrollEnabled={false}
+                  renderItem={({ item }) => (
+                    <TouchableOpacity
+                      style={styles.suggestionItem}
+                      onPress={() => {
+                        setPickupAddress(item.label);
+                        if (item.point?.lat && item.point?.lng) {
+                          setPickupCoords({ lat: item.point.lat, lng: item.point.lng });
+                        }
+                        if (item.postalCode) setPickupPostcode(item.postalCode);
+                        setShowPickupSuggestions(false);
+                        setPickupSuggestions([]);
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="location-outline" size={16} color={COLORS.electricTeal} style={{ marginTop: 2 }} />
+                      <Text style={styles.suggestionText} numberOfLines={2}>{item.label}</Text>
+                    </TouchableOpacity>
+                  )}
+                />
+              </View>
+            )}
+          </View>
           <TextInput
             style={styles.input}
             placeholder="Postcode (e.g. SW1A 1AA)"
@@ -421,5 +472,31 @@ const styles = StyleSheet.create({
     color: COLORS.textTertiary,
     fontSize: 11,
     marginTop: 2,
+  },
+
+  // Autocomplete suggestions
+  suggestionsContainer: {
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginTop: -SPACING.sm + 2,
+    marginBottom: SPACING.sm,
+    overflow: 'hidden',
+  },
+  suggestionItem: {
+    flexDirection: 'row' as const,
+    alignItems: 'flex-start',
+    gap: SPACING.sm,
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  suggestionText: {
+    flex: 1,
+    color: COLORS.textPrimary,
+    fontSize: FONT_SIZES.small,
+    lineHeight: 18,
   },
 });

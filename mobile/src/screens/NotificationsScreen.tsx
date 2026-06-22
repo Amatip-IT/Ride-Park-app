@@ -9,6 +9,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 
 import { notificationsApi } from '@/api';
 import { getApiErrorMessage } from '@/utils/helpers';
+import { handleNotificationNavigation } from '@/utils/notificationRouting';
 
 interface Notification {
   _id: string;
@@ -17,6 +18,7 @@ interface Notification {
   type: 'ride' | 'booking' | 'payment' | 'system' | 'promo';
   read: boolean;
   createdAt: string;
+  data?: Record<string, any>;
 }
 
 const ICON_MAP: Record<string, { icon: keyof typeof Ionicons.glyphMap; color: string }> = {
@@ -99,6 +101,7 @@ export function NotificationsScreen() {
               console.log('Error marking as read:', err);
             }
           }
+          handleNotificationNavigation(item.type, item.data);
         }}
       >
         <View style={[styles.iconCircle, { backgroundColor: `${color}15` }]}>

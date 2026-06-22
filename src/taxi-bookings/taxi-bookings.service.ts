@@ -50,6 +50,7 @@ export class TaxiBookingsService {
     timingType: 'now' | 'leave_at' | 'arrive_by';
     scheduledTime?: string;
     passengerNote?: string;
+    targetDriverId?: string;
     estimatedDistanceMiles?: number;
     estimatedDurationMinutes?: number;
     estimatedCost?: number;
@@ -92,6 +93,19 @@ export class TaxiBookingsService {
         estimatedCost = Math.round((distanceCost + timeCost) * 100) / 100;
       }
 
+      let targetDriverUserId: string | undefined;
+      if (data.targetDriverId) {
+        const taxiRecord = await this.taxiModel.findById(data.targetDriverId);
+        if (taxiRecord) {
+          targetDriverUserId = taxiRecord.user.toString();
+        } else {
+          const chauffeurRecord = await this.chauffeurModel.findById(data.targetDriverId);
+          if (chauffeurRecord) {
+            targetDriverUserId = chauffeurRecord.user.toString();
+          }
+        }
+      }
+
       const request = new this.taxiRequestModel({
         passenger: data.passengerId,
         pickupAddress: data.pickupAddress,
@@ -109,6 +123,7 @@ export class TaxiBookingsService {
             ? new Date(data.scheduledTime)
             : undefined,
         passengerNote: data.passengerNote,
+        targetDriver: targetDriverUserId || undefined,
         estimatedDistanceMiles: data.estimatedDistanceMiles,
         estimatedDurationMinutes: data.estimatedDurationMinutes,
         estimatedCost,

@@ -1,13 +1,18 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, SafeAreaView, Alert, Image } from 'react-native';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
+import React, { useMemo } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, SafeAreaView, Alert, Image, Switch } from 'react-native';
+import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/store/authStore';
+import { useUIStore } from '@/store/index';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { useNavigation } from '@react-navigation/native';
 
 export function ProfileScreen() {
   const { user, logout } = useAuthStore();
+  const { isDarkMode, toggleDarkMode } = useUIStore();
+  const colors = useThemeColors();
   const navigation = useNavigation<any>();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const handleLogout = () => {
     Alert.alert('Log out', 'Are you sure you want to log out of your account?', [
@@ -67,11 +72,11 @@ export function ProfileScreen() {
                     activeOpacity={0.7}
                     onPress={() => navigation.navigate('ProviderVerification')}
                   >
-                    <View style={[styles.menuIconWrapper, { backgroundColor: `${COLORS.electricTeal}20` }]}>
-                      <Ionicons name="shield-checkmark-outline" size={22} color={COLORS.electricTeal} />
+                    <View style={[styles.menuIconWrapper, { backgroundColor: `${colors.electricTeal}20` }]}>
+                      <Ionicons name="shield-checkmark-outline" size={22} color={colors.electricTeal} />
                     </View>
                     <Text style={styles.menuTitle}>Manage Space & Verification</Text>
-                    <Ionicons name="chevron-forward" size={20} color={COLORS.softSlate} />
+                    <Ionicons name="chevron-forward" size={20} color={colors.softSlate} />
                   </TouchableOpacity>
                 )}
 
@@ -81,11 +86,11 @@ export function ProfileScreen() {
                     activeOpacity={0.7}
                     onPress={() => navigation.navigate('DriverVerification')}
                   >
-                    <View style={[styles.menuIconWrapper, { backgroundColor: `${COLORS.amber}20` }]}>
-                      <Ionicons name="document-text-outline" size={22} color={COLORS.amber} />
+                    <View style={[styles.menuIconWrapper, { backgroundColor: `${colors.amber}20` }]}>
+                      <Ionicons name="document-text-outline" size={22} color={colors.amber} />
                     </View>
                     <Text style={styles.menuTitle}>Manage Requirements & Documents</Text>
-                    <Ionicons name="chevron-forward" size={20} color={COLORS.softSlate} />
+                    <Ionicons name="chevron-forward" size={20} color={colors.softSlate} />
                   </TouchableOpacity>
                 )}
               </View>
@@ -96,30 +101,44 @@ export function ProfileScreen() {
           <Text style={styles.sectionTitle}>Account</Text>
           <View style={styles.menuContainer}>
             <TouchableOpacity style={styles.menuItem} activeOpacity={0.7} onPress={() => navigation.navigate('EditProfile')}>
-              <View style={[styles.menuIconWrapper, { backgroundColor: `${COLORS.info}20` }]}>
-                <Ionicons name="person-outline" size={22} color={COLORS.info} />
+              <View style={[styles.menuIconWrapper, { backgroundColor: `${colors.info}20` }]}>
+                <Ionicons name="person-outline" size={22} color={colors.info} />
               </View>
               <Text style={styles.menuTitle}>Edit Profile</Text>
-              <Ionicons name="chevron-forward" size={20} color={COLORS.softSlate} />
+              <Ionicons name="chevron-forward" size={20} color={colors.softSlate} />
             </TouchableOpacity>
             <View style={styles.menuDivider} />
 
             <TouchableOpacity style={styles.menuItem} activeOpacity={0.7} onPress={() => navigation.navigate('Disputes')}>
-              <View style={[styles.menuIconWrapper, { backgroundColor: `${COLORS.coralRed}20` }]}>
-                <Ionicons name="help-buoy-outline" size={22} color={COLORS.coralRed} />
+              <View style={[styles.menuIconWrapper, { backgroundColor: `${colors.coralRed}20` }]}>
+                <Ionicons name="help-buoy-outline" size={22} color={colors.coralRed} />
               </View>
               <Text style={styles.menuTitle}>Help & Disputes</Text>
-              <Ionicons name="chevron-forward" size={20} color={COLORS.softSlate} />
+              <Ionicons name="chevron-forward" size={20} color={colors.softSlate} />
             </TouchableOpacity>
             <View style={styles.menuDivider} />
 
             <TouchableOpacity style={styles.menuItem} activeOpacity={0.7} onPress={() => navigation.navigate('Notifications')}>
-              <View style={[styles.menuIconWrapper, { backgroundColor: `${COLORS.amber}20` }]}>
-                <Ionicons name="notifications-outline" size={22} color={COLORS.amber} />
+              <View style={[styles.menuIconWrapper, { backgroundColor: `${colors.amber}20` }]}>
+                <Ionicons name="notifications-outline" size={22} color={colors.amber} />
               </View>
               <Text style={styles.menuTitle}>Notifications</Text>
-              <Ionicons name="chevron-forward" size={20} color={COLORS.softSlate} />
+              <Ionicons name="chevron-forward" size={20} color={colors.softSlate} />
             </TouchableOpacity>
+            <View style={styles.menuDivider} />
+
+            <View style={styles.menuItem}>
+              <View style={[styles.menuIconWrapper, { backgroundColor: `${colors.info}20` }]}>
+                <Ionicons name="moon-outline" size={22} color={colors.info} />
+              </View>
+              <Text style={styles.menuTitle}>Dark Mode</Text>
+              <Switch
+                value={isDarkMode}
+                onValueChange={toggleDarkMode}
+                trackColor={{ false: colors.border, true: colors.electricTeal }}
+                thumbColor="#FFF"
+              />
+            </View>
             <View style={styles.menuDivider} />
 
             <TouchableOpacity 
@@ -127,11 +146,11 @@ export function ProfileScreen() {
               activeOpacity={0.7} 
               onPress={() => navigation.navigate('LegalDocument', { documentType: 'privacy' })}
             >
-              <View style={[styles.menuIconWrapper, { backgroundColor: `${COLORS.success}20` }]}>
-                <Ionicons name="shield-checkmark-outline" size={22} color={COLORS.success} />
+              <View style={[styles.menuIconWrapper, { backgroundColor: `${colors.success}20` }]}>
+                <Ionicons name="shield-checkmark-outline" size={22} color={colors.success} />
               </View>
               <Text style={styles.menuTitle}>Privacy & Security</Text>
-              <Ionicons name="chevron-forward" size={20} color={COLORS.softSlate} />
+              <Ionicons name="chevron-forward" size={20} color={colors.softSlate} />
             </TouchableOpacity>
             <View style={styles.menuDivider} />
 
@@ -140,17 +159,17 @@ export function ProfileScreen() {
               activeOpacity={0.7} 
               onPress={() => navigation.navigate('LegalDocument', { documentType: 'help' })}
             >
-              <View style={[styles.menuIconWrapper, { backgroundColor: `${COLORS.softSlate}20` }]}>
-                <Ionicons name="help-circle-outline" size={22} color={COLORS.softSlate} />
+              <View style={[styles.menuIconWrapper, { backgroundColor: `${colors.softSlate}20` }]}>
+                <Ionicons name="help-circle-outline" size={22} color={colors.softSlate} />
               </View>
               <Text style={styles.menuTitle}>Help & Support</Text>
-              <Ionicons name="chevron-forward" size={20} color={COLORS.softSlate} />
+              <Ionicons name="chevron-forward" size={20} color={colors.softSlate} />
             </TouchableOpacity>
           </View>
 
           {/* Logout App Button */}
           <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} activeOpacity={0.8}>
-            <Ionicons name="log-out-outline" size={22} color={COLORS.error} />
+            <Ionicons name="log-out-outline" size={22} color={colors.error} />
             <Text style={styles.logoutText}>Log Out</Text>
           </TouchableOpacity>
           
@@ -162,10 +181,10 @@ export function ProfileScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ReturnType<typeof useThemeColors>) => StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: colors.background,
   },
   container: {
     flex: 1,
@@ -176,7 +195,7 @@ const styles = StyleSheet.create({
     paddingBottom: SPACING.md,
   },
   headerTitle: {
-    color: COLORS.textPrimary,
+    color: colors.textPrimary,
     fontSize: FONT_SIZES.hero,
     fontWeight: FONT_WEIGHTS.bold,
   },
@@ -194,12 +213,12 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: COLORS.electricTeal,
+    backgroundColor: colors.electricTeal,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: SPACING.lg,
     elevation: 5,
-    shadowColor: COLORS.electricTeal,
+    shadowColor: colors.electricTeal,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -213,13 +232,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   userName: {
-    color: COLORS.textPrimary,
+    color: colors.textPrimary,
     fontSize: 22,
     fontWeight: FONT_WEIGHTS.bold,
     marginBottom: 4,
   },
   userPhone: {
-    color: COLORS.textSecondary,
+    color: colors.textSecondary,
     fontSize: 14,
     marginBottom: 8,
   },
@@ -231,17 +250,17 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   roleBadgeText: {
-    color: COLORS.electricTeal,
+    color: colors.electricTeal,
     fontSize: 12,
     fontWeight: FONT_WEIGHTS.bold,
   },
   divider: {
     height: 1,
-    backgroundColor: COLORS.border,
+    backgroundColor: colors.border,
     marginVertical: SPACING.xl,
   },
   sectionTitle: {
-    color: COLORS.textSecondary,
+    color: colors.textSecondary,
     fontSize: 14,
     fontWeight: FONT_WEIGHTS.bold,
     marginBottom: SPACING.md,
@@ -250,12 +269,12 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   menuContainer: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
     borderRadius: BORDER_RADIUS.xl,
     overflow: 'hidden',
     marginBottom: SPACING['2xl'],
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
   },
   menuItem: {
     flexDirection: 'row',
@@ -272,13 +291,13 @@ const styles = StyleSheet.create({
   },
   menuTitle: {
     flex: 1,
-    color: COLORS.textPrimary,
+    color: colors.textPrimary,
     fontSize: 16,
     fontWeight: FONT_WEIGHTS.semibold,
   },
   menuDivider: {
     height: 1,
-    backgroundColor: COLORS.border,
+    backgroundColor: colors.border,
     marginLeft: 76,
   },
   logoutBtn: {
@@ -291,13 +310,13 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.xl,
   },
   logoutText: {
-    color: COLORS.error,
+    color: colors.error,
     fontSize: 18,
     fontWeight: FONT_WEIGHTS.bold,
     marginLeft: SPACING.sm,
   },
   versionText: {
-    color: COLORS.textTertiary,
+    color: colors.textTertiary,
     fontSize: 12,
     textAlign: 'center',
     marginBottom: SPACING.xl,

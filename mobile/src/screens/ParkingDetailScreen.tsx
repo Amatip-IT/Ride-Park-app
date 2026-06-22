@@ -18,7 +18,7 @@ type ParkingDetailParams = {
 export function ParkingDetailScreen() {
   const route = useRoute<RouteProp<ParkingDetailParams, 'ParkingDetail'>>();
   const navigation = useNavigation();
-  const { spaceId, space: passedSpace } = route.params;
+  const { spaceId, space: passedSpace } = route.params || {};
 
   const [space, setSpace] = useState<any>(passedSpace || null);
   const [loading, setLoading] = useState(!passedSpace);
@@ -275,7 +275,7 @@ export function ParkingDetailScreen() {
             </Text>
             
             <View style={styles.chargesList}>
-              <Text style={styles.chargeItem}>Rate: £{(space.hourlyRate || 0).toFixed(2)} / hour</Text>
+              <Text style={styles.chargeItem}>Rate: £{Number(space.hourlyRate || 0).toFixed(2)} / hour</Text>
               {space.chargesDescription && <Text style={styles.chargeItem}>{space.chargesDescription}</Text>}
             </View>
           </View>
@@ -317,6 +317,22 @@ export function ParkingDetailScreen() {
             <Ionicons name="shield-checkmark" size={20} color={COLORS.electricTeal} />
             <Text style={styles.infoText}>Verified by Gleezip. Managed by {ownerName}</Text>
           </View>
+
+          <TouchableOpacity
+            style={styles.reviewsLink}
+            onPress={() =>
+              (navigation as any).navigate('ServiceReviews', {
+                serviceType: 'parking',
+                serviceId: spaceId,
+                serviceName: space.name,
+              })
+            }
+            activeOpacity={0.7}
+          >
+            <Ionicons name="star-outline" size={18} color={COLORS.electricTeal} />
+            <Text style={styles.reviewsLinkText}>Browse reviews</Text>
+            <Ionicons name="chevron-forward" size={16} color={COLORS.textTertiary} />
+          </TouchableOpacity>
         </View>
 
         {/* Booking dates */}
@@ -394,12 +410,12 @@ export function ParkingDetailScreen() {
           <View style={styles.priceRow}>
             <View style={styles.priceCard}>
               <Text style={styles.priceLabel}>Per Hour</Text>
-              <Text style={styles.priceValue}>£{space.hourlyRate?.toFixed(2)}</Text>
+              <Text style={styles.priceValue}>£{Number(space.hourlyRate || 0).toFixed(2)}</Text>
             </View>
             {space.dailyRate && (
               <View style={styles.priceCard}>
                 <Text style={styles.priceLabel}>Per Day</Text>
-                <Text style={styles.priceValue}>£{space.dailyRate?.toFixed(2)}</Text>
+                <Text style={styles.priceValue}>£{Number(space.dailyRate || 0).toFixed(2)}</Text>
               </View>
             )}
           </View>
@@ -526,6 +542,23 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.sm, gap: SPACING.sm,
   },
   infoText: { color: COLORS.textPrimary, fontSize: FONT_SIZES.label, flex: 1 },
+  reviewsLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    marginTop: SPACING.md,
+    padding: SPACING.md,
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  reviewsLinkText: {
+    flex: 1,
+    color: COLORS.electricTeal,
+    fontSize: FONT_SIZES.label,
+    fontWeight: FONT_WEIGHTS.semibold,
+  },
 
   // Pricing
   pricingSection: { paddingHorizontal: SPACING.lg, marginBottom: SPACING.xl },

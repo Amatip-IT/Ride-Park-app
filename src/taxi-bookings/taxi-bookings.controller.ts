@@ -44,6 +44,7 @@ export class TaxiBookingsController {
       timingType: 'now' | 'leave_at' | 'arrive_by';
       scheduledTime?: string;
       passengerNote?: string;
+      targetDriverId?: string;
       estimatedDistanceMiles?: number;
       estimatedDurationMinutes?: number;
       estimatedCost?: number;

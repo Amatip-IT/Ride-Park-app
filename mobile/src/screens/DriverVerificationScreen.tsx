@@ -69,27 +69,31 @@ export function DriverVerificationScreen() {
 
             const newStatuses: Record<string, { status: string; rejectionReason?: string }> = {};
 
-            // Map each document field to its UI doc ID with per-document status
             Object.entries(DOC_TO_FIELD).forEach(([uiId, fieldName]) => {
+              const rawDocStatus = perDocStatuses[fieldName];
+              const normalizedStatus = typeof rawDocStatus === 'object' && rawDocStatus !== null
+                ? rawDocStatus.status
+                : rawDocStatus;
+              const rejReason = typeof rawDocStatus === 'object' && rawDocStatus !== null
+                ? rawDocStatus.rejectionReason
+                : undefined;
+
               if (docs[fieldName]) {
-                // Document URL exists — check its individual status
-                const docStatus = perDocStatuses[fieldName];
-                if (docStatus === 'verified') {
+                if (normalizedStatus === 'verified') {
                   newStatuses[uiId] = { status: 'Verified' };
-                } else if (docStatus === 'rejected') {
-                  newStatuses[uiId] = { status: 'Rejected', rejectionReason: perDocStatuses[fieldName]?.rejectionReason };
-                } else if (docStatus === 'uploaded') {
+                } else if (normalizedStatus === 'rejected') {
+                  newStatuses[uiId] = { status: 'Rejected', rejectionReason: rejReason };
+                } else if (normalizedStatus === 'uploaded') {
                   newStatuses[uiId] = { status: 'Uploaded, Await Review' };
+                } else if (backendStatus === 'approved') {
+                  newStatuses[uiId] = { status: 'Verified' };
+                } else if (backendStatus === 'rejected') {
+                  newStatuses[uiId] = { status: 'Rejected', rejectionReason: data?.rejectionReason };
                 } else {
-                  // Fallback to overall status
-                  if (backendStatus === 'approved') {
-                    newStatuses[uiId] = { status: 'Verified' };
-                  } else if (backendStatus === 'rejected') {
-                    newStatuses[uiId] = { status: 'Rejected', rejectionReason: data?.rejectionReason };
-                  } else {
-                    newStatuses[uiId] = { status: 'Uploaded, Await Review' };
-                  }
+                  newStatuses[uiId] = { status: 'Uploaded, Await Review' };
                 }
+              } else if (backendStatus === 'approved') {
+                newStatuses[uiId] = { status: 'Verified' };
               }
             });
 
@@ -116,6 +120,7 @@ export function DriverVerificationScreen() {
 
   const getStatusText = (status: string | undefined, optional: boolean) => {
     if (status) return status;
+    if (overallStatus === 'approved') return 'Verified';
     if (optional) return 'Optional';
     return 'Not Submitted';
   };

@@ -1,5 +1,8 @@
 import { create } from 'zustand';
 import { BookingRequest } from '@/types';
+import { secureStorage } from '@/utils/secureStorage';
+
+const DARK_MODE_KEY = 'darkMode';
 
 interface BookingStore {
   currentBooking: BookingRequest | null;
@@ -110,18 +113,40 @@ interface UIStore {
 
   // Actions
   toggleDarkMode: () => void;
+  setDarkMode: (value: boolean) => void;
+  hydrateDarkMode: () => Promise<void>;
   setIsLoading: (loading: boolean) => void;
   showToast: (message: string, type: 'success' | 'error' | 'info' | 'warning') => void;
   clearToast: () => void;
 }
 
-export const useUIStore = create<UIStore>((set) => ({
-  isDarkMode: true, // Default to dark mode per design
+export const useUIStore = create<UIStore>((set, get) => ({
+  isDarkMode: false,
   isLoading: false,
   toastMessage: null,
   toastType: null,
 
-  toggleDarkMode: () => set((state: UIStore) => ({ isDarkMode: !state.isDarkMode })),
+  toggleDarkMode: () => {
+    const next = !get().isDarkMode;
+    set({ isDarkMode: next });
+    secureStorage.setItem(DARK_MODE_KEY, next ? 'true' : 'false').catch(() => {});
+  },
+
+  setDarkMode: (value: boolean) => {
+    set({ isDarkMode: value });
+    secureStorage.setItem(DARK_MODE_KEY, value ? 'true' : 'false').catch(() => {});
+  },
+
+  hydrateDarkMode: async () => {
+    try {
+      const stored = await secureStorage.getItem(DARK_MODE_KEY);
+      if (stored === 'true') set({ isDarkMode: true });
+      if (stored === 'false') set({ isDarkMode: false });
+    } catch {
+      // ignore
+    }
+  },
+
   setIsLoading: (loading: boolean) => set({ isLoading: loading }),
 
   showToast: (message: string, type: 'success' | 'error' | 'info' | 'warning') =>

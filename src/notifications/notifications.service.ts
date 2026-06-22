@@ -82,7 +82,7 @@ export class NotificationsService {
         sound: 'default',
         title,
         body,
-        data: { ...data, notificationId: notification._id },
+        data: { ...data, notificationId: notification._id, type },
       }];
 
       const chunks = this.expo.chunkPushNotifications(messages);

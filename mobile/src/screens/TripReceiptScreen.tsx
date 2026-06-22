@@ -11,22 +11,30 @@ import {
 import { COLORS, SPACING, BORDER_RADIUS, FONT_WEIGHTS } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
-import { ridesApi, taxiBookingsApi } from '@/api';
+import { ridesApi, taxiBookingsApi, bookingsApi } from '@/api';
 import { formatCurrency, formatDate, getApiErrorMessage } from '@/utils/helpers';
 
 type ParamList = {
-  TripReceipt: { requestId?: string; rideId?: string };
+  TripReceipt: { requestId?: string; rideId?: string; bookingId?: string };
 };
 
 type ReceiptData = {
-  rideId: string;
+  rideId?: string;
+  bookingId?: string;
   requestId?: string;
-  role: 'passenger' | 'driver';
+  role: 'passenger' | 'driver' | 'provider';
   serviceType: string;
+  serviceName?: string;
   completedAt?: string;
   startedAt?: string;
-  passenger: { name?: string; email?: string };
-  driver: { name?: string; email?: string };
+  startDate?: string;
+  endDate?: string;
+  requester?: { name?: string; email?: string };
+  provider?: { name?: string; email?: string };
+  passenger?: { name?: string; email?: string };
+  driver?: { name?: string; email?: string };
+  quotedPrice?: number;
+  pricingUnit?: string;
   pickup?: { address?: string; lat?: number; lng?: number };
   dropoff?: { address?: string; lat?: number; lng?: number };
   distanceMiles?: number;
@@ -59,7 +67,7 @@ function ReceiptRow({ label, value }: { label: string; value: string }) {
 export function TripReceiptScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<RouteProp<ParamList, 'TripReceipt'>>();
-  const { requestId, rideId } = route.params;
+  const { requestId, rideId, bookingId } = route.params;
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -72,7 +80,9 @@ export function TripReceiptScreen() {
       setLoading(true);
       setError(null);
       try {
-        const res = requestId
+        const res = bookingId
+          ? await bookingsApi.getReceipt(bookingId)
+          : requestId
           ? await taxiBookingsApi.getReceipt(requestId)
           : rideId
             ? await ridesApi.getReceipt(rideId)
@@ -101,7 +111,9 @@ export function TripReceiptScreen() {
     return () => {
       cancelled = true;
     };
-  }, [requestId, rideId]);
+  }, [requestId, rideId, bookingId]);
+
+  const isBookingReceipt = !!receipt?.bookingId || receipt?.serviceType === 'parking' || receipt?.serviceType === 'driver';
 
   const vehicleLine = receipt?.vehicle
     ? [
@@ -120,7 +132,7 @@ export function TripReceiptScreen() {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Trip receipt</Text>
+        <Text style={styles.headerTitle}>{isBookingReceipt ? 'Booking receipt' : 'Trip receipt'}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -136,9 +148,9 @@ export function TripReceiptScreen() {
       ) : receipt ? (
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
           <View style={styles.totalCard}>
-            <Text style={styles.totalLabel}>Total fare</Text>
+            <Text style={styles.totalLabel}>{isBookingReceipt ? 'Total paid' : 'Total fare'}</Text>
             <Text style={styles.totalAmount}>
-              {formatCurrency(receipt.totalCost ?? receipt.estimatedCost ?? 0)}
+              {formatCurrency(receipt.totalCost ?? receipt.quotedPrice ?? receipt.estimatedCost ?? 0)}
             </Text>
             {receipt.paymentNote ? (
               <Text style={styles.paymentNote}>{receipt.paymentNote}</Text>
@@ -146,51 +158,79 @@ export function TripReceiptScreen() {
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Trip</Text>
+            <Text style={styles.sectionTitle}>{isBookingReceipt ? 'Booking' : 'Trip'}</Text>
             {receipt.completedAt && (
               <ReceiptRow label="Completed" value={formatDate(receipt.completedAt)} />
             )}
             {receipt.startedAt && (
               <ReceiptRow label="Started" value={formatDate(receipt.startedAt)} />
             )}
-            <ReceiptRow
-              label="Pickup"
-              value={receipt.pickup?.address || 'Pickup location'}
-            />
-            <ReceiptRow
-              label="Drop-off"
-              value={receipt.dropoff?.address || 'Destination'}
-            />
+            {receipt.startDate && (
+              <ReceiptRow label="Start" value={formatDate(receipt.startDate)} />
+            )}
+            {receipt.endDate && (
+              <ReceiptRow label="End" value={formatDate(receipt.endDate)} />
+            )}
+            {receipt.serviceName && (
+              <ReceiptRow label="Service" value={receipt.serviceName} />
+            )}
+            {!isBookingReceipt && (
+              <>
+                <ReceiptRow
+                  label="Pickup"
+                  value={receipt.pickup?.address || 'Pickup location'}
+                />
+                <ReceiptRow
+                  label="Drop-off"
+                  value={receipt.dropoff?.address || 'Destination'}
+                />
+              </>
+            )}
             {vehicleLine ? <ReceiptRow label="Vehicle" value={vehicleLine} /> : null}
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Fare breakdown</Text>
-            {receipt.distanceMiles != null && (
+            <Text style={styles.sectionTitle}>{isBookingReceipt ? 'Charges' : 'Fare breakdown'}</Text>
+            {!isBookingReceipt && receipt.distanceMiles != null && (
               <ReceiptRow label="Distance" value={`${receipt.distanceMiles.toFixed(2)} mi`} />
             )}
-            {receipt.durationMinutes != null && (
+            {!isBookingReceipt && receipt.durationMinutes != null && (
               <ReceiptRow label="Duration" value={`${Math.round(receipt.durationMinutes)} min`} />
             )}
-            {receipt.distanceCost != null && (
+            {!isBookingReceipt && receipt.distanceCost != null && (
               <ReceiptRow label="Distance charge" value={formatCurrency(receipt.distanceCost)} />
             )}
-            {receipt.timeCost != null && (
+            {!isBookingReceipt && receipt.timeCost != null && (
               <ReceiptRow label="Time charge" value={formatCurrency(receipt.timeCost)} />
             )}
-            {receipt.totalCost != null && (
-              <ReceiptRow label="Total" value={formatCurrency(receipt.totalCost)} />
+            {isBookingReceipt && receipt.quotedPrice != null && (
+              <ReceiptRow
+                label="Rate"
+                value={`${formatCurrency(receipt.quotedPrice)}${receipt.pricingUnit === 'per_hour' ? ' / hour' : receipt.pricingUnit === 'per_day' ? ' / day' : ''}`}
+              />
+            )}
+            {(receipt.totalCost != null || receipt.quotedPrice != null) && (
+              <ReceiptRow label="Total" value={formatCurrency(receipt.totalCost ?? receipt.quotedPrice ?? 0)} />
             )}
           </View>
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>People</Text>
-            <ReceiptRow label="Passenger" value={receipt.passenger?.name || '—'} />
-            <ReceiptRow label="Driver" value={receipt.driver?.name || '—'} />
+            {isBookingReceipt ? (
+              <>
+                <ReceiptRow label="Customer" value={receipt.requester?.name || '—'} />
+                <ReceiptRow label="Provider" value={receipt.provider?.name || '—'} />
+              </>
+            ) : (
+              <>
+                <ReceiptRow label="Passenger" value={(receipt as any).passenger?.name || '—'} />
+                <ReceiptRow label="Driver" value={(receipt as any).driver?.name || '—'} />
+              </>
+            )}
           </View>
 
           <Text style={styles.receiptId}>
-            Receipt #{receipt.rideId?.slice(-8).toUpperCase()}
+            Receipt #{(receipt.bookingId || receipt.rideId || '').slice(-8).toUpperCase()}
           </Text>
         </ScrollView>
       ) : null}
