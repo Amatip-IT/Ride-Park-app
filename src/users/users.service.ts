@@ -206,6 +206,9 @@ export class UsersService {
       const currentTime = new Date();
       user.lastLoggedInAt = currentTime;
 
+      // LOCAL TESTING: OTP disabled — sign in with email/password only.
+      // Re-enable before deployment.
+      /*
       // Always require OTP for every login to enforce security
       if (!loginDto.otp) {
         // Send OTP to user's email (non-blocking to avoid SMTP timeout)
@@ -233,6 +236,7 @@ export class UsersService {
       if (!verifyResponse.success) {
         return verifyResponse;
       }
+      */
 
       // OTP verified successfully, save user (which updates lastLoggedInAt)
       await user.save();

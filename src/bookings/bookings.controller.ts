@@ -150,6 +150,26 @@ export class BookingsController {
   }
 
   /**
+   * GET /bookings/:id/receipt
+   * Receipt for a completed parking or chauffeur booking
+   */
+  @Get(':id/receipt')
+  async getBookingReceipt(@Req() req: any, @Param('id') id: string) {
+    const result = await this.bookingsService.getBookingReceipt(
+      id,
+      req.user._id || req.user.id,
+    );
+
+    if (!result.success) {
+      throw new HttpException(
+        { message: result.message },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    return result;
+  }
+
+  /**
    * PATCH /bookings/:id/cancel
    * Consumer cancels their own booking
    */

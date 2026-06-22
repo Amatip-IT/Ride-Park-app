@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useAuthStore } from '@/store/authStore';
 import { authService } from '@/api/authService';
+import { uploadFileToS3 } from '@/utils/uploadFile';
 
 export function EditProfileScreen() {
   const navigation = useNavigation<any>();
@@ -18,6 +19,7 @@ export function EditProfileScreen() {
   const [lastName, setLastName] = useState(user?.lastName || '');
   const [phoneNumber, setPhoneNumber] = useState(user?.phoneNumber || '');
   const [profileImage, setProfileImage] = useState<string | null>(user?.profileImageUrl || null);
+  const [localImageUri, setLocalImageUri] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const pickImage = async () => {
@@ -37,7 +39,7 @@ export function EditProfileScreen() {
 
     if (!result.canceled && result.assets?.[0]) {
       const asset = result.assets[0];
-      // For now, store the local URI. In production, upload to S3/Cloudinary first.
+      setLocalImageUri(asset.uri);
       setProfileImage(asset.uri);
     }
   };
@@ -56,6 +58,7 @@ export function EditProfileScreen() {
     });
 
     if (!result.canceled && result.assets?.[0]) {
+      setLocalImageUri(result.assets[0].uri);
       setProfileImage(result.assets[0].uri);
     }
   };
@@ -81,7 +84,12 @@ export function EditProfileScreen() {
         lastName: lastName.trim(),
       };
       if (phoneNumber.trim()) updateData.phoneNumber = phoneNumber.trim();
-      if (profileImage) updateData.profileImageUrl = profileImage;
+
+      let imageUrl = profileImage;
+      if (localImageUri && !localImageUri.startsWith('http')) {
+        imageUrl = await uploadFileToS3(localImageUri, `avatar_${Date.now()}.jpg`);
+      }
+      if (imageUrl && imageUrl.startsWith('http')) updateData.profileImageUrl = imageUrl;
 
       const res = await authService.updateProfile(updateData);
       if (res.success || res.data?.success) {
@@ -92,7 +100,7 @@ export function EditProfileScreen() {
             firstName: firstName.trim(),
             lastName: lastName.trim(),
             phoneNumber: phoneNumber.trim() || user.phoneNumber,
-            profileImageUrl: profileImage || user.profileImageUrl,
+            profileImageUrl: imageUrl || user.profileImageUrl,
           });
         }
         Alert.alert('Success', 'Profile updated successfully!', [

@@ -3,6 +3,8 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useAuthStore } from '@/store/authStore';
+import { useThemeColors } from '@/hooks/useThemeColors';
+import { navigationRef } from '@/navigation/navigationRef';
 import { UserRole } from '@/types';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -25,6 +27,7 @@ import { TaxiBookingScreen } from '@/screens/TaxiBookingScreen';
 import { ParkingDetailScreen } from '@/screens/ParkingDetailScreen';
 import { PassengerTrackingScreen } from '@/screens/PassengerTrackingScreen';
 import { TripReceiptScreen } from '@/screens/TripReceiptScreen';
+import { ServiceReviewsScreen } from '@/screens/ServiceReviewsScreen';
 import { MapPreviewScreen } from '@/screens/MapPreviewScreen';
 import { ChatListScreen } from '@/screens/ChatListScreen';
 import { ChatScreen } from '@/screens/ChatScreen';
@@ -69,15 +72,17 @@ const ProviderStack = createNativeStackNavigator();
 const ConsumerStack = createNativeStackNavigator();
 
 // Consumer Tabs (Home, Search, Bookings, Wallet, Profile)
-const ConsumerTabs = () => (
+const ConsumerTabs = () => {
+  const colors = useThemeColors();
+  return (
   <Tab.Navigator
     screenOptions={{
       headerShown: false,
-      tabBarActiveTintColor: '#00C2A8',
-      tabBarInactiveTintColor: '#999999',
+      tabBarActiveTintColor: colors.electricTeal,
+      tabBarInactiveTintColor: colors.textTertiary,
       tabBarStyle: {
-        backgroundColor: '#FFFFFF',
-        borderTopColor: '#EEEEEE',
+        backgroundColor: colors.background,
+        borderTopColor: colors.border,
       },
     }}
   >
@@ -137,7 +142,8 @@ const ConsumerTabs = () => (
       }}
     />
   </Tab.Navigator>
-);
+  );
+};
 
 // Consumer Navigation — Stack wrapping tabs so sub-screens can push on top
 const ConsumerNavigator = () => (
@@ -149,6 +155,7 @@ const ConsumerNavigator = () => (
     <ConsumerStack.Screen name="TaxiBooking" component={TaxiBookingScreen} />
     {/* Search result details */}
     <ConsumerStack.Screen name="ParkingDetail" component={ParkingDetailScreen} />
+    <ConsumerStack.Screen name="ServiceReviews" component={ServiceReviewsScreen} />
     {/* Tracking */}
     <ConsumerStack.Screen name="PassengerTracking" component={PassengerTrackingScreen} />
     <ConsumerStack.Screen name="TripReceipt" component={TripReceiptScreen} />
@@ -291,7 +298,7 @@ export const RootNavigator = () => {
   const navigatorKey = isAuthenticated ? `app-${userRole}` : 'auth';
 
   return (
-    <NavigationContainer key={navigatorKey}>
+    <NavigationContainer ref={navigationRef} key={navigatorKey}>
       <Stack.Navigator
         screenOptions={{ headerShown: false }}
         initialRouteName={initialRouteName}
@@ -416,8 +423,9 @@ export type RootStackParamList = {
   DriverRequest: undefined;
   TaxiBooking: undefined;
   ParkingDetail: { spaceId: string; space?: any };
+  ServiceReviews: { serviceType: 'parking' | 'driver' | 'taxi'; serviceId: string; serviceName?: string };
   PassengerTracking: { requestId: string };
-  TripReceipt: { requestId?: string; rideId?: string };
+  TripReceipt: { requestId?: string; rideId?: string; bookingId?: string };
   MapPreview: { latitude?: number; longitude?: number } | undefined;
   // Provider Stack (nested)
   ProviderTabs: undefined;

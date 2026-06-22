@@ -317,6 +317,22 @@ export function ParkingDetailScreen() {
             <Ionicons name="shield-checkmark" size={20} color={COLORS.electricTeal} />
             <Text style={styles.infoText}>Verified by Gleezip. Managed by {ownerName}</Text>
           </View>
+
+          <TouchableOpacity
+            style={styles.reviewsLink}
+            onPress={() =>
+              (navigation as any).navigate('ServiceReviews', {
+                serviceType: 'parking',
+                serviceId: spaceId,
+                serviceName: space.name,
+              })
+            }
+            activeOpacity={0.7}
+          >
+            <Ionicons name="star-outline" size={18} color={COLORS.electricTeal} />
+            <Text style={styles.reviewsLinkText}>Browse reviews</Text>
+            <Ionicons name="chevron-forward" size={16} color={COLORS.textTertiary} />
+          </TouchableOpacity>
         </View>
 
         {/* Booking dates */}
@@ -526,6 +542,23 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.sm, gap: SPACING.sm,
   },
   infoText: { color: COLORS.textPrimary, fontSize: FONT_SIZES.label, flex: 1 },
+  reviewsLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    marginTop: SPACING.md,
+    padding: SPACING.md,
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  reviewsLinkText: {
+    flex: 1,
+    color: COLORS.electricTeal,
+    fontSize: FONT_SIZES.label,
+    fontWeight: FONT_WEIGHTS.semibold,
+  },
 
   // Pricing
   pricingSection: { paddingHorizontal: SPACING.lg, marginBottom: SPACING.xl },

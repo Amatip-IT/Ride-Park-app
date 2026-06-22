@@ -11,17 +11,24 @@ import {
   UseGuards,
   Query,
   Req,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { UsersService } from './users.service';
 import { User } from 'src/schemas/user.schema';
 import type { UserDocument } from 'src/schemas/user.schema';
 import { AdminGuard } from 'src/guards/admin.guard';
 import { AuthGuard } from 'src/guards/auth.guard';
 import { CreateUserDto } from './dto/create-user.dto';
+import { FileUploadService } from 'src/verification/services/file/file-upload.service';
 
 @Controller('users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly fileUploadService: FileUploadService,
+  ) {}
 
   //route to login a user
   @Post('login')
@@ -115,6 +122,47 @@ export class UsersController {
       throw new HttpException({ message: result.message }, HttpStatus.NOT_FOUND);
     }
     return result;
+  }
+
+  /**
+   * POST /users/upload-file
+   * Upload a profile photo or dispute evidence file to S3
+   */
+  @Post('upload-file')
+  @UseGuards(AuthGuard)
+  @UseInterceptors(FileInterceptor('file'))
+  async uploadFile(@Req() req: any, @UploadedFile() file: any) {
+    if (!file) {
+      throw new HttpException({ message: 'No file provided' }, HttpStatus.BAD_REQUEST);
+    }
+
+    const userId = req.user._id || req.user.id;
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+
+    if (!this.fileUploadService.validateFileType(file, allowedTypes)) {
+      throw new HttpException(
+        { message: 'Invalid file type. Only JPEG, PNG, WEBP and PDF are allowed.' },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (!this.fileUploadService.validateFileSize(file, 10)) {
+      throw new HttpException(
+        { message: 'File too large. Maximum size is 10MB.' },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    try {
+      const folder = `user-uploads/${userId}`;
+      const url = await this.fileUploadService.uploadFile(file, folder);
+      return { success: true, url, message: 'File uploaded successfully' };
+    } catch (error) {
+      throw new HttpException(
+        { message: `Upload failed: ${error instanceof Error ? error.message : 'Unknown error'}` },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
   // Update own profile (or save push tokens)

@@ -44,6 +44,27 @@ export const authApi = {
 export const usersApi = {
   updatePushToken: (pushToken: string) =>
     api.patch<ApiResponse>('/users/profile', { pushToken }),
+
+  uploadFile: async (formData: FormData) => {
+    const { useAuthStore } = require('@/store/authStore');
+    const token = useAuthStore.getState().token;
+    const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5001/api';
+
+    const response = await fetch(`${API_BASE_URL}/users/upload-file`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: formData,
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw { message: data?.message || `Upload failed (HTTP ${response.status})` };
+    }
+    return { data };
+  },
 };
 
 export const searchApi = {
@@ -100,6 +121,10 @@ export const bookingsApi = {
   // Consumer cancels a booking
   cancelBooking: (id: string) =>
     api.patch<ApiResponse>(`/bookings/${id}/cancel`),
+
+  // Receipt for completed parking or chauffeur booking
+  getReceipt: (bookingId: string) =>
+    api.get<ApiResponse>(`/bookings/${bookingId}/receipt`),
 };
 
 export const driverApi = {

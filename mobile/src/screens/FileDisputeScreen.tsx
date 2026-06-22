@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView,
-  Alert, Platform, ActivityIndicator,
+  Alert, Platform, ActivityIndicator, Image,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { disputesApi } from '@/api';
+import { uploadFileToS3 } from '@/utils/uploadFile';
 import { COLORS, SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -17,6 +19,8 @@ const CATEGORIES = [
   { id: 'other', label: 'Other' },
 ];
 
+type EvidenceItem = { uri: string; name: string };
+
 export function FileDisputeScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
@@ -27,7 +31,36 @@ export function FileDisputeScreen() {
   const [complaintAbout, setComplaintAbout] = useState(prefill.complaintAbout || '');
   const [relatedServiceType, setRelatedServiceType] = useState(prefill.relatedServiceType || '');
   const [relatedServiceId, setRelatedServiceId] = useState(prefill.relatedServiceId || '');
+  const [evidence, setEvidence] = useState<EvidenceItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
+
+  const pickEvidence = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Required', 'Please allow photo library access to attach evidence.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsMultipleSelection: true,
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets?.length) {
+      setEvidence((prev) => [
+        ...prev,
+        ...result.assets.map((asset, i) => ({
+          uri: asset.uri,
+          name: asset.fileName || `evidence_${Date.now()}_${i}.jpg`,
+        })),
+      ]);
+    }
+  };
+
+  const removeEvidence = (index: number) => {
+    setEvidence((prev) => prev.filter((_, i) => i !== index));
+  };
 
   const handleSubmit = async () => {
     if (!description.trim()) {
@@ -37,12 +70,19 @@ export function FileDisputeScreen() {
 
     setSubmitting(true);
     try {
+      const evidenceUrls: string[] = [];
+      for (const item of evidence) {
+        const url = await uploadFileToS3(item.uri, item.name);
+        evidenceUrls.push(url);
+      }
+
       const res = await disputesApi.fileDispute({
         category,
         description: description.trim(),
         complaintAbout: complaintAbout.trim() || undefined,
         relatedServiceType: relatedServiceType.trim() || undefined,
         relatedServiceId: relatedServiceId.trim() || undefined,
+        evidenceUrls: evidenceUrls.length ? evidenceUrls : undefined,
         metadata: prefill.metadata,
       });
       if (res.data?.success) {
@@ -52,8 +92,8 @@ export function FileDisputeScreen() {
       } else {
         Alert.alert('Error', res.data?.message || 'Failed to submit dispute');
       }
-    } catch {
-      Alert.alert('Error', 'Failed to submit dispute');
+    } catch (err: any) {
+      Alert.alert('Error', err?.message || 'Failed to submit dispute');
     } finally {
       setSubmitting(false);
     }
@@ -92,6 +132,24 @@ export function FileDisputeScreen() {
           multiline
           textAlignVertical="top"
         />
+
+        <Text style={styles.label}>Evidence (optional)</Text>
+        <TouchableOpacity style={styles.evidenceBtn} onPress={pickEvidence}>
+          <Ionicons name="images-outline" size={20} color={COLORS.electricTeal} />
+          <Text style={styles.evidenceBtnText}>Add photos</Text>
+        </TouchableOpacity>
+        {evidence.length > 0 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.evidenceRow}>
+            {evidence.map((item, index) => (
+              <View key={`${item.uri}-${index}`} style={styles.evidenceThumbWrap}>
+                <Image source={{ uri: item.uri }} style={styles.evidenceThumb} />
+                <TouchableOpacity style={styles.removeEvidence} onPress={() => removeEvidence(index)}>
+                  <Ionicons name="close-circle" size={22} color={COLORS.error} />
+                </TouchableOpacity>
+              </View>
+            ))}
+          </ScrollView>
+        )}
 
         <Text style={styles.label}>User ID to complain about (optional)</Text>
         <TextInput
@@ -157,6 +215,17 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: COLORS.border, marginBottom: SPACING.md,
   },
   textArea: { minHeight: 120 },
+  evidenceBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
+    padding: SPACING.md, borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1, borderColor: COLORS.electricTeal, marginBottom: SPACING.md,
+    backgroundColor: `${COLORS.electricTeal}10`,
+  },
+  evidenceBtnText: { color: COLORS.electricTeal, fontWeight: FONT_WEIGHTS.semibold },
+  evidenceRow: { marginBottom: SPACING.md },
+  evidenceThumbWrap: { marginRight: SPACING.sm, position: 'relative' },
+  evidenceThumb: { width: 80, height: 80, borderRadius: BORDER_RADIUS.md },
+  removeEvidence: { position: 'absolute', top: -6, right: -6 },
   submitBtn: {
     backgroundColor: COLORS.electricTeal, borderRadius: BORDER_RADIUS.md,
     padding: SPACING.md, alignItems: 'center', marginTop: SPACING.lg,

@@ -187,20 +187,31 @@ export function BookingsScreen() {
           </View>
         )}
 
-        {booking.status === 'completed' && booking.provider?._id && (
-          <TouchableOpacity
-            style={styles.trackBtn}
-            onPress={() => setRatingTarget({
-              subjectName: providerName,
-              subjectId: booking.provider._id,
-              bookingId: booking._id,
-              serviceType: booking.serviceType === 'parking' ? 'parking' : 'driver',
-              title: booking.serviceType === 'parking' ? 'Rate Parking Provider' : 'Rate Your Driver',
-            })}
-          >
-            <Ionicons name="star-outline" size={16} color={COLORS.amber} />
-            <Text style={[styles.trackBtnText, { color: COLORS.amber }]}>Leave a Review</Text>
-          </TouchableOpacity>
+        {booking.status === 'completed' && (
+          <>
+            <TouchableOpacity
+              style={styles.trackBtn}
+              onPress={() => navigation.navigate('TripReceipt', { bookingId: booking._id })}
+            >
+              <Ionicons name="receipt-outline" size={16} color={COLORS.electricTeal} />
+              <Text style={styles.trackBtnText}>View Receipt</Text>
+            </TouchableOpacity>
+            {booking.provider?._id && (
+              <TouchableOpacity
+                style={styles.trackBtn}
+                onPress={() => setRatingTarget({
+                  subjectName: providerName,
+                  subjectId: booking.provider._id,
+                  bookingId: booking._id,
+                  serviceType: booking.serviceType === 'parking' ? 'parking' : 'driver',
+                  title: booking.serviceType === 'parking' ? 'Rate Parking Provider' : 'Rate Your Driver',
+                })}
+              >
+                <Ionicons name="star-outline" size={16} color={COLORS.amber} />
+                <Text style={[styles.trackBtnText, { color: COLORS.amber }]}>Leave a Review</Text>
+              </TouchableOpacity>
+            )}
+          </>
         )}
 
         {/* Cancel button for active bookings */}

@@ -1,20 +1,20 @@
-// Color Palette - Clean White Theme
-export const COLORS = {
+// Color Palette - Light Theme
+export const LIGHT_COLORS = {
   // Primary
-  deepNavy: '#1A1A2E',        // Dark text / accents
-  electricTeal: '#00B4A0',    // Primary action color
-  cloudWhite: '#F5F8FF',      // Text on dark backgrounds
-  steelBlue: '#1A3C6E',       // Dark header accents
+  deepNavy: '#1A1A2E',
+  electricTeal: '#00B4A0',
+  cloudWhite: '#F5F8FF',
+  steelBlue: '#1A3C6E',
 
   // Light Theme Backgrounds
-  background: '#FFFFFF',       // Main white background
-  surface: '#F7F8FA',         // Card / section backgrounds
-  surfaceAlt: '#ECEEF2',      // Alternate surfaces (search bar, etc.)
+  background: '#FFFFFF',
+  surface: '#F7F8FA',
+  surfaceAlt: '#ECEEF2',
 
   // Text Colors
-  textPrimary: '#1A1A2E',     // Main text (dark)
-  textSecondary: '#64748B',   // Secondary / muted text
-  textTertiary: '#94A3B8',    // Hint / placeholder text
+  textPrimary: '#1A1A2E',
+  textSecondary: '#64748B',
+  textTertiary: '#94A3B8',
 
   // Secondary
   softSlate: '#8899BB',
@@ -30,6 +30,43 @@ export const COLORS = {
   border: '#E5E7EB',
   divider: '#F1F3F5',
 };
+
+// Color Palette - Dark Theme
+export const DARK_COLORS = {
+  deepNavy: '#F5F8FF',
+  electricTeal: '#00C2A8',
+  cloudWhite: '#1A1A2E',
+  steelBlue: '#7EB8FF',
+
+  background: '#0D1B2A',
+  surface: '#1B2838',
+  surfaceAlt: '#243447',
+
+  textPrimary: '#F1F5F9',
+  textSecondary: '#94A3B8',
+  textTertiary: '#64748B',
+
+  softSlate: '#8899BB',
+  amber: '#F39C12',
+  coralRed: '#E74C3C',
+
+  success: '#10B981',
+  warning: '#F39C12',
+  error: '#E74C3C',
+  info: '#60A5FA',
+  placeholder: '#64748B',
+  border: '#2D3F54',
+  divider: '#1E2D3D',
+};
+
+export type ThemeColors = typeof LIGHT_COLORS;
+
+/** @deprecated Use useThemeColors() for theme-aware colors */
+export const COLORS = LIGHT_COLORS;
+
+export function getThemeColors(isDarkMode: boolean): ThemeColors {
+  return isDarkMode ? DARK_COLORS : LIGHT_COLORS;
+}
 
 // Spacing scale
 export const SPACING = {

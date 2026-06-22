@@ -5,6 +5,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StripeProvider } from '@stripe/stripe-react-native';
 import { RootNavigator } from '@/navigation/RootNavigator';
 import { useAuthStore } from '@/store/authStore';
+import { useUIStore } from '@/store/index';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 
 SplashScreen.preventAutoHideAsync();
@@ -14,11 +15,12 @@ const STRIPE_PUBLISHABLE_KEY =
 
 function AppContent() {
   const { isAuthenticated } = useAuthStore();
+  const isDarkMode = useUIStore((s) => s.isDarkMode);
   usePushNotifications(isAuthenticated);
 
   return (
     <>
-      <StatusBar style="light" />
+      <StatusBar style={isDarkMode ? 'light' : 'dark'} />
       <RootNavigator />
     </>
   );
@@ -26,10 +28,12 @@ function AppContent() {
 
 export default function App() {
   const { restoreToken, isLoading } = useAuthStore();
+  const hydrateDarkMode = useUIStore((s) => s.hydrateDarkMode);
 
   useEffect(() => {
     restoreToken();
-  }, [restoreToken]);
+    hydrateDarkMode();
+  }, [restoreToken, hydrateDarkMode]);
 
   useEffect(() => {
     if (!isLoading) {

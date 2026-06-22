@@ -703,4 +703,96 @@ export class BookingsService {
       };
     }
   }
+
+  /**
+   * Receipt for a completed parking or chauffeur (driver) booking
+   */
+  async getBookingReceipt(
+    bookingId: string,
+    requestingUserId: string,
+  ): Promise<Response> {
+    try {
+      const booking = await this.bookingModel
+        .findById(bookingId)
+        .populate('requester', 'firstName lastName email phoneNumber')
+        .populate('provider', 'firstName lastName email phoneNumber')
+        .exec();
+
+      if (!booking) {
+        return { success: false, message: 'Booking not found' };
+      }
+
+      if (!['parking', 'driver'].includes(booking.serviceType)) {
+        return {
+          success: false,
+          message: 'Use the trip receipt endpoint for taxi bookings',
+        };
+      }
+
+      const requesterId =
+        (booking.requester as any)?._id?.toString() || booking.requester.toString();
+      const providerId = booking.provider
+        ? (booking.provider as any)?._id?.toString() || booking.provider.toString()
+        : null;
+
+      if (
+        requestingUserId !== requesterId &&
+        (!providerId || requestingUserId !== providerId)
+      ) {
+        return { success: false, message: 'You do not have access to this receipt' };
+      }
+
+      if (booking.status !== 'completed') {
+        return {
+          success: false,
+          message: 'Receipt is available after the booking is completed',
+        };
+      }
+
+      const requester = booking.requester as any;
+      const provider = booking.provider as any;
+      const isRequester = requestingUserId === requesterId;
+
+      const receipt = {
+        bookingId: booking._id.toString(),
+        role: isRequester ? 'passenger' : 'provider',
+        serviceType: booking.serviceType,
+        serviceName: booking.serviceName || (booking.serviceType === 'parking' ? 'Parking' : 'Chauffeur'),
+        completedAt: booking.completedAt,
+        startDate: booking.startDate,
+        endDate: booking.endDate,
+        requester: {
+          name: `${requester?.firstName || ''} ${requester?.lastName || ''}`.trim(),
+          email: requester?.email,
+        },
+        provider: {
+          name: provider
+            ? `${provider.firstName || ''} ${provider.lastName || ''}`.trim()
+            : undefined,
+          email: provider?.email,
+        },
+        quotedPrice: booking.quotedPrice,
+        pricingUnit: booking.pricingUnit,
+        totalCost: booking.quotedPrice,
+        paymentIntentId: booking.paymentIntentId,
+        paymentStatus: booking.paymentIntentId ? 'charged' : 'pending',
+        paymentNote: booking.paymentIntentId
+          ? isRequester
+            ? 'Charged to your saved payment method.'
+            : 'Earnings credited to your wallet (after platform fee).'
+          : 'No payment record on file for this booking.',
+      };
+
+      return {
+        success: true,
+        data: receipt,
+        message: 'Booking receipt',
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: `Failed to load receipt: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      };
+    }
+  }
 }
