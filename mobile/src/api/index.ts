@@ -168,19 +168,44 @@ export const providerApi = {
     const { useAuthStore } = require('@/store/authStore');
     const token = useAuthStore.getState().token;
     const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5001/api';
-    
-    const response = await fetch(`${API_BASE_URL}/provider/upload-document`, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: formData,
-    });
-    
-    const data = await response.json();
+    const url = `${API_BASE_URL}/provider/upload-document`;
+
+    let response: globalThis.Response;
+    try {
+      response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+    } catch (networkErr: any) {
+      throw {
+        message:
+          `Network request failed — cannot reach ${API_BASE_URL}. ` +
+          'Check that the backend is running and the API URL is correct. ' +
+          `(${networkErr?.message || 'network error'})`,
+        isNetworkError: true,
+      };
+    }
+
+    let data: any;
+    try {
+      data = await response.json();
+    } catch {
+      throw {
+        message: `Server returned non-JSON response (HTTP ${response.status}) from ${url}`,
+        status: response.status,
+      };
+    }
+
     if (!response.ok) {
-      throw { response: { data } };
+      throw {
+        response: { data },
+        message: data?.message || `Upload failed with HTTP ${response.status}`,
+        status: response.status,
+      };
     }
     return { data };
   },

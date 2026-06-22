@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView,
-  ActivityIndicator, Alert, FlatList,
+  ActivityIndicator, Alert,
 } from 'react-native';
 import { adminApi } from '@/api';
 import { COLORS, SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '@/constants/theme';
@@ -399,13 +399,10 @@ export function AdminMessagingScreen() {
           onChangeText={setUserSearch}
           returnKeyType="search"
         />
-        <FlatList
-          data={filteredUsers}
-          keyExtractor={item => item._id}
-          style={{ maxHeight: 280 }}
-          keyboardShouldPersistTaps="handled"
-          renderItem={({ item }) => (
+        <ScrollView style={{ maxHeight: 280 }} nestedScrollEnabled keyboardShouldPersistTaps="handled">
+          {filteredUsers.map(item => (
             <TouchableOpacity
+              key={item._id}
               style={styles.userRow}
               onPress={() => {
                 setSelectedUser(item);
@@ -416,8 +413,8 @@ export function AdminMessagingScreen() {
               <Text style={styles.userRowName}>{item.firstName} {item.lastName}</Text>
               <Text style={styles.userRowEmail}>{item.email}</Text>
             </TouchableOpacity>
-          )}
-        />
+          ))}
+        </ScrollView>
       </AdminFormModal>
 
       <AdminFormModal

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { User, UserRole } from '@/types';
 import { secureStorage } from '@/utils/secureStorage';
 import { authService } from '@/api/authService';
+import { useBookingStore, useVerificationStore, useUIStore } from '@/store/index';
 
 interface AuthStore {
   user: User | null;
@@ -57,15 +58,23 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     try {
       await secureStorage.removeItem('authToken');
       await secureStorage.removeItem(AUTH_USER_KEY);
-      set({
-        user: null,
-        token: null,
-        isAuthenticated: false,
-        error: null,
-      });
-    } catch (error) {
-      set({ error: 'Failed to logout' });
+    } catch {
+      // Storage cleanup is best-effort
     }
+    try {
+      useBookingStore.getState().setBookings([]);
+      useBookingStore.getState().setCurrentBooking(null);
+      useVerificationStore.getState().resetFlow();
+      useUIStore.getState().clearToast();
+    } catch {
+      // Store resets are best-effort
+    }
+    set({
+      user: null,
+      token: null,
+      isAuthenticated: false,
+      error: null,
+    });
   },
 
   restoreToken: async () => {

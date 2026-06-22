@@ -80,6 +80,10 @@ export class TaxiRideRequest {
   @Prop({ type: String })
   passengerNote?: string;
 
+  // ── Targeted driver (when passenger picks a specific driver) ──
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User' })
+  targetDriver?: string;
+
   // ── The driver who accepted ──
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User' })
   acceptedDriver?: string;

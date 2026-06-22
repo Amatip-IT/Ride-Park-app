@@ -93,7 +93,7 @@ export class UsersController {
     @Query('firstName') firstName?: string,
     @Query('lastName') lastName?: string,
   ) {
-    return this.usersService.findAll(role, username, firstName, lastName);
+    return this.usersService.findAll(role, firstName, lastName, username);
   }
 
   @Get('profile')

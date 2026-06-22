@@ -9,6 +9,7 @@ if (__DEV__) {
 
 class ApiClient {
   private client: AxiosInstance;
+  private isLoggingOut = false;
 
   constructor() {
     this.client = axios.create({
@@ -38,9 +39,11 @@ class ApiClient {
       (response) => response,
       (error: AxiosError) => {
         // Handle 401 Unauthorized - Token expired or invalid
-        if (error.response?.status === 401) {
-          useAuthStore.getState().logout();
-          // Optionally redirect to login screen
+        if (error.response?.status === 401 && !this.isLoggingOut) {
+          this.isLoggingOut = true;
+          useAuthStore.getState().logout().finally(() => {
+            this.isLoggingOut = false;
+          });
         }
 
         const isTimeout =

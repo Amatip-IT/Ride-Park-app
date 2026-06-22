@@ -39,6 +39,42 @@ function formatValue(value: unknown): string {
   return String(value);
 }
 
+function PresignedImage({ url, style }: { url: string; style?: any }) {
+  const [presignedUrl, setPresignedUrl] = useState<string | null>(null);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await adminApi.getPresignedUrl(url);
+        if (!cancelled) setPresignedUrl(res.data?.url || url);
+      } catch {
+        if (!cancelled) setError(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [url]);
+
+  if (error) {
+    return (
+      <View style={[style, { justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.surfaceAlt }]}>
+        <Ionicons name="image-outline" size={24} color={COLORS.textTertiary} />
+      </View>
+    );
+  }
+
+  if (!presignedUrl) {
+    return (
+      <View style={[style, { justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.surfaceAlt }]}>
+        <ActivityIndicator size="small" color={COLORS.electricTeal} />
+      </View>
+    );
+  }
+
+  return <Image source={{ uri: presignedUrl }} style={style} resizeMode="cover" />;
+}
+
 function DetailRow({ label, value }: DetailField) {
   const display = formatValue(value);
   return (
@@ -245,7 +281,7 @@ export function AdminVerificationQueueScreen() {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photoScroll}>
           {urls.map((url, idx) => (
             <TouchableOpacity key={`${url}-${idx}`} onPress={() => openDocument(url)} activeOpacity={0.85}>
-              <Image source={{ uri: url }} style={styles.photoThumb} resizeMode="cover" />
+              <PresignedImage url={url} style={styles.photoThumb} />
             </TouchableOpacity>
           ))}
         </ScrollView>

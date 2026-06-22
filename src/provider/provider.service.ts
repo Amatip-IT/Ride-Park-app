@@ -75,10 +75,12 @@ export class ProviderService {
       if (record) {
         for (const field of VALID_DOC_FIELDS) {
           docs[field] = record[field] || null;
-          if (record.documentStatuses?.[field]) {
-            docStatuses[field] = record.documentStatuses[field];
+          const raw = record.documentStatuses?.[field];
+          if (raw) {
+            docStatuses[field] = typeof raw === 'object' && raw !== null && raw.status
+              ? raw.status
+              : raw;
           } else if (record[field]) {
-            // Backward compatibility: if doc exists but no per-doc status, derive from overall status
             docStatuses[field] = record.status === 'approved' ? 'verified' : 'uploaded';
           }
         }

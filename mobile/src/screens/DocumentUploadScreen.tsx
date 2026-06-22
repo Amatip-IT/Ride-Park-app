@@ -149,8 +149,14 @@ export function DocumentUploadScreen() {
         Alert.alert('Error', res.data?.message || 'Failed to upload document.');
       }
     } catch (error: any) {
-      const message = error?.response?.data?.message || error?.message || 'Failed to upload document. Try again.';
-      Alert.alert('Error', message);
+      const isNetwork = error?.isNetworkError ||
+        error?.message?.toLowerCase().includes('network request failed') ||
+        error?.message?.toLowerCase().includes('cannot reach');
+      const title = isNetwork ? 'Connection Error' : 'Upload Failed';
+      const message = isNetwork
+        ? (error?.message || 'Cannot reach the server. Make sure the backend is running and your device is on the same Wi-Fi network.')
+        : (error?.response?.data?.message || error?.message || 'Failed to upload document. Try again.');
+      Alert.alert(title, message);
     } finally {
       setIsUploading(false);
     }

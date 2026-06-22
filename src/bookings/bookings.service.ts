@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { BookingRequest, BookingRequestDocument } from 'src/schemas/booking-request.schema';
 import { ParkingSpace, ParkingSpaceDocument } from 'src/schemas/parking-space.schema';
+import { Chauffeur, ChauffeurDocument } from 'src/schemas/chauffeur.schema';
 import { NotificationsService } from 'src/notifications/notifications.service';
 import { WalletService } from 'src/wallet/wallet.service';
 import { PaymentsService } from 'src/payments/payments.service';
@@ -15,6 +16,7 @@ export class BookingsService {
   constructor(
     @InjectModel(BookingRequest.name) private bookingModel: Model<BookingRequestDocument>,
     @InjectModel(ParkingSpace.name) private parkingSpaceModel: Model<ParkingSpaceDocument>,
+    @InjectModel(Chauffeur.name) private chauffeurModel: Model<ChauffeurDocument>,
     private readonly notificationsService: NotificationsService,
     private readonly walletService: WalletService,
     private readonly paymentsService: PaymentsService,
@@ -79,10 +81,16 @@ export class BookingsService {
           pricingUnit = 'per_hour';
         }
       } else if (data.serviceType === 'driver') {
-        // Driver request — no specific provider yet (broadcast)
         serviceName = 'Driver Request';
         pricingUnit = 'per_mile';
         quotedPrice = 1.10;
+
+        if (data.serviceId) {
+          const chauffeurRecord = await this.chauffeurModel.findById(data.serviceId);
+          if (chauffeurRecord) {
+            providerId = chauffeurRecord.user.toString();
+          }
+        }
       } else {
         // Taxi request — no specific provider yet (broadcast)
         serviceName = `Taxi Request${data.taxiType ? ` (${data.taxiType})` : ''}`;
