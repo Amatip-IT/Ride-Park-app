@@ -18,6 +18,7 @@ import { ProviderService } from './provider.service';
 import { FileUploadService } from '../verification/services/file/file-upload.service';
 import { AuthGuard } from 'src/guards/auth.guard';
 import { AdminGuard } from 'src/guards/admin.guard';
+import { ProviderGuard } from 'src/guards/provider.guard';
 
 @Controller('provider')
 @UseGuards(AuthGuard)
@@ -42,9 +43,10 @@ export class ProviderController {
 
   /**
    * GET /provider/earnings
-   * Get earnings history and stats for the provider
+   * Wallet-backed earnings for providers (net of platform fees)
    */
   @Get('earnings')
+  @UseGuards(ProviderGuard)
   async getEarnings(@Req() req: any) {
     const user = req.user;
     return this.providerService.getEarnings(user._id || user.id);
@@ -239,7 +241,7 @@ export class ProviderController {
   @Post('toggle-status')
   async toggleStatus(
     @Req() req: any,
-    @Body() body: { status: 'online' | 'offline' },
+    @Body() body: { status: 'online' | 'offline'; lat?: number; lng?: number },
   ) {
     const user = req.user;
     const userId = user._id || user.id;
@@ -251,7 +253,54 @@ export class ProviderController {
       );
     }
 
-    const result = await this.providerService.toggleAvailability(userId, user.role, body.status);
+    const location =
+      body.lat != null && body.lng != null
+        ? { lat: Number(body.lat), lng: Number(body.lng) }
+        : undefined;
+
+    const result = await this.providerService.toggleAvailability(
+      userId,
+      user.role,
+      body.status,
+      location,
+    );
+    if (!result.success) {
+      throw new HttpException(result, HttpStatus.BAD_REQUEST);
+    }
+    return result;
+  }
+
+  /**
+   * POST /provider/location
+   * Update live GPS coordinates for nearby matching
+   */
+  @Post('location')
+  async updateLocation(
+    @Req() req: any,
+    @Body() body: { lat: number; lng: number },
+  ) {
+    const user = req.user;
+    const userId = user._id || user.id;
+
+    if (!['driver', 'taxi_driver'].includes(user.role)) {
+      throw new HttpException(
+        { message: 'Only drivers and taxi drivers can update location' },
+        HttpStatus.FORBIDDEN,
+      );
+    }
+
+    if (body.lat == null || body.lng == null) {
+      throw new HttpException(
+        { message: 'lat and lng are required' },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const result = await this.providerService.updateDriverLocation(
+      userId,
+      user.role,
+      { lat: Number(body.lat), lng: Number(body.lng) },
+    );
     if (!result.success) {
       throw new HttpException(result, HttpStatus.BAD_REQUEST);
     }

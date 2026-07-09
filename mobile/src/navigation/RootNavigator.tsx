@@ -29,6 +29,7 @@ import { PassengerTrackingScreen } from '@/screens/PassengerTrackingScreen';
 import { TripReceiptScreen } from '@/screens/TripReceiptScreen';
 import { ServiceReviewsScreen } from '@/screens/ServiceReviewsScreen';
 import { MapPreviewScreen } from '@/screens/MapPreviewScreen';
+import { QuickRideScreen } from '@/screens/QuickRideScreen';
 import { ChatListScreen } from '@/screens/ChatListScreen';
 import { ChatScreen } from '@/screens/ChatScreen';
 import { ProviderHomeScreen } from '@/screens/ProviderHomeScreen';
@@ -153,6 +154,7 @@ const ConsumerNavigator = () => (
     <ConsumerStack.Screen name="ServiceChoice" component={ServiceChoiceScreen} />
     <ConsumerStack.Screen name="DriverRequest" component={DriverRequestScreen} />
     <ConsumerStack.Screen name="TaxiBooking" component={TaxiBookingScreen} />
+    <ConsumerStack.Screen name="QuickRide" component={QuickRideScreen} />
     {/* Search result details */}
     <ConsumerStack.Screen name="ParkingDetail" component={ParkingDetailScreen} />
     <ConsumerStack.Screen name="ServiceReviews" component={ServiceReviewsScreen} />

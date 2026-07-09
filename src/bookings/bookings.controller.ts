@@ -13,6 +13,7 @@ import {
 } from '@nestjs/common';
 import { BookingsService } from './bookings.service';
 import { AuthGuard } from 'src/guards/auth.guard';
+import { getRequestUserId } from 'src/common/request.util';
 
 @Controller('bookings')
 @UseGuards(AuthGuard)
@@ -50,13 +51,13 @@ export class BookingsController {
     }
 
     const result = await this.bookingsService.createBookingRequest({
-      requesterId: req.user._id || req.user.id,
+      requesterId: getRequestUserId(req),
       ...body,
     });
 
     if (!result.success) {
       throw new HttpException(
-        { message: result.message },
+        { success: false, message: result.message },
         HttpStatus.BAD_REQUEST,
       );
     }
@@ -73,7 +74,7 @@ export class BookingsController {
     @Query('status') status?: string,
   ) {
     return this.bookingsService.getMyBookings(
-      req.user._id || req.user.id,
+      getRequestUserId(req),
       status,
     );
   }
@@ -88,7 +89,7 @@ export class BookingsController {
     @Query('status') status?: string,
   ) {
     return this.bookingsService.getProviderRequests(
-      req.user._id || req.user.id,
+      getRequestUserId(req),
       status,
     );
   }
@@ -112,14 +113,14 @@ export class BookingsController {
 
     const result = await this.bookingsService.respondToRequest(
       id,
-      req.user._id || req.user.id,
+      getRequestUserId(req),
       body.action,
       body.responseMessage,
     );
 
     if (!result.success) {
       throw new HttpException(
-        { message: result.message },
+        { success: false, message: result.message },
         HttpStatus.BAD_REQUEST,
       );
     }
@@ -137,12 +138,58 @@ export class BookingsController {
   ) {
     const result = await this.bookingsService.completeBooking(
       id,
-      req.user._id || req.user.id,
+      getRequestUserId(req),
     );
 
     if (!result.success) {
       throw new HttpException(
-        { message: result.message },
+        { success: false, message: result.message },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    return result;
+  }
+
+  /**
+   * POST /bookings/:id/confirm-arrival
+   * Consumer confirms they are at the service location
+   */
+  @Post(':id/confirm-arrival')
+  async confirmArrival(
+    @Req() req: any,
+    @Param('id') id: string,
+  ) {
+    const result = await this.bookingsService.confirmBookingArrival(
+      id,
+      getRequestUserId(req),
+    );
+
+    if (!result.success) {
+      throw new HttpException(
+        { success: false, message: result.message },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    return result;
+  }
+
+  /**
+   * POST /bookings/:id/pay
+   * Consumer confirms payment for a booking awaiting payment
+   */
+  @Post(':id/pay')
+  async payBooking(
+    @Req() req: any,
+    @Param('id') id: string,
+  ) {
+    const result = await this.bookingsService.payBooking(
+      id,
+      getRequestUserId(req),
+    );
+
+    if (!result.success) {
+      throw new HttpException(
+        { success: false, message: result.message },
         HttpStatus.BAD_REQUEST,
       );
     }
@@ -157,12 +204,12 @@ export class BookingsController {
   async getBookingReceipt(@Req() req: any, @Param('id') id: string) {
     const result = await this.bookingsService.getBookingReceipt(
       id,
-      req.user._id || req.user.id,
+      getRequestUserId(req),
     );
 
     if (!result.success) {
       throw new HttpException(
-        { message: result.message },
+        { success: false, message: result.message },
         HttpStatus.BAD_REQUEST,
       );
     }
@@ -180,12 +227,12 @@ export class BookingsController {
   ) {
     const result = await this.bookingsService.cancelBooking(
       id,
-      req.user._id || req.user.id,
+      getRequestUserId(req),
     );
 
     if (!result.success) {
       throw new HttpException(
-        { message: result.message },
+        { success: false, message: result.message },
         HttpStatus.BAD_REQUEST,
       );
     }

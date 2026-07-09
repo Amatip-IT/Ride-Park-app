@@ -1,15 +1,20 @@
-import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
+import { Injectable, HttpException, HttpStatus, InternalServerErrorException, Logger } from '@nestjs/common';
 import Stripe from 'stripe';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { User, UserDocument } from 'src/schemas/user.schema';
+import { Ride, RideDocument } from 'src/schemas/ride.schema';
+import { Transaction, TransactionDocument } from 'src/schemas/transaction.schema';
 
 @Injectable()
 export class PaymentsService {
   private stripe: Stripe;
+  private readonly logger = new Logger(PaymentsService.name);
 
   constructor(
     @InjectModel(User.name) private userModel: Model<UserDocument>,
+    @InjectModel(Ride.name) private rideModel: Model<RideDocument>,
+    @InjectModel(Transaction.name) private transactionModel: Model<TransactionDocument>,
   ) {
     const key = process.env.STRIPE_SECRET_KEY;
     if (!key && process.env.NODE_ENV !== 'test') {
@@ -86,7 +91,17 @@ export class PaymentsService {
     }
   }
 
-  async chargeCustomer(userId: string, amount: number, description: string) {
+  async hasPaymentMethod(userId: string): Promise<boolean> {
+    const methods = await this.getPaymentMethods(userId);
+    return methods.length > 0;
+  }
+
+  async chargeCustomer(
+    userId: string,
+    amount: number,
+    description: string,
+    metadata?: Record<string, string>,
+  ) {
     try {
       const customerId = await this.getOrCreateCustomer(userId);
       
@@ -99,14 +114,20 @@ export class PaymentsService {
         throw new HttpException('No payment method found for user. Please add a card before requesting a ride.', HttpStatus.BAD_REQUEST);
       }
 
+      const userIdStr = typeof userId === 'string' ? userId : String(userId);
+
       const paymentIntent = await this.stripe.paymentIntents.create({
-        amount: Math.round(amount * 100), // Stripe expects amounts in pence/cents
+        amount: Math.round(amount * 100),
         currency: 'gbp',
         customer: customerId,
         payment_method: paymentMethods.data[0].id,
         off_session: true,
         confirm: true,
         description,
+        metadata: {
+          userId: userIdStr,
+          ...metadata,
+        },
       });
 
       return paymentIntent;
@@ -116,6 +137,75 @@ export class PaymentsService {
         HttpStatus.BAD_REQUEST
       );
     }
+  }
+
+  verifyPaymentWebhookSignature(
+    payload: string | Buffer,
+    signature: string,
+  ): Stripe.Event {
+    const webhookSecret =
+      process.env.STRIPE_PAYMENTS_WEBHOOK_SECRET ||
+      process.env.STRIPE_WEBHOOK_SECRET;
+
+    if (!webhookSecret) {
+      throw new InternalServerErrorException(
+        'Stripe payments webhook secret not configured',
+      );
+    }
+
+    try {
+      return this.stripe.webhooks.constructEvent(
+        payload,
+        signature,
+        webhookSecret,
+      );
+    } catch (error) {
+      this.logger.error('Payment webhook signature verification failed', error);
+      throw new InternalServerErrorException('Invalid webhook signature');
+    }
+  }
+
+  async handlePaymentWebhookEvent(event: Stripe.Event): Promise<void> {
+    const paymentIntent = event.data.object as Stripe.PaymentIntent;
+
+    switch (event.type) {
+      case 'payment_intent.succeeded':
+        await this.onPaymentIntentSucceeded(paymentIntent);
+        break;
+      case 'payment_intent.payment_failed':
+        await this.onPaymentIntentFailed(paymentIntent);
+        break;
+      default:
+        this.logger.debug(`Unhandled payment webhook event: ${event.type}`);
+    }
+  }
+
+  private async onPaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent) {
+    if (paymentIntent.metadata?.type === 'ride' && paymentIntent.metadata?.rideId) {
+      await this.rideModel.findByIdAndUpdate(paymentIntent.metadata.rideId, {
+        paymentStatus: 'charged',
+        paymentIntentId: paymentIntent.id,
+      });
+    }
+
+    await this.transactionModel.updateOne(
+      { referenceId: paymentIntent.id },
+      { $set: { status: 'completed' } },
+    );
+  }
+
+  private async onPaymentIntentFailed(paymentIntent: Stripe.PaymentIntent) {
+    if (paymentIntent.metadata?.type === 'ride' && paymentIntent.metadata?.rideId) {
+      await this.rideModel.findByIdAndUpdate(paymentIntent.metadata.rideId, {
+        paymentStatus: 'payment_failed',
+        paymentIntentId: paymentIntent.id,
+      });
+    }
+
+    await this.transactionModel.updateOne(
+      { referenceId: paymentIntent.id },
+      { $set: { status: 'failed' } },
+    );
   }
 
   async refundCustomer(paymentIntentId: string): Promise<Stripe.Refund> {

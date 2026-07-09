@@ -7,7 +7,9 @@ import { Chauffeur, ChauffeurDocument } from 'src/schemas/chauffeur.schema';
 import { Taxi, TaxiDocument } from 'src/schemas/taxi.schema';
 import { User, UserDocument } from 'src/schemas/user.schema';
 import { BookingRequest, BookingRequestDocument } from 'src/schemas/booking-request.schema';
+import { TransactionDocument } from 'src/schemas/transaction.schema';
 import { Response } from 'src/common/interfaces/response.interface';
+import { WalletService } from 'src/wallet/wallet.service';
 
 // All valid document field names that can be uploaded
 const VALID_DOC_FIELDS = [
@@ -33,6 +35,7 @@ export class ProviderService {
     @InjectModel(Taxi.name) private taxiModel: Model<TaxiDocument>,
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     @InjectModel(BookingRequest.name) private bookingModel: Model<BookingRequestDocument>,
+    private readonly walletService: WalletService,
   ) {}
 
   /**
@@ -109,39 +112,44 @@ export class ProviderService {
   }
 
   /**
-   * Get earnings history and stats for a provider
+   * Provider earnings — sourced from wallet ledger (net of platform fees)
    */
   async getEarnings(userId: string): Promise<Response> {
     try {
-      // Find all completed bookings for this provider
-      const bookings = await this.bookingModel.find({
-        provider: userId,
-        status: { $in: ['completed', 'accepted'] },
-      }).sort({ completedAt: -1, createdAt: -1 }).exec();
+      const wallet = await this.walletService.getWallet(userId);
+      const txResult = await this.walletService.getTransactions(userId);
+      const transactions = (txResult.data || []) as TransactionDocument[];
 
-      let balance = 0;
-      let weeklyEarnings = 0;
-      
       const oneWeekAgo = new Date();
       oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 
-      const transactions = bookings.map(b => {
-        const amount = b.quotedPrice || 0;
-        balance += amount;
-        
-        let dateToUse = b.completedAt || b.createdAt || new Date();
-        if (dateToUse > oneWeekAgo) {
-          weeklyEarnings += amount;
+      let weeklyEarnings = 0;
+
+      const formatted = transactions.map((tx) => {
+        const createdAt = (tx as any).createdAt as Date | undefined;
+        const platformFee = tx.platformFee || 0;
+        const netAmount =
+          tx.type === 'earning' ? tx.amount - platformFee : tx.amount;
+
+        if (
+          tx.type === 'earning' &&
+          tx.status === 'completed' &&
+          createdAt &&
+          createdAt >= oneWeekAgo
+        ) {
+          weeklyEarnings += netAmount;
         }
 
-        // Format dates beautifully directly inside the backend if needed, or pass ISO to frontend.
         return {
-          id: b._id.toString(),
-          type: 'parking',
-          amount: amount,
-          date: dateToUse,
-          title: b.serviceName || 'Parking Booking',
-          status: b.status,
+          id: tx._id.toString(),
+          type: tx.type,
+          grossAmount: tx.amount,
+          netAmount: tx.type === 'earning' ? netAmount : undefined,
+          platformFee: tx.type === 'earning' ? platformFee : undefined,
+          date: createdAt,
+          title: tx.description || tx.type,
+          status: tx.status,
+          referenceId: tx.referenceId,
         };
       });
 
@@ -149,10 +157,11 @@ export class ProviderService {
         success: true,
         message: 'Earnings fetched successfully',
         data: {
-          balance,
-          weeklyEarnings,
-          totalBookings: bookings.length,
-          transactions,
+          balance: wallet.balance,
+          totalGrossEarnings: wallet.totalEarnings,
+          weeklyEarnings: Math.round(weeklyEarnings * 100) / 100,
+          totalBookings: formatted.filter((t) => t.type === 'earning').length,
+          transactions: formatted,
         },
       };
     } catch (error) {
@@ -358,7 +367,12 @@ export class ProviderService {
    * Toggle driver/taxi availability (online/offline)
    * Cannot toggle if currently busy (on a trip)
    */
-  async toggleAvailability(userId: string, role: string, status: 'online' | 'offline'): Promise<Response> {
+  async toggleAvailability(
+    userId: string,
+    role: string,
+    status: 'online' | 'offline',
+    location?: { lat: number; lng: number },
+  ): Promise<Response> {
     try {
       const record: any = role === 'driver'
         ? await this.chauffeurModel.findOne({ user: userId })
@@ -373,6 +387,11 @@ export class ProviderService {
       }
 
       record.availability = status;
+      if (status === 'online' && location?.lat != null && location?.lng != null) {
+        record.location = {
+          coordinates: { lat: location.lat, lng: location.lng },
+        };
+      }
       await record.save();
 
       return {
@@ -384,6 +403,45 @@ export class ProviderService {
       return {
         success: false,
         message: `Failed to toggle status: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      };
+    }
+  }
+
+  /**
+   * Update a driver's live GPS coordinates while online.
+   */
+  async updateDriverLocation(
+    userId: string,
+    role: string,
+    location: { lat: number; lng: number },
+  ): Promise<Response> {
+    try {
+      if (location.lat == null || location.lng == null) {
+        return { success: false, message: 'Valid coordinates are required' };
+      }
+
+      const record: any = role === 'driver'
+        ? await this.chauffeurModel.findOne({ user: userId })
+        : await this.taxiModel.findOne({ user: userId });
+
+      if (!record) {
+        return { success: false, message: 'Provider record not found' };
+      }
+
+      record.location = {
+        coordinates: { lat: location.lat, lng: location.lng },
+      };
+      await record.save();
+
+      return {
+        success: true,
+        data: { location: record.location },
+        message: 'Location updated',
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: `Failed to update location: ${error instanceof Error ? error.message : 'Unknown error'}`,
       };
     }
   }
@@ -501,6 +559,17 @@ export class ProviderService {
             ]),
           ]);
 
+          const occupyingCount = activeCount + completedCount;
+          const availableSpots = Math.max(0, (space.totalSpots || 0) - occupyingCount);
+
+          // Sync the occupiedSpots field if it drifted from actual booking count
+          if (space.occupiedSpots !== occupyingCount) {
+            await this.parkingSpaceModel.findByIdAndUpdate(space._id, {
+              occupiedSpots: occupyingCount,
+              isAvailable: availableSpots > 0,
+            });
+          }
+
           return {
             ...spaceObj,
             stats: {
@@ -508,7 +577,7 @@ export class ProviderService {
               pendingRequests: pendingCount,
               completedBookings: completedCount,
               totalRevenue: totalRevenue.length > 0 ? totalRevenue[0].total : 0,
-              availableSpots: Math.max(0, (space.totalSpots || 0) - (space.occupiedSpots || 0)),
+              availableSpots,
             },
           };
         }),

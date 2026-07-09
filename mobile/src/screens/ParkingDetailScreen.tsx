@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRoute, RouteProp, useNavigation } from '@react-navigation/native';
 import { searchApi, bookingsApi } from '@/api';
 import { calculateBookingPrice, formatCurrency, getApiErrorMessage, openMapsNavigation } from '@/utils/helpers';
+import { useAuthStore } from '@/store/authStore';
 import MapView, { Marker } from 'react-native-maps';
 
 type ParkingDetailParams = {
@@ -60,8 +61,24 @@ export function ParkingDetailScreen() {
   };
 
   const handleSendRequest = async () => {
+    const resolvedSpaceId = space?._id?.toString?.() || spaceId;
+    if (!resolvedSpaceId) {
+      Alert.alert('Error', 'Could not identify this parking space. Go back and select it again.');
+      return;
+    }
+
     if (endDate <= startDate) {
       Alert.alert('Invalid dates', 'End time must be after your start time.');
+      return;
+    }
+
+    const { isAuthenticated, token } = useAuthStore.getState();
+    if (!isAuthenticated || !token) {
+      Alert.alert(
+        'Sign in required',
+        'Please sign in to request parking.',
+        [{ text: 'OK' }],
+      );
       return;
     }
 
@@ -69,7 +86,7 @@ export function ParkingDetailScreen() {
     try {
       const response = await bookingsApi.createRequest({
         serviceType: 'parking',
-        serviceId: spaceId,
+        serviceId: resolvedSpaceId,
         message: message.trim() || undefined,
         startDate: startDate.toISOString(),
         endDate: endDate.toISOString(),
@@ -78,14 +95,38 @@ export function ParkingDetailScreen() {
       if (response.data?.success) {
         Alert.alert(
           'Request Sent!',
-          'Your parking request has been sent to the owner. You will be notified when they respond.',
-          [{ text: 'OK', onPress: () => navigation.goBack() }],
+          'Your parking request has been sent to the owner. You can cancel anytime from My Bookings while it is still pending or accepted.',
+          [
+            {
+              text: 'Manage Booking',
+              onPress: () => (navigation as any).navigate('ConsumerTabs', { screen: 'Bookings' }),
+            },
+            { text: 'OK', onPress: () => navigation.goBack() },
+          ],
         );
       } else {
-        Alert.alert('Error', response.data?.message || 'Failed to send request');
+        const msg = response.data?.message || 'Failed to send request';
+        if (typeof msg === 'string' && msg.toLowerCase().includes('payment')) {
+          Alert.alert('Card required', msg, [
+            { text: 'Add card', onPress: () => (navigation as any).navigate('ConsumerTabs', { screen: 'Wallet' }) },
+            { text: 'Cancel', style: 'cancel' },
+          ]);
+        } else {
+          Alert.alert('Could not book', msg);
+        }
       }
     } catch (err: unknown) {
-      Alert.alert('Error', getApiErrorMessage(err, 'Failed to send request. Please try again.'));
+      const msg = getApiErrorMessage(err, 'Failed to send request. Please try again.');
+      if (msg.toLowerCase().includes('session') || msg.toLowerCase().includes('sign in')) {
+        Alert.alert('Session expired', msg);
+      } else if (msg.toLowerCase().includes('payment') || msg.toLowerCase().includes('card')) {
+        Alert.alert('Card required', msg, [
+          { text: 'Add card', onPress: () => (navigation as any).navigate('ConsumerTabs', { screen: 'Wallet' }) },
+          { text: 'Cancel', style: 'cancel' },
+        ]);
+      } else {
+        Alert.alert('Could not book', msg);
+      }
     } finally {
       setSendingRequest(false);
     }

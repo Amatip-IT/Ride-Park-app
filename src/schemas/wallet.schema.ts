@@ -26,6 +26,12 @@ export class Wallet {
 
   @Prop({ default: 'pending' })
   stripeConnectStatus: string; // pending, active, restricted
+
+  @Prop({ type: [String], default: [] })
+  stripeConnectRequirementsDue: string[];
+
+  @Prop({ type: Date })
+  stripeTosAcceptedAt?: Date;
 }
 
 export const WalletSchema = SchemaFactory.createForClass(Wallet);

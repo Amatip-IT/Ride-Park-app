@@ -14,7 +14,13 @@ export class User {
   @Prop({ required: true })
   lastName: string;
 
-  @Prop({ required: true, unique: true })
+  @Prop({
+    required: true,
+    unique: true,
+    lowercase: true,
+    trim: true,
+    match: /^[a-z0-9_]{3,30}$/,
+  })
   username: string;
 
   @Prop({
@@ -125,6 +131,14 @@ export class User {
 
 export const UserSchema: MongooseSchema<User> =
   SchemaFactory.createForClass(User);
+
+// Normalize username before validation (fixes legacy accounts registered with uppercase)
+UserSchema.pre('save', function (next) {
+  if (typeof this.username === 'string') {
+    this.username = this.username.toLowerCase().trim();
+  }
+  next();
+});
 
 // Pre-save hook to hash password
 UserSchema.pre('save', async function (next) {

@@ -22,6 +22,7 @@ import { WalletModule } from './wallet/wallet.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { DisputesModule } from './disputes/disputes.module';
 import { AccountStatusGuard } from './guards/account-status.guard';
+import { AuthModule } from './guards/auth.module';
 import { DocumentExpiryTask } from './tasks/document-expiry.task';
 import { User, UserSchema } from './schemas/user.schema';
 import { Chauffeur, ChauffeurSchema } from './schemas/chauffeur.schema';
@@ -38,6 +39,7 @@ import { Taxi, TaxiSchema } from './schemas/taxi.schema';
       { name: Chauffeur.name, schema: ChauffeurSchema },
       { name: Taxi.name, schema: TaxiSchema },
     ]),
+    AuthModule,
     DatabaseModule,
     UsersModule,
     VerificationModule,

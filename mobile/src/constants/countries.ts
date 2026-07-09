@@ -1,0 +1,266 @@
+export type Continent =
+  | 'Africa'
+  | 'Asia'
+  | 'Europe'
+  | 'North America'
+  | 'South America'
+  | 'Oceania';
+
+export interface Country {
+  name: string;
+  iso2: string;
+  iso3: string;
+  continent: Continent;
+}
+
+/** ISO 3166-1 countries grouped by continent for registration and location filtering. */
+export const COUNTRIES: Country[] = [
+  // Africa
+  { name: 'Algeria', iso2: 'DZ', iso3: 'DZA', continent: 'Africa' },
+  { name: 'Angola', iso2: 'AO', iso3: 'AGO', continent: 'Africa' },
+  { name: 'Benin', iso2: 'BJ', iso3: 'BEN', continent: 'Africa' },
+  { name: 'Botswana', iso2: 'BW', iso3: 'BWA', continent: 'Africa' },
+  { name: 'Burkina Faso', iso2: 'BF', iso3: 'BFA', continent: 'Africa' },
+  { name: 'Burundi', iso2: 'BI', iso3: 'BDI', continent: 'Africa' },
+  { name: 'Cabo Verde', iso2: 'CV', iso3: 'CPV', continent: 'Africa' },
+  { name: 'Cameroon', iso2: 'CM', iso3: 'CMR', continent: 'Africa' },
+  { name: 'Central African Republic', iso2: 'CF', iso3: 'CAF', continent: 'Africa' },
+  { name: 'Chad', iso2: 'TD', iso3: 'TCD', continent: 'Africa' },
+  { name: 'Comoros', iso2: 'KM', iso3: 'COM', continent: 'Africa' },
+  { name: 'Congo', iso2: 'CG', iso3: 'COG', continent: 'Africa' },
+  { name: 'Côte d\'Ivoire', iso2: 'CI', iso3: 'CIV', continent: 'Africa' },
+  { name: 'Democratic Republic of the Congo', iso2: 'CD', iso3: 'COD', continent: 'Africa' },
+  { name: 'Djibouti', iso2: 'DJ', iso3: 'DJI', continent: 'Africa' },
+  { name: 'Egypt', iso2: 'EG', iso3: 'EGY', continent: 'Africa' },
+  { name: 'Equatorial Guinea', iso2: 'GQ', iso3: 'GNQ', continent: 'Africa' },
+  { name: 'Eritrea', iso2: 'ER', iso3: 'ERI', continent: 'Africa' },
+  { name: 'Eswatini', iso2: 'SZ', iso3: 'SWZ', continent: 'Africa' },
+  { name: 'Ethiopia', iso2: 'ET', iso3: 'ETH', continent: 'Africa' },
+  { name: 'Gabon', iso2: 'GA', iso3: 'GAB', continent: 'Africa' },
+  { name: 'Gambia', iso2: 'GM', iso3: 'GMB', continent: 'Africa' },
+  { name: 'Ghana', iso2: 'GH', iso3: 'GHA', continent: 'Africa' },
+  { name: 'Guinea', iso2: 'GN', iso3: 'GIN', continent: 'Africa' },
+  { name: 'Guinea-Bissau', iso2: 'GW', iso3: 'GNB', continent: 'Africa' },
+  { name: 'Kenya', iso2: 'KE', iso3: 'KEN', continent: 'Africa' },
+  { name: 'Lesotho', iso2: 'LS', iso3: 'LSO', continent: 'Africa' },
+  { name: 'Liberia', iso2: 'LR', iso3: 'LBR', continent: 'Africa' },
+  { name: 'Libya', iso2: 'LY', iso3: 'LBY', continent: 'Africa' },
+  { name: 'Madagascar', iso2: 'MG', iso3: 'MDG', continent: 'Africa' },
+  { name: 'Malawi', iso2: 'MW', iso3: 'MWI', continent: 'Africa' },
+  { name: 'Mali', iso2: 'ML', iso3: 'MLI', continent: 'Africa' },
+  { name: 'Mauritania', iso2: 'MR', iso3: 'MRT', continent: 'Africa' },
+  { name: 'Mauritius', iso2: 'MU', iso3: 'MUS', continent: 'Africa' },
+  { name: 'Morocco', iso2: 'MA', iso3: 'MAR', continent: 'Africa' },
+  { name: 'Mozambique', iso2: 'MZ', iso3: 'MOZ', continent: 'Africa' },
+  { name: 'Namibia', iso2: 'NA', iso3: 'NAM', continent: 'Africa' },
+  { name: 'Niger', iso2: 'NE', iso3: 'NER', continent: 'Africa' },
+  { name: 'Nigeria', iso2: 'NG', iso3: 'NGA', continent: 'Africa' },
+  { name: 'Rwanda', iso2: 'RW', iso3: 'RWA', continent: 'Africa' },
+  { name: 'São Tomé and Príncipe', iso2: 'ST', iso3: 'STP', continent: 'Africa' },
+  { name: 'Senegal', iso2: 'SN', iso3: 'SEN', continent: 'Africa' },
+  { name: 'Seychelles', iso2: 'SC', iso3: 'SYC', continent: 'Africa' },
+  { name: 'Sierra Leone', iso2: 'SL', iso3: 'SLE', continent: 'Africa' },
+  { name: 'Somalia', iso2: 'SO', iso3: 'SOM', continent: 'Africa' },
+  { name: 'South Africa', iso2: 'ZA', iso3: 'ZAF', continent: 'Africa' },
+  { name: 'South Sudan', iso2: 'SS', iso3: 'SSD', continent: 'Africa' },
+  { name: 'Sudan', iso2: 'SD', iso3: 'SDN', continent: 'Africa' },
+  { name: 'Tanzania', iso2: 'TZ', iso3: 'TZA', continent: 'Africa' },
+  { name: 'Togo', iso2: 'TG', iso3: 'TGO', continent: 'Africa' },
+  { name: 'Tunisia', iso2: 'TN', iso3: 'TUN', continent: 'Africa' },
+  { name: 'Uganda', iso2: 'UG', iso3: 'UGA', continent: 'Africa' },
+  { name: 'Zambia', iso2: 'ZM', iso3: 'ZMB', continent: 'Africa' },
+  { name: 'Zimbabwe', iso2: 'ZW', iso3: 'ZWE', continent: 'Africa' },
+
+  // Asia
+  { name: 'Afghanistan', iso2: 'AF', iso3: 'AFG', continent: 'Asia' },
+  { name: 'Armenia', iso2: 'AM', iso3: 'ARM', continent: 'Asia' },
+  { name: 'Azerbaijan', iso2: 'AZ', iso3: 'AZE', continent: 'Asia' },
+  { name: 'Bahrain', iso2: 'BH', iso3: 'BHR', continent: 'Asia' },
+  { name: 'Bangladesh', iso2: 'BD', iso3: 'BGD', continent: 'Asia' },
+  { name: 'Bhutan', iso2: 'BT', iso3: 'BTN', continent: 'Asia' },
+  { name: 'Brunei', iso2: 'BN', iso3: 'BRN', continent: 'Asia' },
+  { name: 'Cambodia', iso2: 'KH', iso3: 'KHM', continent: 'Asia' },
+  { name: 'China', iso2: 'CN', iso3: 'CHN', continent: 'Asia' },
+  { name: 'Cyprus', iso2: 'CY', iso3: 'CYP', continent: 'Asia' },
+  { name: 'Georgia', iso2: 'GE', iso3: 'GEO', continent: 'Asia' },
+  { name: 'India', iso2: 'IN', iso3: 'IND', continent: 'Asia' },
+  { name: 'Indonesia', iso2: 'ID', iso3: 'IDN', continent: 'Asia' },
+  { name: 'Iran', iso2: 'IR', iso3: 'IRN', continent: 'Asia' },
+  { name: 'Iraq', iso2: 'IQ', iso3: 'IRQ', continent: 'Asia' },
+  { name: 'Israel', iso2: 'IL', iso3: 'ISR', continent: 'Asia' },
+  { name: 'Japan', iso2: 'JP', iso3: 'JPN', continent: 'Asia' },
+  { name: 'Jordan', iso2: 'JO', iso3: 'JOR', continent: 'Asia' },
+  { name: 'Kazakhstan', iso2: 'KZ', iso3: 'KAZ', continent: 'Asia' },
+  { name: 'Kuwait', iso2: 'KW', iso3: 'KWT', continent: 'Asia' },
+  { name: 'Kyrgyzstan', iso2: 'KG', iso3: 'KGZ', continent: 'Asia' },
+  { name: 'Laos', iso2: 'LA', iso3: 'LAO', continent: 'Asia' },
+  { name: 'Lebanon', iso2: 'LB', iso3: 'LBN', continent: 'Asia' },
+  { name: 'Malaysia', iso2: 'MY', iso3: 'MYS', continent: 'Asia' },
+  { name: 'Maldives', iso2: 'MV', iso3: 'MDV', continent: 'Asia' },
+  { name: 'Mongolia', iso2: 'MN', iso3: 'MNG', continent: 'Asia' },
+  { name: 'Myanmar', iso2: 'MM', iso3: 'MMR', continent: 'Asia' },
+  { name: 'Nepal', iso2: 'NP', iso3: 'NPL', continent: 'Asia' },
+  { name: 'North Korea', iso2: 'KP', iso3: 'PRK', continent: 'Asia' },
+  { name: 'Oman', iso2: 'OM', iso3: 'OMN', continent: 'Asia' },
+  { name: 'Pakistan', iso2: 'PK', iso3: 'PAK', continent: 'Asia' },
+  { name: 'Palestine', iso2: 'PS', iso3: 'PSE', continent: 'Asia' },
+  { name: 'Philippines', iso2: 'PH', iso3: 'PHL', continent: 'Asia' },
+  { name: 'Qatar', iso2: 'QA', iso3: 'QAT', continent: 'Asia' },
+  { name: 'Saudi Arabia', iso2: 'SA', iso3: 'SAU', continent: 'Asia' },
+  { name: 'Singapore', iso2: 'SG', iso3: 'SGP', continent: 'Asia' },
+  { name: 'South Korea', iso2: 'KR', iso3: 'KOR', continent: 'Asia' },
+  { name: 'Sri Lanka', iso2: 'LK', iso3: 'LKA', continent: 'Asia' },
+  { name: 'Syria', iso2: 'SY', iso3: 'SYR', continent: 'Asia' },
+  { name: 'Taiwan', iso2: 'TW', iso3: 'TWN', continent: 'Asia' },
+  { name: 'Tajikistan', iso2: 'TJ', iso3: 'TJK', continent: 'Asia' },
+  { name: 'Thailand', iso2: 'TH', iso3: 'THA', continent: 'Asia' },
+  { name: 'Timor-Leste', iso2: 'TL', iso3: 'TLS', continent: 'Asia' },
+  { name: 'Turkey', iso2: 'TR', iso3: 'TUR', continent: 'Asia' },
+  { name: 'Turkmenistan', iso2: 'TM', iso3: 'TKM', continent: 'Asia' },
+  { name: 'United Arab Emirates', iso2: 'AE', iso3: 'ARE', continent: 'Asia' },
+  { name: 'Uzbekistan', iso2: 'UZ', iso3: 'UZB', continent: 'Asia' },
+  { name: 'Vietnam', iso2: 'VN', iso3: 'VNM', continent: 'Asia' },
+  { name: 'Yemen', iso2: 'YE', iso3: 'YEM', continent: 'Asia' },
+
+  // Europe
+  { name: 'Albania', iso2: 'AL', iso3: 'ALB', continent: 'Europe' },
+  { name: 'Andorra', iso2: 'AD', iso3: 'AND', continent: 'Europe' },
+  { name: 'Austria', iso2: 'AT', iso3: 'AUT', continent: 'Europe' },
+  { name: 'Belarus', iso2: 'BY', iso3: 'BLR', continent: 'Europe' },
+  { name: 'Belgium', iso2: 'BE', iso3: 'BEL', continent: 'Europe' },
+  { name: 'Bosnia and Herzegovina', iso2: 'BA', iso3: 'BIH', continent: 'Europe' },
+  { name: 'Bulgaria', iso2: 'BG', iso3: 'BGR', continent: 'Europe' },
+  { name: 'Croatia', iso2: 'HR', iso3: 'HRV', continent: 'Europe' },
+  { name: 'Czech Republic', iso2: 'CZ', iso3: 'CZE', continent: 'Europe' },
+  { name: 'Denmark', iso2: 'DK', iso3: 'DNK', continent: 'Europe' },
+  { name: 'Estonia', iso2: 'EE', iso3: 'EST', continent: 'Europe' },
+  { name: 'Finland', iso2: 'FI', iso3: 'FIN', continent: 'Europe' },
+  { name: 'France', iso2: 'FR', iso3: 'FRA', continent: 'Europe' },
+  { name: 'Germany', iso2: 'DE', iso3: 'DEU', continent: 'Europe' },
+  { name: 'Greece', iso2: 'GR', iso3: 'GRC', continent: 'Europe' },
+  { name: 'Hungary', iso2: 'HU', iso3: 'HUN', continent: 'Europe' },
+  { name: 'Iceland', iso2: 'IS', iso3: 'ISL', continent: 'Europe' },
+  { name: 'Ireland', iso2: 'IE', iso3: 'IRL', continent: 'Europe' },
+  { name: 'Italy', iso2: 'IT', iso3: 'ITA', continent: 'Europe' },
+  { name: 'Kosovo', iso2: 'XK', iso3: 'XKX', continent: 'Europe' },
+  { name: 'Latvia', iso2: 'LV', iso3: 'LVA', continent: 'Europe' },
+  { name: 'Liechtenstein', iso2: 'LI', iso3: 'LIE', continent: 'Europe' },
+  { name: 'Lithuania', iso2: 'LT', iso3: 'LTU', continent: 'Europe' },
+  { name: 'Luxembourg', iso2: 'LU', iso3: 'LUX', continent: 'Europe' },
+  { name: 'Malta', iso2: 'MT', iso3: 'MLT', continent: 'Europe' },
+  { name: 'Moldova', iso2: 'MD', iso3: 'MDA', continent: 'Europe' },
+  { name: 'Monaco', iso2: 'MC', iso3: 'MCO', continent: 'Europe' },
+  { name: 'Montenegro', iso2: 'ME', iso3: 'MNE', continent: 'Europe' },
+  { name: 'Netherlands', iso2: 'NL', iso3: 'NLD', continent: 'Europe' },
+  { name: 'North Macedonia', iso2: 'MK', iso3: 'MKD', continent: 'Europe' },
+  { name: 'Norway', iso2: 'NO', iso3: 'NOR', continent: 'Europe' },
+  { name: 'Poland', iso2: 'PL', iso3: 'POL', continent: 'Europe' },
+  { name: 'Portugal', iso2: 'PT', iso3: 'PRT', continent: 'Europe' },
+  { name: 'Romania', iso2: 'RO', iso3: 'ROU', continent: 'Europe' },
+  { name: 'Russia', iso2: 'RU', iso3: 'RUS', continent: 'Europe' },
+  { name: 'San Marino', iso2: 'SM', iso3: 'SMR', continent: 'Europe' },
+  { name: 'Serbia', iso2: 'RS', iso3: 'SRB', continent: 'Europe' },
+  { name: 'Slovakia', iso2: 'SK', iso3: 'SVK', continent: 'Europe' },
+  { name: 'Slovenia', iso2: 'SI', iso3: 'SVN', continent: 'Europe' },
+  { name: 'Spain', iso2: 'ES', iso3: 'ESP', continent: 'Europe' },
+  { name: 'Sweden', iso2: 'SE', iso3: 'SWE', continent: 'Europe' },
+  { name: 'Switzerland', iso2: 'CH', iso3: 'CHE', continent: 'Europe' },
+  { name: 'Ukraine', iso2: 'UA', iso3: 'UKR', continent: 'Europe' },
+  { name: 'United Kingdom', iso2: 'GB', iso3: 'GBR', continent: 'Europe' },
+  { name: 'Vatican City', iso2: 'VA', iso3: 'VAT', continent: 'Europe' },
+
+  // North America
+  { name: 'Antigua and Barbuda', iso2: 'AG', iso3: 'ATG', continent: 'North America' },
+  { name: 'Bahamas', iso2: 'BS', iso3: 'BHS', continent: 'North America' },
+  { name: 'Barbados', iso2: 'BB', iso3: 'BRB', continent: 'North America' },
+  { name: 'Belize', iso2: 'BZ', iso3: 'BLZ', continent: 'North America' },
+  { name: 'Canada', iso2: 'CA', iso3: 'CAN', continent: 'North America' },
+  { name: 'Costa Rica', iso2: 'CR', iso3: 'CRI', continent: 'North America' },
+  { name: 'Cuba', iso2: 'CU', iso3: 'CUB', continent: 'North America' },
+  { name: 'Dominica', iso2: 'DM', iso3: 'DMA', continent: 'North America' },
+  { name: 'Dominican Republic', iso2: 'DO', iso3: 'DOM', continent: 'North America' },
+  { name: 'El Salvador', iso2: 'SV', iso3: 'SLV', continent: 'North America' },
+  { name: 'Grenada', iso2: 'GD', iso3: 'GRD', continent: 'North America' },
+  { name: 'Guatemala', iso2: 'GT', iso3: 'GTM', continent: 'North America' },
+  { name: 'Haiti', iso2: 'HT', iso3: 'HTI', continent: 'North America' },
+  { name: 'Honduras', iso2: 'HN', iso3: 'HND', continent: 'North America' },
+  { name: 'Jamaica', iso2: 'JM', iso3: 'JAM', continent: 'North America' },
+  { name: 'Mexico', iso2: 'MX', iso3: 'MEX', continent: 'North America' },
+  { name: 'Nicaragua', iso2: 'NI', iso3: 'NIC', continent: 'North America' },
+  { name: 'Panama', iso2: 'PA', iso3: 'PAN', continent: 'North America' },
+  { name: 'Saint Kitts and Nevis', iso2: 'KN', iso3: 'KNA', continent: 'North America' },
+  { name: 'Saint Lucia', iso2: 'LC', iso3: 'LCA', continent: 'North America' },
+  { name: 'Saint Vincent and the Grenadines', iso2: 'VC', iso3: 'VCT', continent: 'North America' },
+  { name: 'Trinidad and Tobago', iso2: 'TT', iso3: 'TTO', continent: 'North America' },
+  { name: 'United States', iso2: 'US', iso3: 'USA', continent: 'North America' },
+
+  // South America
+  { name: 'Argentina', iso2: 'AR', iso3: 'ARG', continent: 'South America' },
+  { name: 'Bolivia', iso2: 'BO', iso3: 'BOL', continent: 'South America' },
+  { name: 'Brazil', iso2: 'BR', iso3: 'BRA', continent: 'South America' },
+  { name: 'Chile', iso2: 'CL', iso3: 'CHL', continent: 'South America' },
+  { name: 'Colombia', iso2: 'CO', iso3: 'COL', continent: 'South America' },
+  { name: 'Ecuador', iso2: 'EC', iso3: 'ECU', continent: 'South America' },
+  { name: 'Guyana', iso2: 'GY', iso3: 'GUY', continent: 'South America' },
+  { name: 'Paraguay', iso2: 'PY', iso3: 'PRY', continent: 'South America' },
+  { name: 'Peru', iso2: 'PE', iso3: 'PER', continent: 'South America' },
+  { name: 'Suriname', iso2: 'SR', iso3: 'SUR', continent: 'South America' },
+  { name: 'Uruguay', iso2: 'UY', iso3: 'URY', continent: 'South America' },
+  { name: 'Venezuela', iso2: 'VE', iso3: 'VEN', continent: 'South America' },
+
+  // Oceania
+  { name: 'Australia', iso2: 'AU', iso3: 'AUS', continent: 'Oceania' },
+  { name: 'Fiji', iso2: 'FJ', iso3: 'FJI', continent: 'Oceania' },
+  { name: 'Kiribati', iso2: 'KI', iso3: 'KIR', continent: 'Oceania' },
+  { name: 'Marshall Islands', iso2: 'MH', iso3: 'MHL', continent: 'Oceania' },
+  { name: 'Micronesia', iso2: 'FM', iso3: 'FSM', continent: 'Oceania' },
+  { name: 'Nauru', iso2: 'NR', iso3: 'NRU', continent: 'Oceania' },
+  { name: 'New Zealand', iso2: 'NZ', iso3: 'NZL', continent: 'Oceania' },
+  { name: 'Palau', iso2: 'PW', iso3: 'PLW', continent: 'Oceania' },
+  { name: 'Papua New Guinea', iso2: 'PG', iso3: 'PNG', continent: 'Oceania' },
+  { name: 'Samoa', iso2: 'WS', iso3: 'WSM', continent: 'Oceania' },
+  { name: 'Solomon Islands', iso2: 'SB', iso3: 'SLB', continent: 'Oceania' },
+  { name: 'Tonga', iso2: 'TO', iso3: 'TON', continent: 'Oceania' },
+  { name: 'Tuvalu', iso2: 'TV', iso3: 'TUV', continent: 'Oceania' },
+  { name: 'Vanuatu', iso2: 'VU', iso3: 'VUT', continent: 'Oceania' },
+];
+
+export const CONTINENTS: Continent[] = [
+  'Africa',
+  'Asia',
+  'Europe',
+  'North America',
+  'South America',
+  'Oceania',
+];
+
+export const COUNTRIES_BY_CONTINENT = CONTINENTS.reduce(
+  (acc, continent) => {
+    acc[continent] = COUNTRIES.filter((c) => c.continent === continent).sort((a, b) =>
+      a.name.localeCompare(b.name),
+    );
+    return acc;
+  },
+  {} as Record<Continent, Country[]>,
+);
+
+export function searchCountries(query: string): Country[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return [...COUNTRIES].sort((a, b) => a.name.localeCompare(b.name));
+  return COUNTRIES.filter(
+    (c) =>
+      c.name.toLowerCase().includes(q) ||
+      c.iso2.toLowerCase().includes(q) ||
+      c.iso3.toLowerCase().includes(q),
+  ).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export function getCountryByName(name: string): Country | undefined {
+  return COUNTRIES.find((c) => c.name === name);
+}
+
+export function getCountryIso3(name: string): string | undefined {
+  return getCountryByName(name)?.iso3;
+}
+
+export const DEFAULT_COUNTRY = 'United Kingdom';

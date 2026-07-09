@@ -18,7 +18,18 @@ class AuthService {
     try {
       const response = await this.api.post('/users/register', userData);
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
+      const axiosData = error?.response?.data;
+      if (axiosData && typeof axiosData === 'object') {
+        const msg = Array.isArray(axiosData.message)
+          ? axiosData.message[0]
+          : axiosData.message || 'Registration failed';
+        return {
+          success: false,
+          message: msg,
+          data: axiosData.data,
+        } as any;
+      }
       return {
         success: false,
         message: this.extractErrorMessage(error, 'Registration failed'),

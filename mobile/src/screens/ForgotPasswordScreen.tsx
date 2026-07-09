@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS, FONT_WEIGHTS } from '@/constants/theme';
 import { authService } from '@/api/authService';
+import { isStrongPassword, PASSWORD_STRENGTH_MESSAGE } from '@/utils/helpers';
 import { useNavigation, NavigationProp } from '@react-navigation/native';
 import { RootStackParamList } from '@/navigation/RootNavigator';
 import { Ionicons } from '@expo/vector-icons';
@@ -60,9 +61,8 @@ export function ForgotPasswordScreen() {
       setError('Please enter a valid 6-digit OTP code');
       return;
     }
-    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
-    if (!passwordRegex.test(newPassword)) {
-      setError('Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character');
+    if (!isStrongPassword(newPassword)) {
+      setError(PASSWORD_STRENGTH_MESSAGE);
       return;
     }
     if (newPassword !== confirmPassword) {

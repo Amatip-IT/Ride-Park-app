@@ -31,7 +31,7 @@ export class BookingRequest {
   // Request status
   @Prop({
     default: 'pending',
-    enum: ['pending', 'accepted', 'rejected', 'cancelled', 'completed'],
+    enum: ['pending', 'accepted', 'rejected', 'cancelled', 'awaiting_payment', 'completed'],
   })
   status: string;
 
@@ -67,6 +67,10 @@ export class BookingRequest {
 
   @Prop({ type: Date })
   completedAt?: Date;
+
+  // Passenger confirmed they are at the service location before paying
+  @Prop({ type: Date })
+  passengerConfirmedAt?: Date;
 
   createdAt?: Date;
   updatedAt?: Date;

@@ -199,16 +199,21 @@ export function ProviderRequestsScreen() {
             <View style={[
               styles.statusBadge,
               { backgroundColor: request.status === 'accepted' ? `${COLORS.success}20`
+                : request.status === 'awaiting_payment' ? `${COLORS.amber}20`
                 : request.status === 'completed' ? `${COLORS.info}20`
                 : `${COLORS.coralRed}20` },
             ]}>
               <Text style={[
                 styles.statusText,
                 { color: request.status === 'accepted' ? COLORS.success
+                  : request.status === 'awaiting_payment' ? COLORS.amber
                   : request.status === 'completed' ? COLORS.info
                   : COLORS.coralRed },
               ]}>
-                {request.status === 'accepted' ? 'Active' : request.status === 'completed' ? 'Completed' : 'Rejected'}
+                {request.status === 'accepted' ? 'Active'
+                  : request.status === 'awaiting_payment' ? 'Awaiting Payment'
+                  : request.status === 'completed' ? 'Paid'
+                  : 'Rejected'}
               </Text>
             </View>
           )}

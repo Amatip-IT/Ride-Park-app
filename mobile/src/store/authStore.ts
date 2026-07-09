@@ -18,12 +18,13 @@ interface AuthStore {
   setIsLoading: (loading: boolean) => void;
   setIsOnboarded: (onboarded: boolean) => void;
   setError: (error: string | null) => void;
-  login: (user: User, token: string) => Promise<void>;
+  login: (user: User, token: string, refreshToken?: string) => Promise<void>;
   logout: () => Promise<void>;
   restoreToken: () => Promise<void>;
 }
 
 const AUTH_USER_KEY = 'authUser';
+const REFRESH_TOKEN_KEY = 'refreshToken';
 
 export const useAuthStore = create<AuthStore>((set, get) => ({
   user: null,
@@ -39,9 +40,12 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   setIsOnboarded: (onboarded: boolean) => set({ isOnboarded: onboarded }),
   setError: (error: string | null) => set({ error }),
 
-  login: async (user: User, token: string) => {
+  login: async (user: User, token: string, refreshToken?: string) => {
     try {
       await secureStorage.setItem('authToken', token);
+      if (refreshToken) {
+        await secureStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+      }
       await secureStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
       set({
         user,
@@ -57,6 +61,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   logout: async () => {
     try {
       await secureStorage.removeItem('authToken');
+      await secureStorage.removeItem(REFRESH_TOKEN_KEY);
       await secureStorage.removeItem(AUTH_USER_KEY);
     } catch {
       // Storage cleanup is best-effort

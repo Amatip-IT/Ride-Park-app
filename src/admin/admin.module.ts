@@ -17,7 +17,6 @@ import { Taxi, TaxiSchema } from 'src/schemas/taxi.schema';
 import { UtilityModule } from 'src/utility/utility.module';
 import { NotificationsModule } from 'src/notifications/notifications.module';
 import { VerificationModule } from 'src/verification/verification.module';
-import { AuthGuard } from 'src/guards/auth.guard';
 import { AdminGuard } from 'src/guards/admin.guard';
 import { AdminAuditLog, AdminAuditLogSchema } from 'src/schemas/admin-audit-log.schema';
 import { AdminMessage, AdminMessageSchema } from 'src/schemas/admin-message.schema';
@@ -49,7 +48,6 @@ import { AdminAuditService } from './admin-audit.service';
     AdminAuditService,
     AdminMessagingService,
     AdminAnalyticsService,
-    AuthGuard,
     AdminGuard,
   ],
   exports: [AdminService, AdminAuditService, AdminMessagingService, AdminAnalyticsService],

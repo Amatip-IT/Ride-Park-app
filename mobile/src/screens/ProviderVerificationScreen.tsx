@@ -7,8 +7,10 @@ import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/cons
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/store/authStore';
 import { providerApi } from '@/api';
+import { searchLocationByPosition } from '@/api/amazonLocation';
 import { useFocusEffect, useNavigation, NavigationProp } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
 
 type VerificationStatus = 'not_applied' | 'pending_admin_review' | 'approved' | 'rejected';
 
@@ -77,6 +79,45 @@ export function ProviderVerificationScreen() {
   const [formData, setFormData] = useState<Record<string, string>>({});
   const [selectedImages, setSelectedImages] = useState<Record<string, string[]>>({});
   const [rejectionReason, setRejectionReason] = useState<string | null>(null);
+  const [locatingGps, setLocatingGps] = useState(false);
+
+  const handleUseCurrentLocation = async () => {
+    setLocatingGps(true);
+    try {
+      const { status: permStatus } = await Location.requestForegroundPermissionsAsync();
+      if (permStatus !== 'granted') {
+        Alert.alert('Location Permission', 'Please allow location access to auto-fill your park address.');
+        return;
+      }
+
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      const result = await searchLocationByPosition(loc.coords.latitude, loc.coords.longitude);
+
+      if (result) {
+        const streetParts = [result.addressNumber, result.street].filter(Boolean).join(' ');
+        const fullAddress = streetParts
+          || [result.neighborhood, result.municipality].filter(Boolean).join(', ')
+          || result.label;
+
+        setFormData(prev => ({
+          ...prev,
+          parkAddress: fullAddress,
+          parkPostcode: result.postalCode || prev.parkPostcode || '',
+        }));
+
+        Alert.alert(
+          'Location Found',
+          `Address: ${fullAddress}${result.postalCode ? `\nPostcode: ${result.postalCode}` : ''}`,
+        );
+      } else {
+        Alert.alert('Could not find address', 'Reverse geocoding returned no results. Please enter the address manually.');
+      }
+    } catch (err) {
+      Alert.alert('Location Error', 'Failed to get your current location. Please ensure GPS is enabled.');
+    } finally {
+      setLocatingGps(false);
+    }
+  };
 
   const fetchStatus = async () => {
     setLoading(true);
@@ -368,6 +409,24 @@ export function ProviderVerificationScreen() {
                     <Text style={styles.sectionTitle}>{section.title}</Text>
                   </View>
 
+                  {section.title === 'Park Details' && (
+                    <TouchableOpacity
+                      style={styles.useLocationBtn}
+                      onPress={handleUseCurrentLocation}
+                      disabled={locatingGps}
+                      activeOpacity={0.7}
+                    >
+                      {locatingGps ? (
+                        <ActivityIndicator size="small" color={COLORS.electricTeal} />
+                      ) : (
+                        <Ionicons name="locate" size={18} color={COLORS.electricTeal} />
+                      )}
+                      <Text style={styles.useLocationBtnText}>
+                        {locatingGps ? 'Getting your location...' : 'Use my current location'}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+
                   {section.fields.map(field => {
                     const value = formData[field.key] || documents[field.key];
                     const selectedImage = selectedImages[field.key];
@@ -561,7 +620,25 @@ const styles = StyleSheet.create({
   sectionHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: SPACING.lg, marginTop: SPACING.xl },
   sectionDot: { width: 8, height: 24, backgroundColor: COLORS.electricTeal, borderRadius: 4, marginRight: SPACING.md },
   sectionTitle: { color: COLORS.textPrimary, fontSize: 20, fontWeight: FONT_WEIGHTS.bold },
-  
+
+  useLocationBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.lg,
+    backgroundColor: `${COLORS.electricTeal}10`,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    borderColor: `${COLORS.electricTeal}30`,
+    marginBottom: SPACING.lg,
+  },
+  useLocationBtnText: {
+    color: COLORS.electricTeal,
+    fontSize: FONT_SIZES.label,
+    fontWeight: FONT_WEIGHTS.semibold,
+  },
+
   fieldContainer: { marginBottom: SPACING.xl },
   label: { color: COLORS.textPrimary, fontSize: 14, fontWeight: FONT_WEIGHTS.semibold, marginBottom: 8 },
   requiredAsterisk: { color: COLORS.coralRed },

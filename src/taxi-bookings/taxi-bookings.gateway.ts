@@ -127,6 +127,20 @@ export class TaxiBookingsGateway implements OnGatewayConnection, OnGatewayDiscon
   }
 
   /**
+   * Push a new ride request alert to a specific driver's connected sockets.
+   */
+  pushNewRequestToDriver(driverUserId: string, payload: any) {
+    if (!this.server) return;
+
+    const sockets = this.userSockets.get(driverUserId);
+    if (sockets) {
+      sockets.forEach((socketId) => {
+        this.server.to(socketId).emit('new_ride_request', payload);
+      });
+    }
+  }
+
+  /**
    * Helper method to push status updates from the HTTP service directly to WebSocket clients
    */
   pushRequestUpdate(requestId: string, payload: any) {

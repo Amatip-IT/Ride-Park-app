@@ -11,8 +11,10 @@ describe('EmailService', () => {
   const mockConfigService: Partial<ConfigService> = {
     get: jest.fn((key: string) => {
       const config: Record<string, string> = {
-        GMAIL_USER: 'mock@gmail.com',
-        GMAIL_APP_PASSWORD: 'mockpassword',
+        SMTP_HOST: 'smtp.example.com',
+        SMTP_PORT: '587',
+        SMTP_USER: 'admin@example.com',
+        SMTP_PASSWORD: 'mockpassword',
       };
       return config[key];
     }),
@@ -58,13 +60,15 @@ describe('EmailService', () => {
   });
 
   describe('initialization', () => {
-    it('should throw error if Gmail credentials are missing', () => {
+    it('should warn and skip transporter when SMTP is not configured', () => {
+      const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
       const invalidConfigService: Partial<ConfigService> = {
         get: jest.fn(() => undefined),
       };
-      expect(
-        () => new EmailService(invalidConfigService as ConfigService),
-      ).toThrow(InternalServerErrorException);
+      const instance = new EmailService(invalidConfigService as ConfigService);
+      expect(instance['transporter']).toBeUndefined();
+      expect(warnSpy).toHaveBeenCalled();
+      warnSpy.mockRestore();
     });
   });
 

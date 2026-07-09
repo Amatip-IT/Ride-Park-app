@@ -9,8 +9,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, NavigationProp, useFocusEffect } from '@react-navigation/native';
 import { taxiBookingsApi, providerApi } from '@/api';
 import { AmazonMap } from '@/components/AmazonMap';
-import { getApiErrorMessage } from '@/utils/helpers';
+import { getApiErrorMessage, getCurrentCoords } from '@/utils/helpers';
 import * as Haptics from 'expo-haptics';
+import { useDriverLocationSync } from '@/hooks/useDriverLocationSync';
 
 export function DriverRideRequestsScreen() {
   const navigation = useNavigation<NavigationProp<any>>();
@@ -25,6 +26,7 @@ export function DriverRideRequestsScreen() {
   const [isOnline, setIsOnline] = useState(false);
   const [statusLoading, setStatusLoading] = useState(true);
   const previousCountRef = useRef(0);
+  useDriverLocationSync(isOnline);
 
   // Accept form state (ETA)
   const [etaMinutes, setEtaMinutes] = useState('5');
@@ -47,7 +49,16 @@ export function DriverRideRequestsScreen() {
   const handleGoOnline = async () => {
     try {
       setStatusLoading(true);
-      const res = await providerApi.toggleStatus('online');
+      const coords = await getCurrentCoords();
+      if (!coords) {
+        Alert.alert(
+          'Location Required',
+          'Turn on location access so passengers can find you nearby.',
+        );
+        return;
+      }
+
+      const res = await providerApi.toggleStatus('online', coords);
       if (res.data?.success) {
         setIsOnline(true);
       } else {

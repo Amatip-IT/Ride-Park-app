@@ -8,6 +8,8 @@ import { NotificationsService } from 'src/notifications/notifications.service';
 import { WalletService } from 'src/wallet/wallet.service';
 import { PaymentsService } from 'src/payments/payments.service';
 import { Response } from 'src/common/interfaces/response.interface';
+import { calculateChauffeurQuotedPrice, CHAUFFEUR_MIN_HOURS } from 'src/common/pricing.constants';
+import { toObjectIdString } from 'src/common/request.util';
 
 @Injectable()
 export class BookingsService {
@@ -59,7 +61,10 @@ export class BookingsService {
         if (!space.isAvailable) {
           return { success: false, message: 'This parking space is no longer available. All spots are currently occupied.' };
         }
-        providerId = space.owner.toString();
+        providerId = toObjectIdString(space.owner);
+        if (!providerId) {
+          return { success: false, message: 'Parking space owner information is missing' };
+        }
         serviceName = space.name;
 
         // Calculate price based on duration and available rates
@@ -82,13 +87,34 @@ export class BookingsService {
         }
       } else if (data.serviceType === 'driver') {
         serviceName = 'Driver Request';
-        pricingUnit = 'per_mile';
-        quotedPrice = 1.10;
+        pricingUnit = 'per_session';
+
+        const requestedStart = data.startTime
+          ? new Date(data.startTime)
+          : data.startDate
+            ? new Date(data.startDate)
+            : undefined;
+        const requestedEnd = data.endTime
+          ? new Date(data.endTime)
+          : data.endDate
+            ? new Date(data.endDate)
+            : undefined;
+
+        if (requestedStart && requestedEnd && requestedEnd > requestedStart) {
+          const quote = calculateChauffeurQuotedPrice(requestedStart, requestedEnd);
+          quotedPrice = quote.quotedPrice;
+        } else {
+          const quote = calculateChauffeurQuotedPrice(
+            new Date(),
+            new Date(Date.now() + CHAUFFEUR_MIN_HOURS * 60 * 60 * 1000),
+          );
+          quotedPrice = quote.quotedPrice;
+        }
 
         if (data.serviceId) {
           const chauffeurRecord = await this.chauffeurModel.findById(data.serviceId);
           if (chauffeurRecord) {
-            providerId = chauffeurRecord.user.toString();
+            providerId = toObjectIdString(chauffeurRecord.user);
           }
         }
       } else {
@@ -96,6 +122,24 @@ export class BookingsService {
         serviceName = `Taxi Request${data.taxiType ? ` (${data.taxiType})` : ''}`;
         pricingUnit = 'per_ride';
         quotedPrice = undefined;
+      }
+
+      // Require a saved card before parking/chauffeur requests (same as taxi)
+      if (data.serviceType === 'parking' || data.serviceType === 'driver') {
+        try {
+          const paymentMethods = await this.paymentsService.getPaymentMethods(data.requesterId);
+          if (!paymentMethods || paymentMethods.length === 0) {
+            return {
+              success: false,
+              message: 'Please add a payment method before booking. You can add a card in Wallet.',
+            };
+          }
+        } catch {
+          return {
+            success: false,
+            message: 'Could not verify payment method. Please add a card in Wallet and try again.',
+          };
+        }
       }
 
       // Check user isn't requesting their own service (only relevant for parking)
@@ -306,34 +350,7 @@ export class BookingsService {
         }
       }
 
-      // ── Charge the customer before accepting ──
-      if (action === 'accept' && booking.quotedPrice && booking.quotedPrice > 0) {
-        try {
-          const paymentIntent = await this.paymentsService.chargeCustomer(
-            booking.requester.toString(),
-            booking.quotedPrice,
-            `Parking booking at ${booking.serviceName || 'parking space'}`,
-          );
-          booking.paymentIntentId = paymentIntent.id;
-        } catch (chargeErr) {
-          // Roll back the atomic spot increment if payment fails
-          if (parkingSpace) {
-            await this.parkingSpaceModel.findByIdAndUpdate(
-              booking.serviceId,
-              { $inc: { occupiedSpots: -1 } },
-            );
-          }
-          this.logger.error(
-            `Payment failed for booking ${booking._id}: ${chargeErr}`,
-          );
-          return {
-            success: false,
-            message: `Payment failed — could not charge customer. ${chargeErr instanceof Error ? chargeErr.message : 'Please try again.'}`,
-          };
-        }
-      }
-
-      booking.status = action === 'accept' ? 'accepted' : 'rejected';
+      // No service is charged on accept — payment is requested when the provider completes
       booking.responseMessage = responseMessage;
       booking.respondedAt = new Date();
       await booking.save();
@@ -455,15 +472,15 @@ export class BookingsService {
         return { success: false, message: 'Booking not found' };
       }
 
-      if (booking.requester.toString() !== requesterId) {
+      if (toObjectIdString(booking.requester) !== toObjectIdString(requesterId)) {
         return { success: false, message: 'You can only cancel your own bookings' };
       }
 
-      if (!['pending', 'accepted'].includes(booking.status)) {
+      if (!['pending', 'accepted', 'awaiting_payment'].includes(booking.status)) {
         return { success: false, message: `Cannot cancel a ${booking.status} booking` };
       }
 
-      const wasAccepted = booking.status === 'accepted';
+      const wasAccepted = ['accepted', 'awaiting_payment'].includes(booking.status);
 
       // ── Refund the customer if they were already charged ──
       if (wasAccepted && booking.paymentIntentId && booking.quotedPrice && booking.quotedPrice > 0) {
@@ -481,7 +498,37 @@ export class BookingsService {
       booking.status = 'cancelled';
       await booking.save();
 
-      // ── FIX BUG 6: Release the spot if the booking was already accepted ──
+      if (booking.provider) {
+        try {
+          const serviceLabel =
+            booking.serviceType === 'parking'
+              ? 'parking space'
+              : booking.serviceType === 'driver'
+                ? 'chauffeur request'
+                : 'booking';
+
+          await this.notificationsService.sendNotification(
+            booking.provider.toString(),
+            '🔄 Booking Cancelled',
+            wasAccepted
+              ? `A user cancelled their accepted ${serviceLabel} for "${booking.serviceName || 'your service'}".${booking.serviceType === 'parking' ? ' The spot is available again.' : ''}`
+              : `A user cancelled their pending ${serviceLabel} for "${booking.serviceName || 'your service'}".`,
+            'booking',
+            { bookingId: booking._id.toString(), status: 'cancelled' },
+          );
+        } catch (notifErr) {
+          this.logger.warn('Failed to send cancellation notification to provider', notifErr);
+        }
+      }
+
+      if (wasAccepted && booking.serviceType === 'driver' && booking.provider) {
+        await this.chauffeurModel.updateOne(
+          { user: booking.provider },
+          { $set: { availability: 'online' } },
+        );
+      }
+
+      // ── Release the spot if the booking was already accepted ──
       if (wasAccepted && booking.serviceType === 'parking' && booking.serviceId) {
         const updatedSpace = await this.parkingSpaceModel.findByIdAndUpdate(
           booking.serviceId,
@@ -506,26 +553,17 @@ export class BookingsService {
           }
         }
 
-        // Notify the provider about the cancellation
-        if (booking.provider) {
-          try {
-            await this.notificationsService.sendNotification(
-              booking.provider.toString(),
-              '🔄 Booking Cancelled',
-              `A user cancelled their booking for "${booking.serviceName || 'your parking space'}". The spot is now available again.`,
-              'booking',
-              { bookingId: booking._id.toString(), status: 'cancelled' },
-            );
-          } catch (notifErr) {
-            this.logger.warn('Failed to send cancellation notification to provider', notifErr);
-          }
-        }
       }
+
+      const refundNote =
+        wasAccepted && booking.paymentIntentId
+          ? ' Any payment taken will be refunded to your card.'
+          : '';
 
       return {
         success: true,
         data: booking,
-        message: 'Booking cancelled successfully',
+        message: `Booking cancelled successfully.${refundNote}`,
       };
     } catch (error) {
       return {
@@ -536,10 +574,10 @@ export class BookingsService {
   }
 
   /**
-   * FIX BUG 5: Complete a booking (by the provider or auto-triggered)
-   * 
-   * Marks the booking as completed, sets completedAt, decrements occupiedSpots,
-   * and re-enables the space if it was previously full.
+   * Complete a booking (by the provider or auto-triggered)
+   *
+   * For PARKING and DRIVER/CHAUFFEUR: transitions to 'awaiting_payment' and notifies
+   * the consumer to confirm their location and pay. No auto-charge.
    */
   async completeBooking(requestId: string, providerId: string): Promise<Response> {
     try {
@@ -557,11 +595,43 @@ export class BookingsService {
         return { success: false, message: `Cannot complete a ${booking.status} booking. Only accepted bookings can be completed.` };
       }
 
+      // ── Parking and chauffeur bookings: request payment from the consumer ──
+      if (booking.serviceType === 'parking' || booking.serviceType === 'driver') {
+        booking.status = 'awaiting_payment';
+        booking.completedAt = new Date();
+        await booking.save();
+
+        const serviceLabel = booking.serviceType === 'parking' ? 'parking session' : 'chauffeur service';
+        try {
+          await this.notificationsService.sendNotification(
+            booking.requester.toString(),
+            '💳 Payment Requested',
+            `Your ${serviceLabel} "${booking.serviceName || 'service'}" is complete. Confirm you are at the location, then pay £${(booking.quotedPrice || 0).toFixed(2)}.`,
+            'payment',
+            { bookingId: booking._id.toString(), status: 'awaiting_payment', action: 'pay' },
+          );
+        } catch (notifErr) {
+          this.logger.warn('Failed to send payment request notification', notifErr);
+        }
+
+        const populated = await this.bookingModel
+          .findById(booking._id)
+          .populate('requester', 'firstName lastName email phoneNumber')
+          .populate('provider', 'firstName lastName')
+          .exec();
+
+        return {
+          success: true,
+          data: populated || booking,
+          message: `Payment request sent to the customer for £${(booking.quotedPrice || 0).toFixed(2)}.`,
+        };
+      }
+
+      // ── Other booking types: complete without payment flow ──
       booking.status = 'completed';
       booking.completedAt = new Date();
       await booking.save();
 
-      // ── Credit the provider's wallet ──
       if (booking.quotedPrice && booking.quotedPrice > 0 && booking.provider) {
         try {
           await this.walletService.addEarning(
@@ -576,38 +646,12 @@ export class BookingsService {
         }
       }
 
-      // Release the spot for parking bookings
-      if (booking.serviceType === 'parking' && booking.serviceId) {
-        const updatedSpace = await this.parkingSpaceModel.findByIdAndUpdate(
-          booking.serviceId,
-          { $inc: { occupiedSpots: -1 } },
-          { new: true },
-        );
-
-        if (updatedSpace) {
-          // Ensure occupiedSpots never goes below 0
-          if (updatedSpace.occupiedSpots < 0) {
-            updatedSpace.occupiedSpots = 0;
-            await updatedSpace.save();
-          }
-          // Re-enable if it was previously full
-          if (!updatedSpace.isAvailable && updatedSpace.occupiedSpots < updatedSpace.totalSpots) {
-            updatedSpace.isAvailable = true;
-            await updatedSpace.save();
-            this.logger.log(
-              `Parking space "${updatedSpace.name}" has a free spot after booking completion. ` +
-              `Now available (${updatedSpace.occupiedSpots}/${updatedSpace.totalSpots}).`,
-            );
-          }
-        }
-      }
-
       // Notify the requester
       try {
         await this.notificationsService.sendNotification(
           booking.requester.toString(),
           '🏁 Booking Completed',
-          `Your booking for "${booking.serviceName || 'parking'}" has been completed. Thank you for using Gleezip!`,
+          `Your booking for "${booking.serviceName || 'service'}" has been completed. Thank you for using Gleezip!`,
           'booking',
           { bookingId: booking._id.toString(), status: 'completed' },
         );
@@ -635,6 +679,169 @@ export class BookingsService {
   }
 
   /**
+   * Consumer confirms they are at the service location before paying.
+   */
+  async confirmBookingArrival(
+    requestId: string,
+    consumerId: string,
+  ): Promise<Response> {
+    try {
+      const booking = await this.bookingModel.findById(requestId);
+
+      if (!booking) {
+        return { success: false, message: 'Booking not found' };
+      }
+
+      if (toObjectIdString(booking.requester) !== toObjectIdString(consumerId)) {
+        return { success: false, message: 'You can only confirm arrival for your own bookings' };
+      }
+
+      if (booking.status !== 'awaiting_payment') {
+        return {
+          success: false,
+          message: 'Arrival can only be confirmed when payment is due',
+        };
+      }
+
+      booking.passengerConfirmedAt = new Date();
+      await booking.save();
+
+      return {
+        success: true,
+        data: booking,
+        message: 'Location confirmed. You can now complete payment.',
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: `Failed to confirm arrival: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      };
+    }
+  }
+
+  /**
+   * Consumer confirms payment for a booking that is awaiting_payment.
+   * Charges the consumer's card, credits the provider's wallet, and generates a receipt.
+   */
+  async payBooking(requestId: string, consumerId: string): Promise<Response> {
+    try {
+      const booking = await this.bookingModel.findById(requestId);
+
+      if (!booking) {
+        return { success: false, message: 'Booking not found' };
+      }
+
+      if (toObjectIdString(booking.requester) !== toObjectIdString(consumerId)) {
+        return { success: false, message: 'You can only pay for your own bookings' };
+      }
+
+      if (booking.status !== 'awaiting_payment') {
+        return {
+          success: false,
+          message: booking.status === 'completed'
+            ? 'This booking has already been paid.'
+            : `Cannot pay a booking with status "${booking.status}".`,
+        };
+      }
+
+      if (!booking.passengerConfirmedAt) {
+        return {
+          success: false,
+          message: 'Please confirm you are at the location before paying',
+        };
+      }
+
+      if (!booking.quotedPrice || booking.quotedPrice <= 0) {
+        booking.status = 'completed';
+        await booking.save();
+        return { success: true, data: booking, message: 'No payment required — booking completed.' };
+      }
+
+      // Charge the consumer's saved payment method
+      let paymentIntentId: string;
+      try {
+        const paymentIntent = await this.paymentsService.chargeCustomer(
+          booking.requester.toString(),
+          booking.quotedPrice,
+          `Parking at ${booking.serviceName || 'parking space'}`,
+          { type: 'booking', bookingId: booking._id.toString() },
+        );
+        paymentIntentId = paymentIntent.id;
+      } catch (chargeErr: any) {
+        return {
+          success: false,
+          message: `Payment failed — ${chargeErr?.message || 'could not charge your card'}. Please check your payment method and try again.`,
+        };
+      }
+
+      // Mark as completed with payment info
+      booking.status = 'completed';
+      booking.paymentIntentId = paymentIntentId;
+      await booking.save();
+
+      // Credit the provider's wallet
+      if (booking.provider) {
+        try {
+          await this.walletService.addEarning(
+            booking.provider.toString(),
+            booking.quotedPrice,
+            booking._id.toString(),
+          );
+        } catch (walletErr) {
+          this.logger.error(
+            `Failed to credit provider wallet for booking ${booking._id}: ${walletErr}`,
+          );
+        }
+      }
+
+      // Notify the provider that payment has been received
+      if (booking.provider) {
+        try {
+          await this.notificationsService.sendNotification(
+            booking.provider.toString(),
+            '✅ Payment Received',
+            `Payment of £${booking.quotedPrice.toFixed(2)} confirmed for "${booking.serviceName || 'parking'}". Earnings credited to your wallet.`,
+            'payment',
+            { bookingId: booking._id.toString(), status: 'completed' },
+          );
+        } catch (notifErr) {
+          this.logger.warn('Failed to send payment received notification', notifErr);
+        }
+      }
+
+      // Notify the consumer with receipt
+      try {
+        await this.notificationsService.sendNotification(
+          booking.requester.toString(),
+          '🧾 Payment Successful',
+          `£${booking.quotedPrice.toFixed(2)} charged for "${booking.serviceName || 'parking'}". Your receipt is ready.`,
+          'payment',
+          { bookingId: booking._id.toString(), status: 'completed', action: 'receipt' },
+        );
+      } catch (notifErr) {
+        this.logger.warn('Failed to send payment success notification', notifErr);
+      }
+
+      const populated = await this.bookingModel
+        .findById(booking._id)
+        .populate('requester', 'firstName lastName email phoneNumber')
+        .populate('provider', 'firstName lastName')
+        .exec();
+
+      return {
+        success: true,
+        data: populated || booking,
+        message: `Payment of £${booking.quotedPrice.toFixed(2)} successful. Receipt generated.`,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: `Payment failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      };
+    }
+  }
+
+  /**
    * Auto-complete expired bookings (call from a scheduled job or admin)
    * Finds all accepted parking bookings whose endDate has passed and completes them.
    */
@@ -654,6 +861,20 @@ export class BookingsService {
         booking.status = 'completed';
         booking.completedAt = now;
         await booking.save();
+
+        if (booking.quotedPrice && booking.quotedPrice > 0 && booking.provider) {
+          try {
+            await this.walletService.addEarning(
+              booking.provider.toString(),
+              booking.quotedPrice,
+              booking._id.toString(),
+            );
+          } catch (walletErr) {
+            this.logger.error(
+              `Failed to credit provider wallet for auto-completed booking ${booking._id}: ${walletErr}`,
+            );
+          }
+        }
 
         // Release the spot
         if (booking.serviceId) {
@@ -746,6 +967,13 @@ export class BookingsService {
         return {
           success: false,
           message: 'Receipt is available after the booking is completed',
+        };
+      }
+
+      if (['parking', 'driver'].includes(booking.serviceType) && !booking.paymentIntentId) {
+        return {
+          success: false,
+          message: 'Receipt is available after payment has been confirmed',
         };
       }
 

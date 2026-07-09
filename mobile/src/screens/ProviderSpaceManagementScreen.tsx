@@ -7,8 +7,10 @@ import {
 import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { providerApi } from '@/api';
+import { searchLocationByPosition } from '@/api/amazonLocation';
 import { getApiErrorMessage } from '@/utils/helpers';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import * as Location from 'expo-location';
 
 interface SpaceStats {
   activeBookings: number;
@@ -56,6 +58,7 @@ export function ProviderSpaceManagementScreen() {
   const [saving, setSaving] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [locatingGps, setLocatingGps] = useState(false);
 
   const fetchSpaces = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -107,8 +110,43 @@ export function ProviderSpaceManagementScreen() {
       dailyRate: String(space.dailyRate || ''),
       totalSpots: String(space.totalSpots || ''),
       parkingType: space.parkingType || '',
+      address: (space as any).address || '',
+      postCode: space.postCode || '',
     });
     setEditModal(true);
+  };
+
+  const handleUseCurrentLocation = async () => {
+    setLocatingGps(true);
+    try {
+      const { status: permStatus } = await Location.requestForegroundPermissionsAsync();
+      if (permStatus !== 'granted') {
+        Alert.alert('Location Permission', 'Please allow location access to auto-fill the address.');
+        return;
+      }
+
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      const result = await searchLocationByPosition(loc.coords.latitude, loc.coords.longitude);
+
+      if (result) {
+        const streetParts = [result.addressNumber, result.street].filter(Boolean).join(' ');
+        const fullAddress = streetParts
+          || [result.neighborhood, result.municipality].filter(Boolean).join(', ')
+          || result.label;
+
+        setEditForm(prev => ({
+          ...prev,
+          address: fullAddress,
+          postCode: result.postalCode || prev.postCode || '',
+        }));
+      } else {
+        Alert.alert('Could not find address', 'Please enter the address manually.');
+      }
+    } catch {
+      Alert.alert('Location Error', 'Failed to get your current location. Please ensure GPS is enabled.');
+    } finally {
+      setLocatingGps(false);
+    }
   };
 
   const handleSave = async () => {
@@ -129,6 +167,12 @@ export function ProviderSpaceManagementScreen() {
       }
       if (editForm.totalSpots && parseInt(editForm.totalSpots) !== editingSpace.totalSpots) {
         updates.totalSpots = parseInt(editForm.totalSpots);
+      }
+      if (editForm.address && editForm.address !== (editingSpace as any).address) {
+        updates.address = editForm.address;
+      }
+      if (editForm.postCode && editForm.postCode !== editingSpace.postCode) {
+        updates.postCode = editForm.postCode;
       }
 
       if (Object.keys(updates).length === 0) {
@@ -402,6 +446,43 @@ export function ProviderSpaceManagementScreen() {
                 placeholderTextColor={COLORS.softSlate}
               />
 
+              {/* Location auto-fill */}
+              <TouchableOpacity
+                style={styles.useLocationBtn}
+                onPress={handleUseCurrentLocation}
+                disabled={locatingGps}
+                activeOpacity={0.7}
+              >
+                {locatingGps ? (
+                  <ActivityIndicator size="small" color={COLORS.electricTeal} />
+                ) : (
+                  <Ionicons name="locate" size={18} color={COLORS.electricTeal} />
+                )}
+                <Text style={styles.useLocationBtnText}>
+                  {locatingGps ? 'Getting location...' : 'Use my current location'}
+                </Text>
+              </TouchableOpacity>
+
+              {/* Address */}
+              <Text style={styles.fieldLabel}>Address</Text>
+              <TextInput
+                style={styles.input}
+                value={editForm.address}
+                onChangeText={(v) => setEditForm(p => ({ ...p, address: v }))}
+                placeholder="Street address"
+                placeholderTextColor={COLORS.softSlate}
+              />
+
+              {/* Postcode */}
+              <Text style={styles.fieldLabel}>Postcode</Text>
+              <TextInput
+                style={styles.input}
+                value={editForm.postCode}
+                onChangeText={(v) => setEditForm(p => ({ ...p, postCode: v }))}
+                placeholder="e.g. SW1A 1AA"
+                placeholderTextColor={COLORS.softSlate}
+              />
+
               {/* Description */}
               <Text style={styles.fieldLabel}>Description</Text>
               <TextInput
@@ -595,6 +676,24 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.lg,
   },
   modalTitle: { color: COLORS.textPrimary, fontSize: 20, fontWeight: FONT_WEIGHTS.bold },
+  useLocationBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.lg,
+    backgroundColor: `${COLORS.electricTeal}10`,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    borderColor: `${COLORS.electricTeal}30`,
+    marginTop: SPACING.md,
+    marginBottom: SPACING.sm,
+  },
+  useLocationBtnText: {
+    color: COLORS.electricTeal,
+    fontSize: FONT_SIZES.label,
+    fontWeight: FONT_WEIGHTS.semibold,
+  },
   fieldLabel: { color: COLORS.textSecondary, fontSize: 13, fontWeight: FONT_WEIGHTS.medium, marginBottom: 6, marginTop: SPACING.md },
   input: {
     backgroundColor: COLORS.surfaceAlt, borderRadius: BORDER_RADIUS.md,

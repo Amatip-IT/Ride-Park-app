@@ -14,6 +14,7 @@ import {
 import { TaxiBookingsService } from './taxi-bookings.service';
 import { RidesService } from 'src/rides/rides.service';
 import { AuthGuard } from 'src/guards/auth.guard';
+import { getRequestUserId } from 'src/common/request.util';
 
 @Controller('taxi-bookings')
 @UseGuards(AuthGuard)
@@ -25,7 +26,9 @@ export class TaxiBookingsController {
 
   /**
    * POST /taxi-bookings/request
-   * Passenger creates a ride request (broadcast to all drivers)
+   * Passenger creates a ride request.
+   * With targetDriverId: direct request to one driver only.
+   * Without: broadcast to all online available taxi drivers.
    */
   @Post('request')
   async createRequest(
@@ -50,7 +53,7 @@ export class TaxiBookingsController {
       estimatedCost?: number;
     },
   ) {
-    const passengerId = req.user._id || req.user.id;
+    const passengerId = getRequestUserId(req);
 
     if (!body.destinationAddress) {
       throw new HttpException(
@@ -82,14 +85,14 @@ export class TaxiBookingsController {
 
   /**
    * GET /taxi-bookings/available
-   * Drivers see all active ride requests (broadcast list)
+   * Drivers see broadcast requests plus any requests targeted at them.
    */
   @Get('available')
   async getAvailableRequests(
     @Req() req: any,
     @Query('postcode') postcode?: string,
   ) {
-    const driverId = req.user._id || req.user.id;
+    const driverId = getRequestUserId(req);
     return this.taxiBookingsService.getAvailableRequests(driverId, postcode);
   }
 
@@ -99,7 +102,7 @@ export class TaxiBookingsController {
    */
   @Get('driver/active')
   async getDriverActiveRequests(@Req() req: any) {
-    const driverId = req.user._id || req.user.id;
+    const driverId = getRequestUserId(req);
     return this.taxiBookingsService.getDriverActiveRequests(driverId);
   }
 
@@ -120,7 +123,7 @@ export class TaxiBookingsController {
       etaMinutes: number;
     },
   ) {
-    const driverId = req.user._id || req.user.id;
+    const driverId = getRequestUserId(req);
 
     if (!body.etaMinutes) {
       throw new HttpException(
@@ -196,7 +199,7 @@ export class TaxiBookingsController {
     @Req() req: any,
     @Param('id') id: string,
   ) {
-    const passengerId = req.user._id || req.user.id;
+    const passengerId = getRequestUserId(req);
     const result = await this.taxiBookingsService.cancelRideRequest(id, passengerId);
 
     if (!result.success) {
@@ -211,8 +214,7 @@ export class TaxiBookingsController {
    */
   @Get('my-requests')
   async getMyRequests(@Req() req: any) {
-    const passengerId = req.user._id || req.user.id;
-    return this.taxiBookingsService.getMyRideRequests(passengerId);
+    return this.taxiBookingsService.getMyRideRequests(getRequestUserId(req));
   }
 
   /**

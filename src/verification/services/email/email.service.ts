@@ -28,30 +28,66 @@ export class EmailService {
     this.registerPartials();
   }
 
+  private getSenderAddress(): string {
+    return (
+      this.configService.get<string>('SMTP_FROM') ||
+      this.configService.get<string>('SMTP_USER') ||
+      this.configService.get<string>('GMAIL_USER') ||
+      'noreply@gleezip.com'
+    );
+  }
+
   /**
-   * Initialize Gmail SMTP transporter
+   * Initialize SMTP transporter (generic host or legacy Gmail service shortcut).
    */
   private initializeTransporter(): void {
-    const gmailUser = this.configService.get<string>('GMAIL_USER');
-    const gmailAppPassword =
+    const host = this.configService.get<string>('SMTP_HOST');
+    const user =
+      this.configService.get<string>('SMTP_USER') ||
+      this.configService.get<string>('GMAIL_USER');
+    const password =
+      this.configService.get<string>('SMTP_PASSWORD') ||
+      this.configService.get<string>('SMTP_PASS') ||
       this.configService.get<string>('GMAIL_APP_PASSWORD');
 
-    if (!gmailUser || !gmailAppPassword) {
-      console.warn('⚠️ Gmail credentials not configured. Emails will fail if called.');
+    if (host) {
+      const port = Number(this.configService.get<string>('SMTP_PORT') || 587);
+      const secureSetting = this.configService.get<string>('SMTP_SECURE');
+      const secure =
+        secureSetting === 'true' || (secureSetting !== 'false' && port === 465);
+
+      if (!user || !password) {
+        console.warn(
+          '⚠️ SMTP_HOST is set but SMTP_USER and SMTP_PASSWORD (or SMTP_PASS) are missing. Emails will fail if called.',
+        );
+        return;
+      }
+
+      this.transporter = nodemailer.createTransport({
+        host,
+        port,
+        secure,
+        auth: { user, pass: password },
+      });
+    } else if (user && password) {
+      // Legacy Gmail shortcut when only GMAIL_* vars are configured
+      this.transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: { user, pass: password },
+      });
+    } else {
+      console.warn(
+        '⚠️ SMTP not configured (set SMTP_HOST, SMTP_USER, SMTP_PASSWORD or SMTP_PASS). Emails will fail if called.',
+      );
       return;
     }
 
-    this.transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: gmailUser,
-        pass: gmailAppPassword,
-      },
-    });
-
     this.transporter.verify((error) => {
       if (error) {
-        console.warn('⚠️ Email service verification failed (likely invalid credentials). Emails will fail to send:', error.message);
+        console.warn(
+          '⚠️ Email service verification failed (check SMTP_HOST, SMTP_USER, SMTP_PASSWORD/SMTP_PASS):',
+          error.message,
+        );
       } else {
         console.log('Email service ready to send emails');
       }
@@ -107,12 +143,10 @@ export class EmailService {
     }
 
     try {
-      // Step 1: Compile and render the template content
       const templateSource = fs.readFileSync(templatePath, 'utf-8');
       const template = handlebars.compile(templateSource);
       const renderedContent = template(data);
 
-      // Step 2: Compile layout and inject the rendered content
       const layoutSource = fs.readFileSync(layoutPath, 'utf-8');
       const layoutTemplate = handlebars.compile(layoutSource);
 
@@ -147,7 +181,7 @@ export class EmailService {
       });
 
       const mailOptions = {
-        from: `"Gleezip" <${this.configService.get<string>('GMAIL_USER')}>`,
+        from: `"Gleezip" <${this.getSenderAddress()}>`,
         to: email,
         subject: 'Email Verification - Gleezip',
         html,
@@ -184,7 +218,7 @@ export class EmailService {
       });
 
       const mailOptions = {
-        from: `"Gleezip" <${this.configService.get<string>('GMAIL_USER')}>`,
+        from: `"Gleezip" <${this.getSenderAddress()}>`,
         to: email,
         subject: 'Welcome to Gleezip! 🎉',
         html,
@@ -217,7 +251,7 @@ export class EmailService {
 
     try {
       const mailOptions = {
-        from: `"Gleezip" <${this.configService.get<string>('GMAIL_USER')}>`,
+        from: `"Gleezip" <${this.getSenderAddress()}>`,
         to: options.to,
         subject: options.subject,
         html: options.html,
@@ -252,7 +286,7 @@ export class EmailService {
       });
 
       const mailOptions = {
-        from: `"Gleezip" <${this.configService.get<string>('GMAIL_USER')}>`,
+        from: `"Gleezip" <${this.getSenderAddress()}>`,
         to: email,
         subject,
         html,

@@ -1,16 +1,18 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Platform, SafeAreaView, ActivityIndicator, Alert, TextInput, Modal, FlatList
+  Platform, SafeAreaView, ActivityIndicator, Alert, TextInput, Modal
 } from 'react-native';
 import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
 import { AmazonMap } from '@/components/AmazonMap';
+import { LocationAutocompleteInput } from '@/components/LocationAutocompleteInput';
+import { useLocationBias } from '@/hooks/useLocationBias';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, NavigationProp, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
 import { taxiBookingsApi, ridesApi } from '@/api';
-import { searchLocationByText } from '@/api/amazonLocation';
 import * as Location from 'expo-location';
 import { getApiErrorMessage, haversineDistanceMiles, estimateDurationMinutes } from '@/utils/helpers';
+import { canCancelRide, getCancelRideMessage } from '@/utils/cancellation';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 type TimingType = 'now' | 'leave_at' | 'arrive_by';
@@ -24,6 +26,7 @@ export function TaxiBookingScreen() {
   const route = useRoute<RouteProp<RouteParams, 'TaxiBooking'>>();
   const targetServiceId = route.params?.serviceId;
   const targetName = route.params?.prefilledName;
+  const biasPosition = useLocationBias();
 
   // Pickup
   const [pickupMethod, setPickupMethod] = useState<'gps' | 'manual'>('manual');
@@ -53,11 +56,6 @@ export function TaxiBookingScreen() {
 
   // Taxi Type
   const [taxiType, setTaxiType] = useState<'Normal car' | 'Mini Bus' | 'Bus'>('Normal car');
-
-  // Destination autocomplete
-  const [destinationSuggestions, setDestinationSuggestions] = useState<any[]>([]);
-  const [showDestinationSuggestions, setShowDestinationSuggestions] = useState(false);
-  const destinationSearchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Submission
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -261,8 +259,10 @@ export function TaxiBookingScreen() {
       if (res.data?.success) {
         setActiveRequest(res.data.data);
         Alert.alert(
-          '🚖 Ride Request Sent!',
-          'All nearby drivers have been notified. Your request is now actively searching for a taxi.',
+          targetServiceId ? '🚖 Request Sent' : '🚖 Ride Request Sent!',
+          res.data.message || (targetServiceId
+            ? `Your request was sent directly to ${targetName || 'your selected driver'}.`
+            : 'Nearby available drivers have been notified. Your request is actively searching for a taxi.'),
           [{ text: 'View Bookings', onPress: () => navigation.navigate('ConsumerTabs', { screen: 'Bookings' }) }],
         );
       } else {
@@ -293,7 +293,7 @@ export function TaxiBookingScreen() {
   const handleCancel = useCallback(async () => {
     if (!activeRequest?._id) return;
 
-    Alert.alert('Cancel Ride?', 'Are you sure you want to cancel this ride request?', [
+    Alert.alert('Cancel Ride?', getCancelRideMessage(activeRequest.status), [
       { text: 'No', style: 'cancel' },
       {
         text: 'Yes, Cancel',
@@ -304,7 +304,7 @@ export function TaxiBookingScreen() {
             const res = await taxiBookingsApi.cancelRequest(activeRequest._id);
             if (res.data?.success) {
               setActiveRequest(null);
-              Alert.alert('Cancelled', 'Your ride request has been cancelled.');
+              Alert.alert('Cancelled', res.data.message || 'Your ride request has been cancelled.');
             } else {
               Alert.alert('Error', res.data?.message || 'Failed to cancel ride request.');
             }
@@ -342,30 +342,41 @@ export function TaxiBookingScreen() {
 
   // If we have an active request, show the waiting/matched view
   if (activeRequest) {
-    const isAccepted = activeRequest.status === 'accepted';
+    const isAccepted = ['accepted', 'arrived', 'in_progress'].includes(activeRequest.status);
+    const isSearching = activeRequest.status === 'searching';
+    const isArrived = activeRequest.status === 'arrived';
 
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.container}>
           <View style={styles.header}>
             <Text style={styles.headerTitle}>
-              {isAccepted ? '🎉 Driver Found!' : '🔍 Finding a Driver...'}
+              {isArrived
+                ? '📍 Driver Has Arrived'
+                : isAccepted
+                  ? '🎉 Driver Found!'
+                  : '🔍 Finding a Driver...'}
             </Text>
           </View>
 
           <ScrollView contentContainerStyle={styles.scrollContent}>
-            {/* Status Card */}
             <View style={styles.statusCard}>
-              {!isAccepted && (
+              {isSearching && (
                 <ActivityIndicator size="large" color={COLORS.electricTeal} style={{ marginBottom: SPACING.lg }} />
               )}
               <Text style={styles.statusTitle}>
-                {isAccepted ? 'Your driver is on the way!' : 'Notifying nearby drivers...'}
+                {isArrived
+                  ? 'Your driver is at the pickup point'
+                  : isAccepted
+                    ? 'Your driver is on the way!'
+                    : 'Notifying nearby drivers...'}
               </Text>
               <Text style={styles.statusDesc}>
-                {isAccepted
-                  ? `Arriving in ~${activeRequest.driverEtaMinutes} minutes`
-                  : 'Please wait while we match you with a driver.'}
+                {isArrived
+                  ? 'Head to the pickup location or cancel if you no longer need the ride.'
+                  : isAccepted
+                    ? `Arriving in ~${activeRequest.driverEtaMinutes ?? '—'} minutes`
+                    : 'Please wait while we match you with a driver.'}
               </Text>
             </View>
 
@@ -411,7 +422,7 @@ export function TaxiBookingScreen() {
             </View>
 
             {/* Track driver on map when accepted */}
-            {isAccepted && (
+            {(isAccepted || isArrived) && (
               <TouchableOpacity
                 style={{
                   backgroundColor: COLORS.electricTeal,
@@ -433,7 +444,7 @@ export function TaxiBookingScreen() {
             )}
 
             {/* Cancel button — only for statuses the API actually supports */}
-            {['searching', 'accepted'].includes(activeRequest.status) && (
+            {canCancelRide(activeRequest.status) && (
               <TouchableOpacity 
                 style={[styles.cancelBtn, isCancelling && { opacity: 0.6 }]} 
                 onPress={handleCancel} 
@@ -509,82 +520,64 @@ export function TaxiBookingScreen() {
 
           <Text style={styles.orText}>— or enter manually —</Text>
 
-          <TextInput
+          <LocationAutocompleteInput
             style={styles.input}
             placeholder="Pickup address"
             placeholderTextColor={COLORS.textTertiary}
             value={pickupAddress}
-            onChangeText={(t) => { setPickupAddress(t); setPickupMethod('manual'); }}
+            onChangeText={(t) => {
+              setPickupAddress(t);
+              setPickupMethod('manual');
+              setPickupCoords(null);
+            }}
+            onSelectPlace={(place) => {
+              setPickupAddress(place.label);
+              setPickupMethod('manual');
+              if (place.point?.lat && place.point?.lng) {
+                setPickupCoords({ lat: place.point.lat, lng: place.point.lng });
+              }
+              if (place.postalCode) setPickupPostcode(place.postalCode);
+            }}
+            searchOptions={{
+              biasPosition: pickupCoords ?? biasPosition ?? undefined,
+            }}
           />
           <TextInput
             style={styles.input}
-            placeholder="Pickup postcode (e.g. SW1A 1AA)"
+            placeholder="Postcode or house number"
             placeholderTextColor={COLORS.textTertiary}
             value={pickupPostcode}
-            onChangeText={(t) => { setPickupPostcode(t.toUpperCase()); setPickupMethod('manual'); }}
-            autoCapitalize="characters"
+            onChangeText={(t) => { setPickupPostcode(t); setPickupMethod('manual'); }}
           />
 
           {/* ── Destination Section ── */}
           <Text style={[styles.sectionLabel, { marginTop: SPACING.xl }]}>Destination</Text>
-          <View style={{ zIndex: 10 }}>
-            <TextInput
-              style={styles.input}
-              placeholder="Destination address"
-              placeholderTextColor={COLORS.textTertiary}
-              value={destinationAddress}
-              onChangeText={(text) => {
-                setDestinationAddress(text);
-                setDestinationCoords(null);
-                if (destinationSearchTimeout.current) clearTimeout(destinationSearchTimeout.current);
-                if (text.length >= 3) {
-                  destinationSearchTimeout.current = setTimeout(async () => {
-                    const results = await searchLocationByText(text);
-                    setDestinationSuggestions(results);
-                    setShowDestinationSuggestions(results.length > 0);
-                  }, 300);
-                } else {
-                  setDestinationSuggestions([]);
-                  setShowDestinationSuggestions(false);
-                }
-              }}
-            />
-            {showDestinationSuggestions && destinationSuggestions.length > 0 && (
-              <View style={styles.suggestionsContainer}>
-                <FlatList
-                  data={destinationSuggestions}
-                  keyExtractor={(_, i) => `dest-${i}`}
-                  keyboardShouldPersistTaps="handled"
-                  scrollEnabled={false}
-                  renderItem={({ item }) => (
-                    <TouchableOpacity
-                      style={styles.suggestionItem}
-                      onPress={() => {
-                        setDestinationAddress(item.label);
-                        if (item.point?.lat && item.point?.lng) {
-                          setDestinationCoords({ lat: item.point.lat, lng: item.point.lng });
-                        }
-                        if (item.postalCode) setDestinationPostcode(item.postalCode);
-                        setShowDestinationSuggestions(false);
-                        setDestinationSuggestions([]);
-                      }}
-                      activeOpacity={0.7}
-                    >
-                      <Ionicons name="location-outline" size={16} color={COLORS.electricTeal} style={{ marginTop: 2 }} />
-                      <Text style={styles.suggestionText} numberOfLines={2}>{item.label}</Text>
-                    </TouchableOpacity>
-                  )}
-                />
-              </View>
-            )}
-          </View>
+          <LocationAutocompleteInput
+            style={styles.input}
+            placeholder="Destination address"
+            placeholderTextColor={COLORS.textTertiary}
+            value={destinationAddress}
+            onChangeText={(text) => {
+              setDestinationAddress(text);
+              setDestinationCoords(null);
+            }}
+            onSelectPlace={(place) => {
+              setDestinationAddress(place.label);
+              if (place.point?.lat && place.point?.lng) {
+                setDestinationCoords({ lat: place.point.lat, lng: place.point.lng });
+              }
+              if (place.postalCode) setDestinationPostcode(place.postalCode);
+            }}
+            searchOptions={{
+              biasPosition: pickupCoords ?? biasPosition ?? undefined,
+            }}
+          />
           <TextInput
             style={styles.input}
-            placeholder="Destination postcode (e.g. E1 6AN)"
+            placeholder="Postcode or house number"
             placeholderTextColor={COLORS.textTertiary}
             value={destinationPostcode}
-            onChangeText={(t) => setDestinationPostcode(t.toUpperCase())}
-            autoCapitalize="characters"
+            onChangeText={setDestinationPostcode}
           />
 
           {/* ── Timing Section ── */}

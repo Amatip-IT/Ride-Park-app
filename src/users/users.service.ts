@@ -7,6 +7,7 @@ import { generateToken, generateRefreshToken, verifyRefreshToken } from 'src/uti
 import { user_settings } from 'src/schemas/user-settings-schema';
 import { EmailVerificationService } from 'src/verification/email/verification.service';
 import { Response } from 'src/common/interfaces/response.interface';
+import { isStrongPassword, PASSWORD_STRENGTH_MESSAGE } from 'src/utility/password.util';
 import { CreateUserDto } from './dto/create-user.dto';
 
 import { Taxi, TaxiDocument } from 'src/schemas/taxi.schema';
@@ -33,28 +34,60 @@ export class UsersService {
     private emailVerificationService: EmailVerificationService,
   ) {}
 
+  /**
+   * Generate alternative username suggestions when the desired one is taken.
+   */
+  private async generateUsernameSuggestions(base: string): Promise<string[]> {
+    const candidates: string[] = [];
+    const stripped = base.replace(/\d+$/, '');
+
+    for (let i = 0; candidates.length < 5 && i < 20; i++) {
+      const suffix = Math.floor(Math.random() * 9000) + 1000;
+      candidates.push(`${stripped}${suffix}`);
+    }
+    candidates.push(`${stripped}_x`);
+    candidates.push(`the_${stripped}`);
+
+    const taken = await this.userModel
+      .find({ username: { $in: candidates } })
+      .select('username')
+      .lean();
+    const takenSet = new Set(taken.map((u) => u.username));
+
+    return candidates.filter((c) => !takenSet.has(c)).slice(0, 4);
+  }
+
   /* METHOD TO CREATE A NEW USER (NON-ADMIN) */
   async createUser(createUserDTO: CreateUserDto): Promise<Response> {
     try {
-      const existingUser: User | null = await this.userModel.findOne({
-        $or: [
-          { email: createUserDTO.email },
-          { username: createUserDTO.username },
-        ],
-      });
+      const normalizedUsername = createUserDTO.username.toLowerCase().trim();
+      const normalizedEmail = createUserDTO.email.toLowerCase().trim();
 
-      if (existingUser) {
+      const [emailTaken, usernameTaken] = await Promise.all([
+        this.userModel.findOne({ email: normalizedEmail }).lean(),
+        this.userModel.findOne({ username: normalizedUsername }).lean(),
+      ]);
+
+      if (emailTaken) {
         return {
           success: false,
-          message: 'User with the given email or username already exists',
+          message: 'An account with this email address already exists. Please sign in or use a different email.',
         };
       }
 
-      const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
-      if (!passwordRegex.test(createUserDTO.password || '')) {
+      if (usernameTaken) {
+        const suggestions = await this.generateUsernameSuggestions(normalizedUsername);
         return {
           success: false,
-          message: 'Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character.',
+          message: `The username "${normalizedUsername}" is already taken.`,
+          data: { suggestions },
+        };
+      }
+
+      if (!isStrongPassword(createUserDTO.password || '')) {
+        return {
+          success: false,
+          message: PASSWORD_STRENGTH_MESSAGE,
         };
       }
 
@@ -74,17 +107,26 @@ export class UsersService {
       const isProvider = providerRoles.includes(role);
 
       const userData: Record<string, any> = {
-        firstName: createUserDTO.firstName,
-        lastName: createUserDTO.lastName,
-        username: createUserDTO.username,
-        email: createUserDTO.email,
+        firstName: createUserDTO.firstName.trim(),
+        lastName: createUserDTO.lastName.trim(),
+        username: normalizedUsername,
+        email: normalizedEmail,
         phoneNumber: createUserDTO.phoneNumber,
         password: createUserDTO.password,
-        postCode: createUserDTO.postCode,
+        postCode: createUserDTO.postCode?.trim(),
         role,
         termsAccepted: true,
         termsAcceptedAt: new Date(),
       };
+
+      if (createUserDTO.address) {
+        userData.address = {
+          street: createUserDTO.address.street,
+          county: createUserDTO.address.county,
+          town: createUserDTO.address.town,
+          country: createUserDTO.address.country,
+        };
+      }
 
       if (isProvider && createUserDTO.idType) {
         userData.idType = createUserDTO.idType;
@@ -150,11 +192,12 @@ export class UsersService {
     otp?: string;
   }): Promise<Response> {
     try {
+      const normalizedEmail = loginDto.email?.toLowerCase().trim();
       const user: UserDocument | null = await this.userModel
         .findOne({
-          email: loginDto.email,
+          email: normalizedEmail,
         })
-        .select('+password'); // Explicitly select password field
+        .select('+password');
 
       if (!user) {
         return {
@@ -205,6 +248,11 @@ export class UsersService {
       // Update lastLoggedInAt to current time
       const currentTime = new Date();
       user.lastLoggedInAt = currentTime;
+
+      // Normalize legacy usernames (e.g. Abdulmalik123 → abdulmalik123) before save
+      if (typeof user.username === 'string') {
+        user.username = user.username.toLowerCase().trim();
+      }
 
       // LOCAL TESTING: OTP disabled — sign in with email/password only.
       // Re-enable before deployment.
@@ -368,11 +416,10 @@ export class UsersService {
   async resetPassword(email: string, otp: string, newPassword: string): Promise<Response> {
     try {
       // Validate password strength
-      const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
-      if (!passwordRegex.test(newPassword)) {
+      if (!isStrongPassword(newPassword)) {
         return {
           success: false,
-          message: 'Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character.',
+          message: PASSWORD_STRENGTH_MESSAGE,
         };
       }
 

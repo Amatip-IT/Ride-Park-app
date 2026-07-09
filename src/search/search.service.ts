@@ -8,6 +8,57 @@ import { User, UserDocument } from 'src/schemas/user.schema';
 import { Response } from 'src/common/interfaces/response.interface';
 import { What3WordsService } from 'src/utility/what3words.service';
 
+/** Escape special regex characters to prevent ReDoS attacks */
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** Great-circle distance between two coordinates in kilometres */
+function haversineKm(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number,
+): number {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+type NearbyProviderRecord = {
+  _id: unknown;
+  location?: { coordinates?: { lat?: number; lng?: number } };
+  toObject?: () => Record<string, unknown>;
+};
+
+function rankProvidersByDistance<T extends NearbyProviderRecord>(
+  providers: T[],
+  lat: number,
+  lng: number,
+  radiusKm: number,
+): Array<T & { distanceKm: number }> {
+  return providers
+    .map((provider) => {
+      const coords = provider.location?.coordinates;
+      if (coords?.lat == null || coords?.lng == null) {
+        return null;
+      }
+      const distanceKm = haversineKm(lat, lng, coords.lat, coords.lng);
+      if (distanceKm > radiusKm) {
+        return null;
+      }
+      const base =
+        typeof provider.toObject === 'function' ? (provider.toObject() as T) : provider;
+      return { ...base, distanceKm };
+    })
+    .filter((item): item is T & { distanceKm: number } => item != null)
+    .sort((a, b) => a.distanceKm - b.distanceKm);
+}
+
 @Injectable()
 export class SearchService {
   constructor(
@@ -38,12 +89,13 @@ export class SearchService {
       };
 
       if (cleanQuery) {
+        const escaped = escapeRegex(cleanQuery);
         searchFilter.$or = [
-          { postCode: { $regex: new RegExp(`^${cleanQuery}`, 'i') } },
-          { town: { $regex: new RegExp(cleanQuery, 'i') } },
-          { name: { $regex: new RegExp(cleanQuery, 'i') } },
-          { county: { $regex: new RegExp(cleanQuery, 'i') } },
-          { nearestPlace: { $regex: new RegExp(cleanQuery, 'i') } },
+          { postCode: { $regex: new RegExp(`^${escaped}`, 'i') } },
+          { town: { $regex: new RegExp(escaped, 'i') } },
+          { name: { $regex: new RegExp(escaped, 'i') } },
+          { county: { $regex: new RegExp(escaped, 'i') } },
+          { nearestPlace: { $regex: new RegExp(escaped, 'i') } },
         ];
       }
 
@@ -105,20 +157,15 @@ export class SearchService {
       // Try multiple search strategies
       const searchFilter = {
         isAvailable: true,
-        isVerified: true, // Only show admin-approved parking spaces
+        isVerified: true,
         $or: [
-          // Match by what3words address
           { what3words: words },
-          // Match by nearest place name
-          ...(nearestPlace ? [{ nearestPlace: { $regex: new RegExp(nearestPlace, 'i') } }] : []),
-          // Match by town (nearestPlace often matches town)
-          ...(nearestPlace ? [{ town: { $regex: new RegExp(nearestPlace.split(',')[0].trim(), 'i') } }] : []),
-          // Match by county if nearestPlace includes it
+          ...(nearestPlace ? [{ nearestPlace: { $regex: new RegExp(escapeRegex(nearestPlace), 'i') } }] : []),
+          ...(nearestPlace ? [{ town: { $regex: new RegExp(escapeRegex(nearestPlace.split(',')[0].trim()), 'i') } }] : []),
           ...(nearestPlace && nearestPlace.includes(',')
-            ? [{ county: { $regex: new RegExp(nearestPlace.split(',').pop()!.trim(), 'i') } }]
+            ? [{ county: { $regex: new RegExp(escapeRegex(nearestPlace.split(',').pop()!.trim()), 'i') } }]
             : []),
-          // Match by country
-          ...(country ? [{ country: { $regex: new RegExp(country, 'i') } }] : []),
+          ...(country ? [{ country: { $regex: new RegExp(escapeRegex(country), 'i') } }] : []),
         ],
       };
 
@@ -251,15 +298,16 @@ export class SearchService {
         if (isDriverNumber) {
           filter.driverNumber = cleanQuery.padStart(3, '0');
         } else {
+          const escaped = escapeRegex(cleanQuery);
           const driverUsers = await this.userModel
             .find({
               role: 'driver',
               $or: [
-                { postCode: { $regex: new RegExp(`^${cleanQuery}`, 'i') } },
-                { 'address.town': { $regex: new RegExp(cleanQuery, 'i') } },
-                { 'address.county': { $regex: new RegExp(cleanQuery, 'i') } },
-                { firstName: { $regex: new RegExp(cleanQuery, 'i') } },
-                { lastName: { $regex: new RegExp(cleanQuery, 'i') } },
+                { postCode: { $regex: new RegExp(`^${escaped}`, 'i') } },
+                { 'address.town': { $regex: new RegExp(escaped, 'i') } },
+                { 'address.county': { $regex: new RegExp(escaped, 'i') } },
+                { firstName: { $regex: new RegExp(escaped, 'i') } },
+                { lastName: { $regex: new RegExp(escaped, 'i') } },
               ],
             })
             .select('_id')
@@ -309,53 +357,124 @@ export class SearchService {
     limit = 20,
   ): Promise<Response> {
     try {
-      const w3wResult = await this.what3wordsService.convertToThreeWordAddress(lat, lng);
-      if (!w3wResult || !w3wResult.nearestPlace) {
-        return { success: false, message: 'Could not determine your location area.' };
-      }
+      const skip = (page - 1) * limit;
+      const baseFilter = {
+        status: 'approved',
+        isVerified: true,
+        isActive: true,
+        availability: 'online',
+        'location.coordinates.lat': { $exists: true, $ne: null },
+        'location.coordinates.lng': { $exists: true, $ne: null },
+      };
 
-      const nearestPlace = w3wResult.nearestPlace;
-      const townMatch = nearestPlace.split(',')[0].trim();
-
-      const driverUsers = await this.userModel
-        .find({
-          role: 'driver',
-          'address.town': { $regex: new RegExp(townMatch, 'i') },
-        })
-        .select('_id')
+      const onlineDrivers = await this.chauffeurModel
+        .find(baseFilter)
+        .populate('user', 'firstName lastName postCode address phoneNumber')
         .exec();
 
-      if (driverUsers.length === 0) {
-        return { success: true, data: [], message: `No drivers found near ${townMatch}` };
+      let ranked = rankProvidersByDistance(onlineDrivers, lat, lng, 25);
+      if (ranked.length === 0) {
+        ranked = rankProvidersByDistance(onlineDrivers, lat, lng, 50);
       }
 
-      const skip = (page - 1) * limit;
-      const [drivers, total] = await Promise.all([
-        this.chauffeurModel
-          .find({
-            user: { $in: driverUsers.map(u => u._id) },
-            isVerified: true,
-            isActive: true,
-          })
-          .populate('user', 'firstName lastName postCode address phoneNumber')
-          .skip(skip)
-          .limit(limit)
-          .exec(),
-        this.chauffeurModel.countDocuments({
-          user: { $in: driverUsers.map(u => u._id) },
-          isVerified: true,
-          isActive: true,
-        }).exec(),
-      ]);
+      if (ranked.length > 0) {
+        const total = ranked.length;
+        const pageItems = ranked.slice(skip, skip + limit);
+        return {
+          success: true,
+          data: pageItems,
+          message: `Found ${total} chauffeur(s) nearby`,
+          meta: {
+            total,
+            page,
+            limit,
+            totalPages: Math.ceil(total / limit),
+            coordinates: { lat, lng },
+            searchMode: 'gps',
+          },
+        };
+      }
 
-      return {
-        success: true,
-        data: drivers,
-        message: `Found ${total} driver(s) near ${townMatch}`,
-      };
+      return this.searchDriversByTownFallback(lat, lng, page, limit);
     } catch (error) {
       return { success: false, message: 'Location search failed' };
     }
+  }
+
+  private async searchDriversByTownFallback(
+    lat: number,
+    lng: number,
+    page: number,
+    limit: number,
+  ): Promise<Response> {
+    const skip = (page - 1) * limit;
+    const w3wResult = await this.what3wordsService.convertToThreeWordAddress(lat, lng);
+    if (!w3wResult || !w3wResult.nearestPlace) {
+      return {
+        success: true,
+        data: [],
+        message: 'No chauffeurs online nearby. Ask drivers to go online with location enabled.',
+        meta: { coordinates: { lat, lng }, searchMode: 'town_fallback' },
+      };
+    }
+
+    const nearestPlace = w3wResult.nearestPlace;
+    const townMatch = escapeRegex(nearestPlace.split(',')[0].trim());
+
+    const driverUsers = await this.userModel
+      .find({
+        role: 'driver',
+        'address.town': { $regex: new RegExp(townMatch, 'i') },
+      })
+      .select('_id')
+      .exec();
+
+    if (driverUsers.length === 0) {
+      return {
+        success: true,
+        data: [],
+        message: `No chauffeurs online near ${townMatch}`,
+        meta: { coordinates: { lat, lng }, searchMode: 'town_fallback' },
+      };
+    }
+
+    const [drivers, total] = await Promise.all([
+      this.chauffeurModel
+        .find({
+          user: { $in: driverUsers.map((u) => u._id) },
+          status: 'approved',
+          isVerified: true,
+          isActive: true,
+          availability: 'online',
+        })
+        .populate('user', 'firstName lastName postCode address phoneNumber')
+        .skip(skip)
+        .limit(limit)
+        .exec(),
+      this.chauffeurModel.countDocuments({
+        user: { $in: driverUsers.map((u) => u._id) },
+        status: 'approved',
+        isVerified: true,
+        isActive: true,
+        availability: 'online',
+      }).exec(),
+    ]);
+
+    return {
+      success: true,
+      data: drivers,
+      message: drivers.length
+        ? `Found ${total} chauffeur(s) near ${townMatch}`
+        : `No chauffeurs online near ${townMatch}`,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+        coordinates: { lat, lng },
+        searchMode: 'town_fallback',
+      },
+    };
   }
 
   /**
@@ -381,15 +500,16 @@ export class SearchService {
         if (isDriverNumber) {
           filter.driverNumber = cleanQuery.padStart(3, '0');
         } else {
+          const escaped = escapeRegex(cleanQuery);
           const taxiUsers = await this.userModel
             .find({
               role: 'taxi_driver',
               $or: [
-                { postCode: { $regex: new RegExp(`^${cleanQuery}`, 'i') } },
-                { 'address.town': { $regex: new RegExp(cleanQuery, 'i') } },
-                { 'address.county': { $regex: new RegExp(cleanQuery, 'i') } },
-                { firstName: { $regex: new RegExp(cleanQuery, 'i') } },
-                { lastName: { $regex: new RegExp(cleanQuery, 'i') } },
+                { postCode: { $regex: new RegExp(`^${escaped}`, 'i') } },
+                { 'address.town': { $regex: new RegExp(escaped, 'i') } },
+                { 'address.county': { $regex: new RegExp(escaped, 'i') } },
+                { firstName: { $regex: new RegExp(escaped, 'i') } },
+                { lastName: { $regex: new RegExp(escaped, 'i') } },
               ],
             })
             .select('_id')
@@ -439,53 +559,124 @@ export class SearchService {
     limit = 20,
   ): Promise<Response> {
     try {
-      const w3wResult = await this.what3wordsService.convertToThreeWordAddress(lat, lng);
-      if (!w3wResult || !w3wResult.nearestPlace) {
-        return { success: false, message: 'Could not determine your location area.' };
-      }
+      const skip = (page - 1) * limit;
+      const baseFilter = {
+        status: 'approved',
+        isVerified: true,
+        isActive: true,
+        availability: 'online',
+        'location.coordinates.lat': { $exists: true, $ne: null },
+        'location.coordinates.lng': { $exists: true, $ne: null },
+      };
 
-      const nearestPlace = w3wResult.nearestPlace;
-      const townMatch = nearestPlace.split(',')[0].trim();
-
-      const taxiUsers = await this.userModel
-        .find({
-          role: 'taxi_driver',
-          'address.town': { $regex: new RegExp(townMatch, 'i') },
-        })
-        .select('_id')
+      const onlineTaxis = await this.taxiModel
+        .find(baseFilter)
+        .populate('user', 'firstName lastName postCode address phoneNumber')
         .exec();
 
-      if (taxiUsers.length === 0) {
-        return { success: true, data: [], message: `No taxis found near ${townMatch}` };
+      let ranked = rankProvidersByDistance(onlineTaxis, lat, lng, 25);
+      if (ranked.length === 0) {
+        ranked = rankProvidersByDistance(onlineTaxis, lat, lng, 50);
       }
 
-      const skip = (page - 1) * limit;
-      const [taxis, total] = await Promise.all([
-        this.taxiModel
-          .find({
-            user: { $in: taxiUsers.map(u => u._id) },
-            isVerified: true,
-            isActive: true,
-          })
-          .populate('user', 'firstName lastName postCode address phoneNumber')
-          .skip(skip)
-          .limit(limit)
-          .exec(),
-        this.taxiModel.countDocuments({
-          user: { $in: taxiUsers.map(u => u._id) },
-          isVerified: true,
-          isActive: true,
-        }).exec(),
-      ]);
+      if (ranked.length > 0) {
+        const total = ranked.length;
+        const pageItems = ranked.slice(skip, skip + limit);
+        return {
+          success: true,
+          data: pageItems,
+          message: `Found ${total} taxi(s) nearby`,
+          meta: {
+            total,
+            page,
+            limit,
+            totalPages: Math.ceil(total / limit),
+            coordinates: { lat, lng },
+            searchMode: 'gps',
+          },
+        };
+      }
 
-      return {
-        success: true,
-        data: taxis,
-        message: `Found ${total} taxi(s) near ${townMatch}`,
-      };
+      return this.searchTaxisByTownFallback(lat, lng, page, limit);
     } catch (error) {
       return { success: false, message: 'Location search failed' };
     }
+  }
+
+  private async searchTaxisByTownFallback(
+    lat: number,
+    lng: number,
+    page: number,
+    limit: number,
+  ): Promise<Response> {
+    const skip = (page - 1) * limit;
+    const w3wResult = await this.what3wordsService.convertToThreeWordAddress(lat, lng);
+    if (!w3wResult || !w3wResult.nearestPlace) {
+      return {
+        success: true,
+        data: [],
+        message: 'No taxis online nearby. Ask drivers to go online with location enabled.',
+        meta: { coordinates: { lat, lng }, searchMode: 'town_fallback' },
+      };
+    }
+
+    const nearestPlace = w3wResult.nearestPlace;
+    const townMatch = escapeRegex(nearestPlace.split(',')[0].trim());
+
+    const taxiUsers = await this.userModel
+      .find({
+        role: 'taxi_driver',
+        'address.town': { $regex: new RegExp(townMatch, 'i') },
+      })
+      .select('_id')
+      .exec();
+
+    if (taxiUsers.length === 0) {
+      return {
+        success: true,
+        data: [],
+        message: `No taxis online near ${townMatch}`,
+        meta: { coordinates: { lat, lng }, searchMode: 'town_fallback' },
+      };
+    }
+
+    const [taxis, total] = await Promise.all([
+      this.taxiModel
+        .find({
+          user: { $in: taxiUsers.map((u) => u._id) },
+          status: 'approved',
+          isVerified: true,
+          isActive: true,
+          availability: 'online',
+        })
+        .populate('user', 'firstName lastName postCode address phoneNumber')
+        .skip(skip)
+        .limit(limit)
+        .exec(),
+      this.taxiModel.countDocuments({
+        user: { $in: taxiUsers.map((u) => u._id) },
+        status: 'approved',
+        isVerified: true,
+        isActive: true,
+        availability: 'online',
+      }).exec(),
+    ]);
+
+    return {
+      success: true,
+      data: taxis,
+      message: taxis.length
+        ? `Found ${total} taxi(s) near ${townMatch}`
+        : `No taxis online near ${townMatch}`,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+        coordinates: { lat, lng },
+        searchMode: 'town_fallback',
+      },
+    };
   }
 
   /**

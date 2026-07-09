@@ -73,8 +73,14 @@ PORT=5000
 JWT_SECRET=your_super_secret_jwt_key_change_this_in_production
 
 # Email (Gmail SMTP) - required for email OTP and welcome emails
-GMAIL_USER=your-email@gmail.com
-GMAIL_APP_PASSWORD=your-16-char-app-password
+# SMTP (email OTP, notifications)
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USER=your-email@yourdomain.com
+SMTP_PASSWORD=your-smtp-password
+# or SMTP_PASS=your-smtp-password
+# Optional — defaults to SMTP_USER
+# SMTP_FROM=your-email@yourdomain.com
 
 # Twilio SMS (optional but required for phone OTP)
 TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
@@ -110,7 +116,7 @@ AWS_S3_BUCKET=aws_s3_bucket_name
   3. Replace `<username>` and `<password>` with your database credentials
   4. Whitelist your IP address in Atlas Network Access settings
 - For **JWT_SECRET**: Use a strong, random string in production. Generate one with: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
-- **Email verification/login OTP** requires valid Gmail app credentials (`GMAIL_USER`, `GMAIL_APP_PASSWORD`).
+- **Email verification/login OTP** requires SMTP credentials (`SMTP_HOST`, `SMTP_USER`, `SMTP_PASSWORD`).
 - **Phone verification OTP** requires Twilio credentials (`TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE_NUMBER`). Without them, SMS features will be disabled.
 - **Identity verification** requires Stripe Identity credentials (`STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET`). Without them, ID verification features will be disabled.
 - **Taxi verification** requires DVLA/MOT credentials (`DVLA_API_KEY, MOT_API_KEY, MOT_CLIENT_ID, MOT_CLIENT_SECRET, MOT_SCOPE_URL, MOT_TENANT_ID`). Without them, driver onboarding features will be disabled.

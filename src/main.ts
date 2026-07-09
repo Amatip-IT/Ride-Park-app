@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
+import { SanitizeInterceptor } from './common/sanitize.interceptor';
 
 const bootstrap = async (): Promise<void> => {
   const app = await NestFactory.create(AppModule, {
@@ -17,6 +18,9 @@ const bootstrap = async (): Promise<void> => {
 
   // Global API prefix — mobile client expects /api/...
   app.setGlobalPrefix('api');
+
+  // Global sanitization — strips HTML, scripts, null bytes from all inputs
+  app.useGlobalInterceptors(new SanitizeInterceptor());
 
   // Global validation pipe
   app.useGlobalPipes(

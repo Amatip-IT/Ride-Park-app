@@ -1,7 +1,9 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { WalletController } from './wallet.controller';
+import { WalletWebhookController } from './wallet-webhook.controller';
 import { WalletService } from './wallet.service';
+import { ProviderGuard } from 'src/guards/provider.guard';
 import { Wallet, WalletSchema } from 'src/schemas/wallet.schema';
 import { Transaction, TransactionSchema } from 'src/schemas/transaction.schema';
 import { PlatformSettings, PlatformSettingsSchema } from 'src/schemas/platform-settings.schema';
@@ -18,8 +20,8 @@ import { PaymentsModule } from 'src/payments/payments.module';
     ]),
     forwardRef(() => PaymentsModule),
   ],
-  controllers: [WalletController],
-  providers: [WalletService],
+  controllers: [WalletController, WalletWebhookController],
+  providers: [WalletService, ProviderGuard],
   exports: [WalletService],
 })
 export class WalletModule {}

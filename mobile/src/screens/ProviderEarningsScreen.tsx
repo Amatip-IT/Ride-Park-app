@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   SafeAreaView, Platform, ActivityIndicator, Alert, Modal,
-  TextInput, KeyboardAvoidingView
+  TextInput, KeyboardAvoidingView, Linking,
 } from 'react-native';
 import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
@@ -30,6 +30,10 @@ export function ProviderEarningsScreen() {
   const [showBankModal, setShowBankModal] = useState(false);
   const [bankForm, setBankForm] = useState({ accountName: '', accountNumber: '', sortCode: '' });
   const [bankLoading, setBankLoading] = useState(false);
+  const [acceptedStripeTerms, setAcceptedStripeTerms] = useState(false);
+  const [connectStatus, setConnectStatus] = useState<string | null>(null);
+  const [connectRequirements, setConnectRequirements] = useState<string[]>([]);
+  const [hasBankDetails, setHasBankDetails] = useState(false);
 
   // Withdraw modal
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
@@ -41,12 +45,23 @@ export function ProviderEarningsScreen() {
     setLoading(true);
     setFetchError(null);
     try {
-      const [walletRes, txRes] = await Promise.all([
+      const [walletRes, txRes, connectRes] = await Promise.all([
         walletApi.getWalletInfo(),
         walletApi.getTransactions(period),
+        walletApi.getConnectStatus().catch(() => null),
       ]);
-      if (walletRes.data?.success) setWallet(walletRes.data.data);
+      if (walletRes.data?.success) {
+        setWallet(walletRes.data.data);
+        if (!connectRes?.data?.success) {
+          setHasBankDetails(Boolean(walletRes.data.data?.bankDetails));
+        }
+      }
       if (txRes.data?.success) setTransactions(txRes.data.data || []);
+      if (connectRes?.data?.success) {
+        setConnectStatus(connectRes.data.data?.stripeConnectStatus || null);
+        setConnectRequirements(connectRes.data.data?.requirementsDue || []);
+        setHasBankDetails(Boolean(connectRes.data.data?.hasBankDetails));
+      }
     } catch (err) {
       setFetchError(getApiErrorMessage(err, 'Could not load earnings data.'));
     } finally {
@@ -115,16 +130,22 @@ export function ProviderEarningsScreen() {
     if (bankForm.sortCode.replace(/-/g, '').length !== 6) {
       Alert.alert('Error', 'Sort code must be 6 digits'); return;
     }
+    if (!acceptedStripeTerms) {
+      Alert.alert('Agreement required', 'Please accept the Stripe Connected Account Agreement to continue.');
+      return;
+    }
     setBankLoading(true);
     try {
       const res = await walletApi.updateBankDetails({
         accountName: bankForm.accountName,
         accountNumber: bankForm.accountNumber,
         sortCode: bankForm.sortCode.replace(/-/g, ''),
+        acceptedStripeTerms: true,
       });
       if (res.data?.success) {
-        Alert.alert('Success', 'Bank details saved successfully');
+        Alert.alert('Success', res.data.message || 'Bank details saved successfully');
         setShowBankModal(false);
+        setAcceptedStripeTerms(false);
         fetchData(selectedPeriod);
       } else {
         Alert.alert('Error', res.data?.message || 'Failed to save bank details');
@@ -143,6 +164,13 @@ export function ProviderEarningsScreen() {
     }
     if (!wallet?.bankDetails) {
       Alert.alert('Error', 'Please add bank details first'); return;
+    }
+    if (connectStatus && connectStatus !== 'active') {
+      Alert.alert(
+        'Payout account not ready',
+        'Your Stripe payout account is still being verified. Please wait or update your bank details.',
+      );
+      return;
     }
     if (amount > (wallet?.balance || 0)) {
       Alert.alert('Error', 'Insufficient balance'); return;
@@ -258,6 +286,22 @@ export function ProviderEarningsScreen() {
           </View>
         )}
 
+        {hasBankDetails && connectStatus && connectStatus !== 'active' && (
+          <View style={styles.connectBanner}>
+            <Ionicons name="shield-outline" size={18} color={COLORS.amber} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.connectBannerTitle}>
+                Payout verification {connectStatus === 'restricted' ? 'required' : 'in progress'}
+              </Text>
+              <Text style={styles.connectBannerText}>
+                {connectStatus === 'restricted'
+                  ? 'Stripe needs additional information before you can withdraw.'
+                  : 'Your bank details are saved. Stripe is verifying your account for payouts.'}
+              </Text>
+            </View>
+          </View>
+        )}
+
         {/* Total Earnings (Gross) */}
         <View style={styles.grossCard}>
           <Ionicons name="trending-up" size={20} color={COLORS.electricTeal} />
@@ -287,7 +331,11 @@ export function ProviderEarningsScreen() {
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.bankTitle}>{wallet?.bankDetails ? 'Bank Account Linked' : 'Add Bank Details'}</Text>
-            <Text style={styles.bankSub}>{wallet?.bankDetails ? `****${wallet.bankDetails.accountNumber?.slice(-4)} · ${wallet.bankDetails.sortCode}` : 'Required for withdrawals'}</Text>
+            <Text style={styles.bankSub}>
+              {wallet?.bankDetails
+                ? `****${wallet.bankDetails.accountNumber?.slice(-4)} · ${wallet.bankDetails.sortCode}${connectStatus ? ` · ${connectStatus}` : ''}`
+                : 'Required for withdrawals'}
+            </Text>
           </View>
           <Ionicons name="chevron-forward" size={20} color={COLORS.textTertiary} />
         </TouchableOpacity>
@@ -340,7 +388,27 @@ export function ProviderEarningsScreen() {
             <TextInput style={styles.modalInput} placeholder="Account Holder Name" placeholderTextColor={COLORS.textTertiary} value={bankForm.accountName} onChangeText={v => setBankForm({ ...bankForm, accountName: v })} />
             <TextInput style={styles.modalInput} placeholder="Account Number (8 digits)" placeholderTextColor={COLORS.textTertiary} value={bankForm.accountNumber} onChangeText={v => setBankForm({ ...bankForm, accountNumber: v.replace(/\D/g, '').slice(0, 8) })} keyboardType="numeric" maxLength={8} />
             <TextInput style={styles.modalInput} placeholder="Sort Code (6 digits)" placeholderTextColor={COLORS.textTertiary} value={bankForm.sortCode} onChangeText={v => setBankForm({ ...bankForm, sortCode: v.replace(/\D/g, '').slice(0, 6) })} keyboardType="numeric" maxLength={6} />
-            <TouchableOpacity style={[styles.modalBtn, bankLoading && { opacity: 0.6 }]} onPress={handleSaveBankDetails} disabled={bankLoading}>
+            <TouchableOpacity
+              style={styles.tosRow}
+              onPress={() => setAcceptedStripeTerms(v => !v)}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name={acceptedStripeTerms ? 'checkbox' : 'square-outline'}
+                size={22}
+                color={acceptedStripeTerms ? COLORS.electricTeal : COLORS.textTertiary}
+              />
+              <Text style={styles.tosText}>
+                I agree to the{' '}
+                <Text
+                  style={styles.tosLink}
+                  onPress={() => Linking.openURL('https://stripe.com/gb/connect-account/legal')}
+                >
+                  Stripe Connected Account Agreement
+                </Text>
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.modalBtn, (bankLoading || !acceptedStripeTerms) && { opacity: 0.6 }]} onPress={handleSaveBankDetails} disabled={bankLoading || !acceptedStripeTerms}>
               {bankLoading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.modalBtnText}>Save Bank Details</Text>}
             </TouchableOpacity>
           </View>
@@ -382,6 +450,26 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
     backgroundColor: 'rgba(255, 107, 107, 0.12)',
     borderRadius: BORDER_RADIUS.md,
+  },
+  connectBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: SPACING.sm,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+    borderRadius: BORDER_RADIUS.md,
+  },
+  connectBannerTitle: {
+    color: COLORS.amber,
+    fontWeight: FONT_WEIGHTS.semibold,
+    fontSize: FONT_SIZES.label,
+    marginBottom: 2,
+  },
+  connectBannerText: {
+    color: COLORS.textSecondary,
+    fontSize: FONT_SIZES.small,
+    lineHeight: 18,
   },
   errorBannerText: { flex: 1, color: COLORS.coralRed, fontSize: 13 },
   retryLink: { color: COLORS.electricTeal, fontWeight: FONT_WEIGHTS.bold, fontSize: 13 },
@@ -434,6 +522,9 @@ const styles = StyleSheet.create({
   modalTitle: { fontSize: FONT_SIZES.section, fontWeight: FONT_WEIGHTS.bold, color: COLORS.textPrimary },
   modalSubtitle: { color: COLORS.textSecondary, fontSize: FONT_SIZES.body, marginBottom: SPACING.xl },
   modalInput: { backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.md, padding: SPACING.md, color: COLORS.textPrimary, fontSize: FONT_SIZES.body, borderWidth: 1, borderColor: COLORS.border, height: 50, marginBottom: SPACING.md },
+  tosRow: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm, marginBottom: SPACING.md },
+  tosText: { flex: 1, color: COLORS.textSecondary, fontSize: FONT_SIZES.small, lineHeight: 18 },
+  tosLink: { color: COLORS.electricTeal, textDecorationLine: 'underline' },
   modalBtn: { backgroundColor: COLORS.electricTeal, borderRadius: BORDER_RADIUS.md, padding: SPACING.lg, alignItems: 'center', marginTop: SPACING.sm },
   modalBtnText: { color: '#FFF', fontSize: FONT_SIZES.label, fontWeight: FONT_WEIGHTS.bold },
 });

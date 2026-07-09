@@ -14,7 +14,6 @@ import { UsersService } from './users.service';
 import { UsersController } from './users.controller';
 import { VerificationModule } from 'src/verification/verification.module';
 import { AdminGuard } from 'src/guards/admin.guard';
-import { AuthGuard } from 'src/guards/auth.guard';
 
 @Module({
   imports: [
@@ -30,6 +29,6 @@ import { AuthGuard } from 'src/guards/auth.guard';
     VerificationModule,
   ],
   controllers: [UsersController],
-  providers: [UsersService, AuthGuard, AdminGuard],
+  providers: [UsersService, AdminGuard],
 })
 export class UsersModule {}

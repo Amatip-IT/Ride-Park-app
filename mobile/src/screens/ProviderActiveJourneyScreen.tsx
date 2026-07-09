@@ -18,7 +18,7 @@ import {
 } from '@/utils/helpers';
 import { useRideRouteAndEta } from '@/hooks/useRideRouteAndEta';
 
-type JourneyState = 'accepted' | 'arrived' | 'in_progress' | 'completed';
+type JourneyState = 'accepted' | 'arrived' | 'in_progress' | 'awaiting_payment' | 'completed';
 
 type ParamList = {
   ProviderActiveJourney: {
@@ -33,6 +33,8 @@ function mapRequestStatusToJourney(status?: string): JourneyState {
       return 'arrived';
     case 'in_progress':
       return 'in_progress';
+    case 'awaiting_payment':
+      return 'awaiting_payment';
     case 'completed':
       return 'completed';
     default:
@@ -115,12 +117,22 @@ export function ProviderActiveJourneyScreen() {
             const { latitude, longitude, heading } = location.coords;
             const driverId = user?._id || (user as any)?.id;
 
+            // Use device heading if available; otherwise compute bearing from last position
+            let bearing = heading > 0 ? heading : 0;
+            const last = lastPositionRef.current;
+            if (bearing <= 0 && last) {
+              const dLng = longitude - last.lng;
+              const y = Math.sin(dLng * Math.PI / 180) * Math.cos(latitude * Math.PI / 180);
+              const x = Math.cos(last.lat * Math.PI / 180) * Math.sin(latitude * Math.PI / 180)
+                - Math.sin(last.lat * Math.PI / 180) * Math.cos(latitude * Math.PI / 180) * Math.cos(dLng * Math.PI / 180);
+              bearing = ((Math.atan2(y, x) * 180 / Math.PI) + 360) % 360;
+            }
+
             if (driverId && requestId) {
-              updateDriverLocation(requestId, driverId, latitude, longitude, heading || 0);
+              updateDriverLocation(requestId, driverId, latitude, longitude, bearing);
             }
 
             if (journeyState === 'in_progress') {
-              const last = lastPositionRef.current;
               if (last) {
                 accumulatedMilesRef.current += haversineDistanceMiles(
                   last.lat,
@@ -129,6 +141,8 @@ export function ProviderActiveJourneyScreen() {
                   longitude,
                 );
               }
+              lastPositionRef.current = { lat: latitude, lng: longitude };
+            } else {
               lastPositionRef.current = { lat: latitude, lng: longitude };
             }
           },
@@ -249,17 +263,17 @@ export function ProviderActiveJourneyScreen() {
         const res = await ridesApi.completeRide(rideId, distanceMiles, durationMinutes);
 
         if (res.data?.success) {
-          const statusRes = await taxiBookingsApi.updateStatus(requestId, 'completed');
+          const statusRes = await taxiBookingsApi.updateStatus(requestId, 'awaiting_payment', rideId);
           if (statusRes.data?.success) {
             applyRequestData(statusRes.data.data);
           } else {
-            setJourneyState('completed');
+            setJourneyState('awaiting_payment');
           }
 
           const total = res.data.data?.totalCost ?? 0;
           Alert.alert(
-            'Ride completed',
-            `Fare: £${total.toFixed(2)}. Payment will be charged to the passenger's saved card automatically.`,
+            'Trip ended',
+            `Fare: £${total.toFixed(2)}. Waiting for the passenger to confirm their location and pay.`,
             [{ text: 'OK' }],
           );
         } else {
@@ -312,6 +326,8 @@ export function ProviderActiveJourneyScreen() {
         return 'Start Ride (Pick Up)';
       case 'in_progress':
         return 'Complete Ride';
+      case 'awaiting_payment':
+        return 'Waiting for Passenger Payment';
       case 'completed':
         return 'Finish & Return Home';
       default:
@@ -327,6 +343,8 @@ export function ProviderActiveJourneyScreen() {
         return COLORS.success;
       case 'in_progress':
         return COLORS.error;
+      case 'awaiting_payment':
+        return COLORS.amber;
       case 'completed':
         return COLORS.electricTeal;
       default:
@@ -418,10 +436,10 @@ export function ProviderActiveJourneyScreen() {
           </Text>
         </TouchableOpacity>
 
-        {journeyState === 'completed' && (
+        {journeyState === 'completed' && requestItem?.ride?.paymentStatus === 'charged' && (
           <TouchableOpacity
             style={styles.receiptBtn}
-            onPress={() => navigation.navigate('TripReceipt', { requestId })}
+            onPress={() => navigation.navigate('TripReceipt', { requestId, rideId })}
             activeOpacity={0.8}
           >
             <Ionicons name="receipt-outline" size={18} color={COLORS.electricTeal} />
@@ -432,7 +450,7 @@ export function ProviderActiveJourneyScreen() {
         <TouchableOpacity
           style={[styles.mainBtn, { backgroundColor: getActionColor() }, actionLoading && { opacity: 0.7 }]}
           onPress={handleAction}
-          disabled={actionLoading}
+          disabled={actionLoading || journeyState === 'awaiting_payment'}
           activeOpacity={0.8}
         >
           {actionLoading ? (

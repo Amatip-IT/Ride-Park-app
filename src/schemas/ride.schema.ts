@@ -70,9 +70,13 @@ export class Ride {
   // Ride status
   @Prop({
     default: 'pending',
-    enum: ['pending', 'in_progress', 'completed', 'cancelled'],
+    enum: ['pending', 'in_progress', 'awaiting_payment', 'completed', 'cancelled'],
   })
   status: string;
+
+  // Passenger confirmed they are at the destination before paying
+  @Prop({ type: Date })
+  passengerConfirmedAt?: Date;
 
   // Payment status (tracks whether the Stripe charge succeeded)
   @Prop({
@@ -80,6 +84,10 @@ export class Ride {
     enum: ['pending', 'charged', 'payment_failed'],
   })
   paymentStatus: string;
+
+  // Stripe PaymentIntent ID (stored after successful charge on completion)
+  @Prop({ type: String })
+  paymentIntentId?: string;
 
   // Timestamps for the ride lifecycle
   @Prop({ type: Date })

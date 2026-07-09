@@ -996,13 +996,27 @@ export class AdminService {
         return { success: false, message: 'Provider wallet or Stripe Connect account not found' };
       }
 
-      // Transfer funds via Stripe
+      if (wallet.stripeConnectStatus !== 'active') {
+        const account = await this.stripe.accounts.retrieve(wallet.stripeConnectId);
+        if (!account.payouts_enabled) {
+          return {
+            success: false,
+            message:
+              'Provider Stripe Connect account cannot receive payouts yet. They must complete verification.',
+          };
+        }
+      }
+
       const amountInPence = Math.round(transaction.amount * 100);
       const transfer = await this.stripe.transfers.create({
         amount: amountInPence,
         currency: 'gbp',
         destination: wallet.stripeConnectId,
         description: `Payout for ${transactionId}`,
+        metadata: {
+          transactionId: transactionId.toString(),
+          providerId: transaction.providerId.toString(),
+        },
       });
 
       transaction.status = 'completed';

@@ -12,7 +12,6 @@ import { DisputesController } from './disputes.controller';
 import { AdminDisputesController } from './admin-disputes.controller';
 import { AdminModule } from 'src/admin/admin.module';
 import { NotificationsModule } from 'src/notifications/notifications.module';
-import { AuthGuard } from 'src/guards/auth.guard';
 import { AdminGuard } from 'src/guards/admin.guard';
 
 @Module({
@@ -30,7 +29,7 @@ import { AdminGuard } from 'src/guards/admin.guard';
     NotificationsModule,
   ],
   controllers: [DisputesController, AdminDisputesController],
-  providers: [DisputesService, AuthGuard, AdminGuard],
+  providers: [DisputesService, AdminGuard],
   exports: [DisputesService],
 })
 export class DisputesModule {}

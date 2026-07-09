@@ -10,6 +10,7 @@ import {
 import { Taxi, TaxiSchema } from 'src/schemas/taxi.schema';
 import { Chauffeur, ChauffeurSchema } from 'src/schemas/chauffeur.schema';
 import { User, UserSchema } from 'src/schemas/user.schema';
+import { Ride, RideSchema } from 'src/schemas/ride.schema';
 import { NotificationsModule } from 'src/notifications/notifications.module';
 import { PaymentsModule } from 'src/payments/payments.module';
 import { WalletModule } from 'src/wallet/wallet.module';
@@ -22,6 +23,7 @@ import { RidesModule } from 'src/rides/rides.module';
       { name: Taxi.name, schema: TaxiSchema },
       { name: Chauffeur.name, schema: ChauffeurSchema },
       { name: User.name, schema: UserSchema },
+      { name: Ride.name, schema: RideSchema },
     ]),
     NotificationsModule,
     PaymentsModule,

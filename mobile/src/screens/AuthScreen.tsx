@@ -21,8 +21,11 @@ import { RootStackParamList } from '@/navigation/RootNavigator';
 import { Ionicons } from '@expo/vector-icons';
 import PhoneInput from 'react-native-phone-number-input';
 import { Picker } from '@react-native-picker/picker';
+import { CountryPicker } from '@/components/CountryPicker';
+import { DEFAULT_COUNTRY } from '@/constants/countries';
 import { useRef } from 'react';
 import * as ImagePicker from 'expo-image-picker';
+import { isStrongPassword, PASSWORD_STRENGTH_MESSAGE } from '@/utils/helpers';
 import { providerApi } from '@/api';
 
 type AuthStep = 'register_step1' | 'register_step2' | 'register_step3' | 'otp' | 'login';
@@ -61,7 +64,7 @@ export function AuthScreen() {
     street: '',
     county: '',
     town: '',
-    country: 'United Kingdom',
+    country: DEFAULT_COUNTRY,
     role: initialRole as import('@/types').UserRole,
     taxiType: 'Normal car',
     vehicleMake: '',
@@ -102,8 +105,15 @@ export function AuthScreen() {
     if (!formData.firstName.trim() || !formData.lastName.trim()) {
       Alert.alert('Error', 'Please enter your first and last name'); return;
     }
-    if (!formData.username.trim()) {
+    const usernameClean = formData.username.toLowerCase().trim();
+    if (!usernameClean) {
       Alert.alert('Error', 'Please enter a username'); return;
+    }
+    if (usernameClean.length < 3 || usernameClean.length > 30) {
+      Alert.alert('Error', 'Username must be between 3 and 30 characters'); return;
+    }
+    if (!/^[a-z0-9_]+$/.test(usernameClean)) {
+      Alert.alert('Error', 'Username can only contain lowercase letters, numbers, and underscores'); return;
     }
     if (!formData.email.trim() || !formData.email.includes('@')) {
       Alert.alert('Error', 'Please enter a valid email address'); return;
@@ -111,9 +121,8 @@ export function AuthScreen() {
     if (!formData.phoneNumber.trim() || formData.phoneNumber.length < 10) {
       Alert.alert('Error', 'Please enter a valid phone number'); return;
     }
-    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
-    if (!passwordRegex.test(formData.password)) {
-      Alert.alert('Error', 'Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character'); return;
+    if (!isStrongPassword(formData.password)) {
+      Alert.alert('Error', PASSWORD_STRENGTH_MESSAGE); return;
     }
     if (formData.password !== formData.confirmPassword) {
       Alert.alert('Error', 'Passwords do not match'); return;
@@ -124,7 +133,7 @@ export function AuthScreen() {
   // ── Step 2 validation ──
   const handleStep2Next = () => {
     if (!formData.postCode.trim()) {
-      Alert.alert('Error', 'Please enter your post code'); return;
+      Alert.alert('Error', 'Please enter your postcode or house number'); return;
     }
     if (!formData.town.trim()) {
       Alert.alert('Error', 'Please enter your town'); return;
@@ -229,8 +238,24 @@ export function AuthScreen() {
       const response = await authService.register(payload);
 
       if (!response.success) {
+        const suggestions = (response as any).data?.suggestions;
+        if (suggestions && suggestions.length > 0) {
+          Alert.alert(
+            'Username Taken',
+            `${response.message}\n\nTry one of these:\n• ${suggestions.join('\n• ')}`,
+            [
+              { text: 'OK', style: 'cancel' },
+              ...suggestions.slice(0, 2).map((s: string) => ({
+                text: `Use "${s}"`,
+                onPress: () => setFormData((prev: any) => ({ ...prev, username: s })),
+              })),
+            ],
+          );
+          setCurrentStep('register_step1');
+        } else {
+          Alert.alert('Error', response.message || 'Failed to register');
+        }
         setStoreError(response.message || 'Registration failed');
-        Alert.alert('Error', response.message || 'Failed to register');
         return;
       }
 
@@ -269,7 +294,7 @@ export function AuthScreen() {
 
         const res: any = loginRes;
         if (res.success && res.token && res.data) {
-          await storeLogin(res.data as any, res.token);
+          await storeLogin(res.data as any, res.token, res.refreshToken);
         } else {
           setStoreError(res.message || 'OTP verification failed');
           Alert.alert('Error', res.message || 'OTP verification failed');
@@ -356,7 +381,7 @@ export function AuthScreen() {
       }
 
       if (res.token && res.data) {
-        await storeLogin(res.data as any, res.token);
+        await storeLogin(res.data as any, res.token, res.refreshToken);
 
         if (pendingDocUpload) {
           uploadIdentityDocs().catch(() => {});
@@ -409,7 +434,7 @@ export function AuthScreen() {
         street: '',
         county: '',
         town: '',
-        country: 'United Kingdom',
+        country: DEFAULT_COUNTRY,
         role: initialRole as import('@/types').UserRole,
         taxiType: 'Normal car',
         vehicleMake: '',
@@ -517,11 +542,12 @@ export function AuthScreen() {
             <View style={styles.inputWrapper}>
               <TextInput
                 style={styles.input}
-                placeholder="Username"
+                placeholder="Username (lowercase, numbers, underscores)"
                 placeholderTextColor={COLORS.textTertiary}
                 value={formData.username}
-                onChangeText={(text) => setFormData({ ...formData, username: text })}
+                onChangeText={(text) => setFormData({ ...formData, username: text.toLowerCase().replace(/[^a-z0-9_]/g, '') })}
                 autoCapitalize="none"
+                autoCorrect={false}
               />
             </View>
             
@@ -616,11 +642,10 @@ export function AuthScreen() {
             <View style={styles.inputWrapper}>
               <TextInput
                 style={styles.input}
-                placeholder="Post Code"
+                placeholder="Postcode or house number (e.g. SW1A 1AA, No 9)"
                 placeholderTextColor={COLORS.textTertiary}
                 value={formData.postCode}
                 onChangeText={(text) => setFormData({ ...formData, postCode: text })}
-                autoCapitalize="characters"
               />
             </View>
 
@@ -654,21 +679,11 @@ export function AuthScreen() {
               />
             </View>
 
-            <View style={[styles.inputWrapper, { padding: 0, overflow: 'hidden', height: 50, justifyContent: 'center', backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.md, borderWidth: 1, borderColor: COLORS.border }]}>
-              <Picker
-                selectedValue={formData.country}
-                onValueChange={(itemValue) => setFormData({ ...formData, country: itemValue })}
-                dropdownIconColor={COLORS.textSecondary}
-                style={{ color: COLORS.textPrimary, height: 50, width: '100%' }}
-              >
-                <Picker.Item label="United Kingdom" value="United Kingdom" color={COLORS.textPrimary} />
-                <Picker.Item label="Nigeria" value="Nigeria" color={COLORS.textPrimary} />
-                <Picker.Item label="United States" value="United States" color={COLORS.textPrimary} />
-                <Picker.Item label="Canada" value="Canada" color={COLORS.textPrimary} />
-                <Picker.Item label="Australia" value="Australia" color={COLORS.textPrimary} />
-                <Picker.Item label="South Africa" value="South Africa" color={COLORS.textPrimary} />
-                <Picker.Item label="Other" value="Other" color={COLORS.textPrimary} />
-              </Picker>
+            <View style={styles.inputWrapper}>
+              <CountryPicker
+                value={formData.country}
+                onChange={(country) => setFormData({ ...formData, country })}
+              />
             </View>
 
             {initialRole === 'taxi_driver' && (

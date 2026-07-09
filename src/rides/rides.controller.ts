@@ -133,6 +133,51 @@ export class RidesController {
   }
 
   /**
+   * POST /rides/:id/confirm-arrival
+   * Passenger confirms they are at the destination
+   */
+  @Post(':id/confirm-arrival')
+  @UseGuards(AuthGuard)
+  async confirmArrival(@Param('id') id: string, @Req() req: any) {
+    const userId = (req.user._id || req.user.id)?.toString();
+    const result = await this.ridesService.confirmPassengerAtDestination(id, userId);
+    if (!result.success) {
+      throw new HttpException(result, HttpStatus.BAD_REQUEST);
+    }
+    return result;
+  }
+
+  /**
+   * POST /rides/:id/pay
+   * Passenger explicitly confirms payment (no auto-charge)
+   */
+  @Post(':id/pay')
+  @UseGuards(AuthGuard)
+  async payRide(@Param('id') id: string, @Req() req: any) {
+    const userId = (req.user._id || req.user.id)?.toString();
+    const result = await this.ridesService.payRide(id, userId);
+    if (!result.success) {
+      throw new HttpException(result, HttpStatus.BAD_REQUEST);
+    }
+    return result;
+  }
+
+  /**
+   * POST /rides/:id/retry-payment
+   * @deprecated Use POST /rides/:id/pay after confirming arrival
+   */
+  @Post(':id/retry-payment')
+  @UseGuards(AuthGuard)
+  async retryPayment(@Param('id') id: string, @Req() req: any) {
+    const userId = (req.user._id || req.user.id)?.toString();
+    const result = await this.ridesService.payRide(id, userId);
+    if (!result.success) {
+      throw new HttpException(result, HttpStatus.BAD_REQUEST);
+    }
+    return result;
+  }
+
+  /**
    * GET /rides/:id/receipt
    * Trip receipt (passenger or driver on that ride)
    */
