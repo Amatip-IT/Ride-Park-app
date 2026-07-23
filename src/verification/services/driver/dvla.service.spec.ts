@@ -42,14 +42,14 @@ describe('DvlaService', () => {
     expect(service).toBeDefined();
   });
 
-  it('should throw error if DVLA API key not configured', () => {
+  it('should allow startup if DVLA API key is not configured', () => {
     const emptyConfigService = {
       get: jest.fn().mockReturnValue(''),
     };
 
     expect(
       () => new DvlaService(emptyConfigService as unknown as ConfigService),
-    ).toThrow(InternalServerErrorException);
+    ).not.toThrow();
   });
 
   describe('checkVehicle', () => {

@@ -1,15 +1,25 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { ParkingVerification, ParkingVerificationDocument } from 'src/schemas/parking-verification.schema';
-import { ParkingSpace, ParkingSpaceDocument } from 'src/schemas/parking-space.schema';
+import {
+  ParkingVerification,
+  ParkingVerificationDocument,
+} from 'src/schemas/parking-verification.schema';
+import {
+  ParkingSpace,
+  ParkingSpaceDocument,
+} from 'src/schemas/parking-space.schema';
 import { Chauffeur, ChauffeurDocument } from 'src/schemas/chauffeur.schema';
 import { Taxi, TaxiDocument } from 'src/schemas/taxi.schema';
 import { User, UserDocument } from 'src/schemas/user.schema';
-import { BookingRequest, BookingRequestDocument } from 'src/schemas/booking-request.schema';
+import {
+  BookingRequest,
+  BookingRequestDocument,
+} from 'src/schemas/booking-request.schema';
 import { TransactionDocument } from 'src/schemas/transaction.schema';
 import { Response } from 'src/common/interfaces/response.interface';
 import { WalletService } from 'src/wallet/wallet.service';
+import { AmazonLocationService } from 'src/utility/amazon-location.service';
 
 // All valid document field names that can be uploaded
 const VALID_DOC_FIELDS = [
@@ -29,13 +39,18 @@ const VALID_DOC_FIELDS = [
 @Injectable()
 export class ProviderService {
   constructor(
-    @InjectModel(ParkingVerification.name) private parkingVerifModel: Model<ParkingVerificationDocument>,
-    @InjectModel(ParkingSpace.name) private parkingSpaceModel: Model<ParkingSpaceDocument>,
-    @InjectModel(Chauffeur.name) private chauffeurModel: Model<ChauffeurDocument>,
+    @InjectModel(ParkingVerification.name)
+    private parkingVerifModel: Model<ParkingVerificationDocument>,
+    @InjectModel(ParkingSpace.name)
+    private parkingSpaceModel: Model<ParkingSpaceDocument>,
+    @InjectModel(Chauffeur.name)
+    private chauffeurModel: Model<ChauffeurDocument>,
     @InjectModel(Taxi.name) private taxiModel: Model<TaxiDocument>,
     @InjectModel(User.name) private userModel: Model<UserDocument>,
-    @InjectModel(BookingRequest.name) private bookingModel: Model<BookingRequestDocument>,
+    @InjectModel(BookingRequest.name)
+    private bookingModel: Model<BookingRequestDocument>,
     private readonly walletService: WalletService,
+    private readonly amazonLocationService: AmazonLocationService,
   ) {}
 
   /**
@@ -47,7 +62,9 @@ export class ProviderService {
 
       switch (role) {
         case 'parking_provider': {
-          const records = await this.parkingVerifModel.find({ user: userId }).sort({ createdAt: -1 });
+          const records = await this.parkingVerifModel
+            .find({ user: userId })
+            .sort({ createdAt: -1 });
           record = records.length > 0 ? records[0] : null;
           return {
             success: true,
@@ -58,7 +75,9 @@ export class ProviderService {
               rejectionReason: record?.rejectionReason || null,
               verifications: records,
             },
-            message: records.length ? `Found ${records.length} parking applications` : 'No verification application found',
+            message: records.length
+              ? `Found ${records.length} parking applications`
+              : 'No verification application found',
           };
         }
         case 'driver':
@@ -80,11 +99,13 @@ export class ProviderService {
           docs[field] = record[field] || null;
           const raw = record.documentStatuses?.[field];
           if (raw) {
-            docStatuses[field] = typeof raw === 'object' && raw !== null && raw.status
-              ? raw.status
-              : raw;
+            docStatuses[field] =
+              typeof raw === 'object' && raw !== null && raw.status
+                ? raw.status
+                : raw;
           } else if (record[field]) {
-            docStatuses[field] = record.status === 'approved' ? 'verified' : 'uploaded';
+            docStatuses[field] =
+              record.status === 'approved' ? 'verified' : 'uploaded';
           }
         }
       }
@@ -101,7 +122,9 @@ export class ProviderService {
           availability: record?.availability || 'offline',
           driverNumber: record?.driverNumber || null,
         },
-        message: record ? 'Verification status retrieved' : 'No verification application found',
+        message: record
+          ? 'Verification status retrieved'
+          : 'No verification application found',
       };
     } catch (error) {
       return {
@@ -175,12 +198,18 @@ export class ProviderService {
   /**
    * Submit or update verification documents for a parking provider
    */
-  async submitParkingVerification(userId: string, data: Record<string, any>): Promise<Response> {
+  async submitParkingVerification(
+    userId: string,
+    data: Record<string, any>,
+  ): Promise<Response> {
     try {
       let record;
-      
+
       if (data._id) {
-        record = await this.parkingVerifModel.findOne({ _id: data._id, user: userId });
+        record = await this.parkingVerifModel.findOne({
+          _id: data._id,
+          user: userId,
+        });
       }
 
       if (!record) {
@@ -201,6 +230,27 @@ export class ProviderService {
 
       if (data.parkAddress) record.address = data.parkAddress;
       if (data.parkPostcode) record.postcode = data.parkPostcode;
+
+      // Resolve exact map coordinates from client GPS/autocomplete or AWS geocoding
+      let lat = parseFloat(data.parkLat);
+      let lng = parseFloat(data.parkLng);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        const geocoded = await this.amazonLocationService.geocodeAddressParts(
+          data.parkAddress || record.address,
+          data.parkPostcode || record.postcode,
+        );
+        if (geocoded) {
+          lat = geocoded.lat;
+          lng = geocoded.lng;
+        }
+      }
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        record.location = {
+          ...record.location,
+          coordinates: { lat, lng },
+        };
+      }
+
       record.status = 'pending_admin_review';
 
       await record.save();
@@ -211,7 +261,8 @@ export class ProviderService {
           status: record.status,
           documents: record.documents,
         },
-        message: 'Verification documents submitted. Your application is under review.',
+        message:
+          'Verification documents submitted. Your application is under review.',
       };
     } catch (error) {
       return {
@@ -225,16 +276,22 @@ export class ProviderService {
    * Submit or update a single document for a driver (chauffeur).
    * Each document is stored in its own dedicated field.
    */
-  async submitDriverVerification(userId: string, data: {
-    docField: string;
-    docUrl: string;
-  }): Promise<Response> {
+  async submitDriverVerification(
+    userId: string,
+    data: {
+      docField: string;
+      docUrl: string;
+    },
+  ): Promise<Response> {
     try {
       const { docField, docUrl } = data;
 
       // Validate the field name
       if (!VALID_DOC_FIELDS.includes(docField as any)) {
-        return { success: false, message: `Invalid document field: ${docField}` };
+        return {
+          success: false,
+          message: `Invalid document field: ${docField}`,
+        };
       }
 
       let record = await this.chauffeurModel.findOne({ user: userId });
@@ -287,21 +344,27 @@ export class ProviderService {
    * Submit or update a single document for a taxi driver.
    * Each document is stored in its own dedicated field.
    */
-  async submitTaxiVerification(userId: string, data: {
-    docField: string;
-    docUrl: string;
-    // Optional vehicle info
-    plateNumber?: string;
-    vehicleMake?: string;
-    vehicleModel?: string;
-    vehicleYear?: string;
-  }): Promise<Response> {
+  async submitTaxiVerification(
+    userId: string,
+    data: {
+      docField: string;
+      docUrl: string;
+      // Optional vehicle info
+      plateNumber?: string;
+      vehicleMake?: string;
+      vehicleModel?: string;
+      vehicleYear?: string;
+    },
+  ): Promise<Response> {
     try {
       const { docField, docUrl } = data;
 
       // Validate the field name
       if (!VALID_DOC_FIELDS.includes(docField as any)) {
-        return { success: false, message: `Invalid document field: ${docField}` };
+        return {
+          success: false,
+          message: `Invalid document field: ${docField}`,
+        };
       }
 
       let record = await this.taxiModel.findOne({ user: userId });
@@ -327,7 +390,12 @@ export class ProviderService {
       record.markModified('documentStatuses');
 
       // Update vehicle info if provided
-      if (data.plateNumber || data.vehicleMake || data.vehicleModel || data.vehicleYear) {
+      if (
+        data.plateNumber ||
+        data.vehicleMake ||
+        data.vehicleModel ||
+        data.vehicleYear
+      ) {
         record.vehicleInfo = {
           ...record.vehicleInfo,
           plateNumber: data.plateNumber || record.vehicleInfo?.plateNumber,
@@ -374,20 +442,31 @@ export class ProviderService {
     location?: { lat: number; lng: number },
   ): Promise<Response> {
     try {
-      const record: any = role === 'driver'
-        ? await this.chauffeurModel.findOne({ user: userId })
-        : await this.taxiModel.findOne({ user: userId });
+      const record: any =
+        role === 'driver'
+          ? await this.chauffeurModel.findOne({ user: userId })
+          : await this.taxiModel.findOne({ user: userId });
 
       if (!record) {
-        return { success: false, message: 'Provider record not found. Complete verification first.' };
+        return {
+          success: false,
+          message: 'Provider record not found. Complete verification first.',
+        };
       }
 
       if (record.availability === 'busy') {
-        return { success: false, message: 'Cannot change status while on an active trip.' };
+        return {
+          success: false,
+          message: 'Cannot change status while on an active trip.',
+        };
       }
 
       record.availability = status;
-      if (status === 'online' && location?.lat != null && location?.lng != null) {
+      if (
+        status === 'online' &&
+        location?.lat != null &&
+        location?.lng != null
+      ) {
         record.location = {
           coordinates: { lat: location.lat, lng: location.lng },
         };
@@ -420,9 +499,10 @@ export class ProviderService {
         return { success: false, message: 'Valid coordinates are required' };
       }
 
-      const record: any = role === 'driver'
-        ? await this.chauffeurModel.findOne({ user: userId })
-        : await this.taxiModel.findOne({ user: userId });
+      const record: any =
+        role === 'driver'
+          ? await this.chauffeurModel.findOne({ user: userId })
+          : await this.taxiModel.findOne({ user: userId });
 
       if (!record) {
         return { success: false, message: 'Provider record not found' };
@@ -451,9 +531,10 @@ export class ProviderService {
    */
   async getDriverNumber(userId: string, role: string): Promise<Response> {
     try {
-      const record: any = role === 'driver'
-        ? await this.chauffeurModel.findOne({ user: userId })
-        : await this.taxiModel.findOne({ user: userId });
+      const record: any =
+        role === 'driver'
+          ? await this.chauffeurModel.findOne({ user: userId })
+          : await this.taxiModel.findOne({ user: userId });
 
       if (!record) {
         return { success: false, message: 'Provider record not found' };
@@ -530,37 +611,41 @@ export class ProviderService {
           const spaceObj = space.toObject();
 
           // Count bookings by status for this space
-          const [activeCount, pendingCount, completedCount, totalRevenue] = await Promise.all([
-            this.bookingModel.countDocuments({
-              serviceId: space._id,
-              status: 'accepted',
-            }),
-            this.bookingModel.countDocuments({
-              serviceId: space._id,
-              status: 'pending',
-            }),
-            this.bookingModel.countDocuments({
-              serviceId: space._id,
-              status: 'completed',
-            }),
-            this.bookingModel.aggregate([
-              {
-                $match: {
-                  serviceId: space._id,
-                  status: { $in: ['completed', 'accepted'] },
+          const [activeCount, pendingCount, completedCount, totalRevenue] =
+            await Promise.all([
+              this.bookingModel.countDocuments({
+                serviceId: space._id,
+                status: 'accepted',
+              }),
+              this.bookingModel.countDocuments({
+                serviceId: space._id,
+                status: 'pending',
+              }),
+              this.bookingModel.countDocuments({
+                serviceId: space._id,
+                status: 'completed',
+              }),
+              this.bookingModel.aggregate([
+                {
+                  $match: {
+                    serviceId: space._id,
+                    status: { $in: ['completed', 'accepted'] },
+                  },
                 },
-              },
-              {
-                $group: {
-                  _id: null,
-                  total: { $sum: '$quotedPrice' },
+                {
+                  $group: {
+                    _id: null,
+                    total: { $sum: '$quotedPrice' },
+                  },
                 },
-              },
-            ]),
-          ]);
+              ]),
+            ]);
 
           const occupyingCount = activeCount + completedCount;
-          const availableSpots = Math.max(0, (space.totalSpots || 0) - occupyingCount);
+          const availableSpots = Math.max(
+            0,
+            (space.totalSpots || 0) - occupyingCount,
+          );
 
           // Sync the occupiedSpots field if it drifted from actual booking count
           if (space.occupiedSpots !== occupyingCount) {
@@ -626,22 +711,34 @@ export class ProviderService {
       });
 
       if (!space) {
-        return { success: false, message: 'Parking space not found or you are not the owner' };
+        return {
+          success: false,
+          message: 'Parking space not found or you are not the owner',
+        };
       }
 
       // Apply only provided updates
       if (updates.name !== undefined) space.name = updates.name;
-      if (updates.description !== undefined) space.description = updates.description;
-      if (updates.hourlyRate !== undefined) space.hourlyRate = updates.hourlyRate;
+      if (updates.description !== undefined)
+        space.description = updates.description;
+      if (updates.hourlyRate !== undefined)
+        space.hourlyRate = updates.hourlyRate;
       if (updates.dailyRate !== undefined) space.dailyRate = updates.dailyRate;
-      if (updates.parkingType !== undefined) space.parkingType = updates.parkingType;
-      if (updates.bookingMethods !== undefined) space.bookingMethods = updates.bookingMethods;
-      if (updates.acceptedVehicles !== undefined) space.acceptedVehicles = updates.acceptedVehicles;
-      if (updates.maxStayDetails !== undefined) space.maxStayDetails = updates.maxStayDetails;
-      if (updates.openingTimes !== undefined) space.openingTimes = updates.openingTimes;
-      if (updates.chargesDescription !== undefined) space.chargesDescription = updates.chargesDescription;
+      if (updates.parkingType !== undefined)
+        space.parkingType = updates.parkingType;
+      if (updates.bookingMethods !== undefined)
+        space.bookingMethods = updates.bookingMethods;
+      if (updates.acceptedVehicles !== undefined)
+        space.acceptedVehicles = updates.acceptedVehicles;
+      if (updates.maxStayDetails !== undefined)
+        space.maxStayDetails = updates.maxStayDetails;
+      if (updates.openingTimes !== undefined)
+        space.openingTimes = updates.openingTimes;
+      if (updates.chargesDescription !== undefined)
+        space.chargesDescription = updates.chargesDescription;
       if (updates.photos !== undefined) space.photos = updates.photos;
-      if (updates.cctvPhotos !== undefined) space.cctvPhotos = updates.cctvPhotos;
+      if (updates.cctvPhotos !== undefined)
+        space.cctvPhotos = updates.cctvPhotos;
 
       // Handle totalSpots change carefully
       if (updates.totalSpots !== undefined) {
@@ -675,7 +772,10 @@ export class ProviderService {
    * Manually toggle a parking space's availability on/off
    * Guards: cannot enable if all spots are occupied
    */
-  async toggleSpaceAvailability(userId: string, spaceId: string): Promise<Response> {
+  async toggleSpaceAvailability(
+    userId: string,
+    spaceId: string,
+  ): Promise<Response> {
     try {
       const space = await this.parkingSpaceModel.findOne({
         _id: spaceId,
@@ -683,7 +783,10 @@ export class ProviderService {
       });
 
       if (!space) {
-        return { success: false, message: 'Parking space not found or you are not the owner' };
+        return {
+          success: false,
+          message: 'Parking space not found or you are not the owner',
+        };
       }
 
       if (!space.isAvailable) {

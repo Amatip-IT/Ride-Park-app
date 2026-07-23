@@ -18,8 +18,14 @@ describe('MotService', () => {
 
   const mockConfigService = {
     get: jest.fn((key: string) => {
-      if (key === 'MOT_API_KEY') return 'test_mot_key';
-      return null;
+      const config: Record<string, string> = {
+        MOT_API_KEY: 'test_mot_key',
+        MOT_CLIENT_ID: 'test_client_id',
+        MOT_CLIENT_SECRET: 'test_client_secret',
+        MOT_SCOPE_URL: 'https://test.example/.default',
+        MOT_TENANT_ID: 'test_tenant_id',
+      };
+      return config[key] ?? null;
     }),
   };
 
@@ -29,6 +35,9 @@ describe('MotService', () => {
 
   beforeEach(async () => {
     mockedAxios.create = jest.fn().mockReturnValue(mockAxiosInstance);
+    mockedAxios.post.mockResolvedValue({
+      data: { access_token: 'test_access_token', expires_in: 3600 },
+    });
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -48,14 +57,14 @@ describe('MotService', () => {
     expect(service).toBeDefined();
   });
 
-  it('should throw error if MOT API key not configured', () => {
+  it('should allow startup if MOT API credentials are not configured', () => {
     const emptyConfigService = {
       get: jest.fn().mockReturnValue(''),
     };
 
     expect(
       () => new MotService(emptyConfigService as unknown as ConfigService),
-    ).toThrow(InternalServerErrorException);
+    ).not.toThrow();
   });
 
   describe('getMotHistory', () => {
@@ -103,6 +112,12 @@ describe('MotService', () => {
       expect(result.latestTest?.testResult).toBe('PASSED');
       expect(mockAxiosInstance.get).toHaveBeenCalledWith(
         '/registration/AB12CDE',
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: 'Bearer test_access_token',
+            'X-API-Key': 'test_mot_key',
+          }),
+        }),
       );
     });
 
@@ -455,7 +470,7 @@ describe('MotService', () => {
       expect(result.success).toBe(false);
       expect(result.data).toBeNull();
       expect(result.message).toBe(
-        'Vehicle not found in DVLA database. Please check the registration number.',
+        'Vehicle not found in MOT History database. Please check the registration number.',
       );
     });
 
@@ -505,6 +520,12 @@ describe('MotService', () => {
 
       expect(mockAxiosInstance.get).toHaveBeenCalledWith(
         '/registration/AB12CDE',
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: 'Bearer test_access_token',
+            'X-API-Key': 'test_mot_key',
+          }),
+        }),
       );
     });
 

@@ -15,6 +15,9 @@ export class ParkingSpace {
   description?: string;
 
   // Address / location
+  @Prop({ type: String, trim: true })
+  addressLine1?: string;
+
   @Prop({ required: true, trim: true })
   postCode: string;
 
@@ -102,9 +105,13 @@ export const ParkingSpaceSchema: MongooseSchema<ParkingSpace> =
 
 // Text index for location-based search
 ParkingSpaceSchema.index({ postCode: 1 });
-ParkingSpaceSchema.index({ town: 'text', name: 'text', postCode: 'text', nearestPlace: 'text' });
+ParkingSpaceSchema.index({
+  town: 'text',
+  name: 'text',
+  postCode: 'text',
+  nearestPlace: 'text',
+});
 ParkingSpaceSchema.index({ owner: 1 });
 ParkingSpaceSchema.index({ isAvailable: 1, isVerified: 1 });
 ParkingSpaceSchema.index({ what3words: 1 });
 ParkingSpaceSchema.index({ nearestPlace: 1 });
-

@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { RidesService } from './rides.service';
 import { RidesController } from './rides.controller';
@@ -25,7 +25,7 @@ import { PaymentsModule } from 'src/payments/payments.module';
     ]),
     NotificationsModule,
     WalletModule,
-    PaymentsModule,
+    forwardRef(() => PaymentsModule),
   ],
   controllers: [RidesController],
   providers: [RidesService],

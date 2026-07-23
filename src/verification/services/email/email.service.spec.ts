@@ -61,7 +61,9 @@ describe('EmailService', () => {
 
   describe('initialization', () => {
     it('should warn and skip transporter when SMTP is not configured', () => {
-      const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+      const warnSpy = jest
+        .spyOn(console, 'warn')
+        .mockImplementation(() => undefined);
       const invalidConfigService: Partial<ConfigService> = {
         get: jest.fn(() => undefined),
       };

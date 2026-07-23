@@ -331,7 +331,7 @@ export function QuickRideScreen() {
                 <Ionicons name="navigate-outline" size={48} color={colors.textTertiary} />
                 <Text style={styles.emptyTitle}>Where are you going?</Text>
                 <Text style={styles.emptySub}>
-                  Type your destination above. We'll find nearby taxis and get you moving fast.
+                  Type your destination above. We will find nearby taxis and get you moving fast.
                 </Text>
               </View>
             }

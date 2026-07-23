@@ -112,13 +112,16 @@ export class Taxi {
   // Per-document status tracking with detailed info
   // Structure: { fieldName: { status, rejectionReason, uploadedAt, reviewedAt, reviewedBy } }
   @Prop({ type: Object, default: {} })
-  documentStatuses?: Record<string, {
-    status?: 'not_submitted' | 'uploaded' | 'verified' | 'rejected';
-    rejectionReason?: string;
-    uploadedAt?: Date;
-    reviewedAt?: Date;
-    reviewedBy?: string; // Admin user ID
-  }>;
+  documentStatuses?: Record<
+    string,
+    {
+      status?: 'not_submitted' | 'uploaded' | 'verified' | 'rejected';
+      rejectionReason?: string;
+      uploadedAt?: Date;
+      reviewedAt?: Date;
+      reviewedBy?: string; // Admin user ID
+    }
+  >;
 
   // Legacy generic documents (kept for backward compatibility)
   @Prop({ type: Object })
@@ -138,11 +141,14 @@ export class Taxi {
 
   // Document expiry tracking
   @Prop({ type: Object, default: {} })
-  documentExpiries?: Record<string, {
-    expiryDate: Date;
-    renewalNotificationSent?: Date;
-    renewalReminderLevel?: '30_day' | '7_day' | 'expired';
-  }>;
+  documentExpiries?: Record<
+    string,
+    {
+      expiryDate: Date;
+      renewalNotificationSent?: Date;
+      renewalReminderLevel?: '30_day' | '7_day' | 'expired';
+    }
+  >;
 
   @Prop({ default: true })
   canAcceptRides: boolean;
@@ -159,7 +165,6 @@ TaxiSchema.index({ user: 1 });
 TaxiSchema.index({ isActive: 1 });
 TaxiSchema.index({ status: 1 });
 TaxiSchema.index({ availability: 1 });
-TaxiSchema.index({ driverNumber: 1 });
 TaxiSchema.index({ 'motCheck.analysis.vehicleStatus': 1 });
 TaxiSchema.index({ 'motCheck.analysis.riskLevel': 1 });
 TaxiSchema.index({ 'motCheck.checkedAt': 1 });

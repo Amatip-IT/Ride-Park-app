@@ -17,8 +17,14 @@ import { WalletService } from 'src/wallet/wallet.service';
 import { toObjectIdString } from 'src/common/request.util';
 
 // Pricing constants
-const RATE_PER_MILE = 1.10;
-const RATE_PER_MINUTE = 0.20;
+const RATE_PER_MILE = 1.1;
+const RATE_PER_MINUTE = 0.2;
+
+const TAXI_REQUEST_TRANSITIONS: Record<string, readonly string[]> = {
+  accepted: ['arrived'],
+  arrived: ['in_progress'],
+  in_progress: ['awaiting_payment'],
+};
 
 @Injectable()
 export class TaxiBookingsService {
@@ -26,7 +32,8 @@ export class TaxiBookingsService {
     @InjectModel(TaxiRideRequest.name)
     private taxiRequestModel: Model<TaxiRideRequestDocument>,
     @InjectModel(Taxi.name) private taxiModel: Model<TaxiDocument>,
-    @InjectModel(Chauffeur.name) private chauffeurModel: Model<ChauffeurDocument>,
+    @InjectModel(Chauffeur.name)
+    private chauffeurModel: Model<ChauffeurDocument>,
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     @InjectModel(Ride.name) private rideModel: Model<RideDocument>,
     private readonly notificationsService: NotificationsService,
@@ -61,7 +68,9 @@ export class TaxiBookingsService {
     try {
       // 1. Verify passenger has a payment method BEFORE allowing them to request a ride
       try {
-        const paymentMethods = await this.paymentsService.getPaymentMethods(data.passengerId);
+        const paymentMethods = await this.paymentsService.getPaymentMethods(
+          data.passengerId,
+        );
         if (!paymentMethods || paymentMethods.length === 0) {
           return {
             success: false,
@@ -78,7 +87,15 @@ export class TaxiBookingsService {
       // Check for existing active request
       const existingActive = await this.taxiRequestModel.findOne({
         passenger: data.passengerId,
-        status: { $in: ['searching', 'accepted', 'in_progress'] },
+        status: {
+          $in: [
+            'searching',
+            'accepted',
+            'arrived',
+            'in_progress',
+            'awaiting_payment',
+          ],
+        },
       });
 
       if (existingActive) {
@@ -116,13 +133,15 @@ export class TaxiBookingsService {
         targetDriverNumber = taxiRecord.driverNumber;
 
         if (userRef?.firstName) {
-          targetDriverName = `${userRef.firstName} ${userRef.lastName || ''}`.trim();
+          targetDriverName =
+            `${userRef.firstName} ${userRef.lastName || ''}`.trim();
         }
 
         if (taxiRecord.status !== 'approved') {
           return {
             success: false,
-            message: 'This driver is not verified yet and cannot receive bookings.',
+            message:
+              'This driver is not verified yet and cannot receive bookings.',
           };
         }
 
@@ -212,7 +231,10 @@ export class TaxiBookingsService {
       );
 
       onlineDrivers.forEach((driver) => {
-        this.taxiGateway.pushNewRequestToDriver(driver.user.toString(), populated);
+        this.taxiGateway.pushNewRequestToDriver(
+          driver.user.toString(),
+          populated,
+        );
       });
 
       return {
@@ -241,22 +263,36 @@ export class TaxiBookingsService {
       const normalizedDriverId = toObjectIdString(driverId);
 
       // Check if driver's documents are approved before showing requests
-      const taxiRecord = await this.taxiModel.findOne({ user: normalizedDriverId });
-      const chauffeurRecord = await this.chauffeurModel.findOne({ user: normalizedDriverId });
+      const taxiRecord = await this.taxiModel.findOne({
+        user: normalizedDriverId,
+      });
+      const chauffeurRecord = await this.chauffeurModel.findOne({
+        user: normalizedDriverId,
+      });
       const driverRecord = taxiRecord || chauffeurRecord;
 
       if (!driverRecord) {
-        return { success: false, message: 'Driver record not found. Please complete your registration.' };
+        return {
+          success: false,
+          message:
+            'Driver record not found. Please complete your registration.',
+        };
       }
 
       if (driverRecord.status !== 'approved') {
         let statusMessage = 'Your documents have not been approved yet. ';
         if (driverRecord.status === 'not_applied') {
-          statusMessage += 'Please submit your driver verification documents to go online.';
-        } else if (driverRecord.status === 'pending_auto_check' || driverRecord.status === 'pending_admin_review') {
-          statusMessage += 'Your documents are currently under review. You will be notified once approved.';
+          statusMessage +=
+            'Please submit your driver verification documents to go online.';
+        } else if (
+          driverRecord.status === 'pending_auto_check' ||
+          driverRecord.status === 'pending_admin_review'
+        ) {
+          statusMessage +=
+            'Your documents are currently under review. You will be notified once approved.';
         } else if (driverRecord.status === 'rejected') {
-          statusMessage += 'Your documents were rejected. Please resubmit valid documents.';
+          statusMessage +=
+            'Your documents were rejected. Please resubmit valid documents.';
         }
         return { success: false, message: statusMessage };
       }
@@ -277,7 +313,10 @@ export class TaxiBookingsService {
 
       // If postcode filter provided, match the first part (outward code)
       if (postcodeFilter) {
-        const outwardCode = postcodeFilter.split(' ')[0].toUpperCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const outwardCode = postcodeFilter
+          .split(' ')[0]
+          .toUpperCase()
+          .replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         filter.pickupPostcode = { $regex: new RegExp(`^${outwardCode}`, 'i') };
       }
 
@@ -346,14 +385,19 @@ export class TaxiBookingsService {
       const normalizedDriverId = toObjectIdString(driverId);
 
       // Check if driver's documents are approved
-      const taxiRecord = await this.taxiModel.findOne({ user: normalizedDriverId });
-      const chauffeurRecord = await this.chauffeurModel.findOne({ user: normalizedDriverId });
+      const taxiRecord = await this.taxiModel.findOne({
+        user: normalizedDriverId,
+      });
+      const chauffeurRecord = await this.chauffeurModel.findOne({
+        user: normalizedDriverId,
+      });
       const verificationRecord = taxiRecord || chauffeurRecord;
 
       if (!verificationRecord || verificationRecord.status !== 'approved') {
         return {
           success: false,
-          message: 'You cannot accept rides until your driver documents have been approved.',
+          message:
+            'You cannot accept rides until your driver documents have been approved.',
         };
       }
 
@@ -371,7 +415,8 @@ export class TaxiBookingsService {
       ) {
         return {
           success: false,
-          message: 'This ride was requested for another driver and cannot be accepted by you.',
+          message:
+            'This ride was requested for another driver and cannot be accepted by you.',
         };
       }
 
@@ -385,7 +430,10 @@ export class TaxiBookingsService {
             make: driverRecord?.vehicleInfo?.make || 'Standard',
             model: driverRecord?.vehicleInfo?.model || 'Vehicle',
             color: driverRecord?.vehicleInfo?.color || 'Black',
-            plateNumber: driverRecord?.vehicleInfo?.plateNumber || driverRecord?.vehicleInfo?.registration || 'N/A',
+            plateNumber:
+              driverRecord?.vehicleInfo?.plateNumber ||
+              driverRecord?.vehicleInfo?.registration ||
+              'N/A',
           },
           driverEtaMinutes: data.etaMinutes,
           driverNumber: driverRecord?.driverNumber || undefined,
@@ -401,9 +449,10 @@ export class TaxiBookingsService {
         }
         return {
           success: false,
-          message: existing.status === 'accepted'
-            ? 'This ride has already been accepted by another driver'
-            : `This ride request is ${existing.status}`,
+          message:
+            existing.status === 'accepted'
+              ? 'This ride has already been accepted by another driver'
+              : `This ride request is ${existing.status}`,
         };
       }
 
@@ -428,7 +477,7 @@ export class TaxiBookingsService {
         'Ride Accepted!',
         `A driver is on their way. ETA: ${data.etaMinutes} mins. Vehicle: ${driverRecord?.vehicleInfo?.make || 'Standard'} ${driverRecord?.vehicleInfo?.model || 'Vehicle'} (${driverRecord?.vehicleInfo?.plateNumber || driverRecord?.vehicleInfo?.registration || 'N/A'})`,
         'ride',
-        { rideId: request._id }
+        { rideId: request._id },
       );
 
       return {
@@ -447,7 +496,10 @@ export class TaxiBookingsService {
   /**
    * Cancel a ride request (by passenger)
    */
-  async cancelRideRequest(requestId: string, passengerId: string): Promise<Response> {
+  async cancelRideRequest(
+    requestId: string,
+    passengerId: string,
+  ): Promise<Response> {
     try {
       const request = await this.taxiRequestModel.findById(requestId);
 
@@ -455,8 +507,13 @@ export class TaxiBookingsService {
         return { success: false, message: 'Ride request not found' };
       }
 
-      if (toObjectIdString(request.passenger) !== toObjectIdString(passengerId)) {
-        return { success: false, message: 'You can only cancel your own requests' };
+      if (
+        toObjectIdString(request.passenger) !== toObjectIdString(passengerId)
+      ) {
+        return {
+          success: false,
+          message: 'You can only cancel your own requests',
+        };
       }
 
       if (!['searching', 'accepted', 'arrived'].includes(request.status)) {
@@ -633,43 +690,53 @@ export class TaxiBookingsService {
 
         return {
           success: false,
-          message: 'Ride is marked completed only after the passenger confirms payment',
+          message:
+            'Ride is marked completed only after the passenger confirms payment',
         };
       }
 
-      if (status === 'awaiting_payment') {
-        if (!request.acceptedDriver) {
-          return { success: false, message: 'Cannot update ride: no driver assigned' };
-        }
+      if (!request.acceptedDriver) {
+        return {
+          success: false,
+          message: 'Cannot update ride: no driver assigned',
+        };
+      }
 
-        request.status = 'awaiting_payment';
-        if (rideId) {
-          request.ride = rideId as any;
-        }
-        await request.save();
-
-        const populated = await this.taxiRequestModel
-          .findById(requestId)
-          .populate('passenger', 'firstName lastName phoneNumber')
-          .populate('acceptedDriver', 'firstName lastName phoneNumber')
-          .populate('ride')
-          .exec();
-
-        this.taxiGateway.pushRequestUpdate(requestId, populated);
-
+      if (request.status === status) {
         return {
           success: true,
-          data: populated,
-          message: 'Waiting for passenger to confirm location and pay',
+          data: request,
+          message: `Request is already ${status}`,
         };
       }
 
-      // Non-completion status updates
-      request.status = status as any;
-      if (rideId) {
-        request.ride = rideId as any;
+      const allowedNextStatuses =
+        TAXI_REQUEST_TRANSITIONS[request.status] || [];
+      if (!allowedNextStatuses.includes(status)) {
+        return {
+          success: false,
+          message: `Invalid ride transition from ${request.status} to ${status}`,
+        };
       }
-      await request.save();
+
+      const update: Record<string, unknown> = { status };
+      if (rideId) {
+        update.ride = rideId;
+      }
+
+      const transitioned = await this.taxiRequestModel.findOneAndUpdate(
+        { _id: requestId, status: request.status },
+        { $set: update },
+        { new: true },
+      );
+
+      if (!transitioned) {
+        return {
+          success: false,
+          message:
+            'Ride status changed in another request. Refresh and try again.',
+        };
+      }
 
       const populated = await this.taxiRequestModel
         .findById(requestId)
@@ -678,6 +745,14 @@ export class TaxiBookingsService {
         .exec();
 
       this.taxiGateway.pushRequestUpdate(requestId, populated);
+
+      if (status === 'awaiting_payment') {
+        return {
+          success: true,
+          data: populated,
+          message: 'Waiting for passenger to confirm location and pay',
+        };
+      }
 
       if (status === 'arrived') {
         await this.notificationsService.sendNotification(

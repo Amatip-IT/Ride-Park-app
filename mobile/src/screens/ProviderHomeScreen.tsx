@@ -492,6 +492,23 @@ export function ProviderHomeScreen() {
             </TouchableOpacity>
           )}
 
+          {(user?.role === 'driver' || user?.role === 'taxi_driver') && (
+            <TouchableOpacity
+              style={styles.actionCard}
+              onPress={() => navigation.navigate('ProviderPastRides')}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.actionIcon, { backgroundColor: `${COLORS.info}12` }]}>
+                <Ionicons name="time" size={24} color={COLORS.info} />
+              </View>
+              <View style={styles.actionContent}>
+                <Text style={styles.actionTitle}>Past Rides</Text>
+                <Text style={styles.actionSubtext}>Trip history, miles, and ride analytics</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={COLORS.textTertiary} />
+            </TouchableOpacity>
+          )}
+
           <TouchableOpacity
             style={styles.actionCard}
             onPress={() => navigation.navigate('ProviderEarnings')}

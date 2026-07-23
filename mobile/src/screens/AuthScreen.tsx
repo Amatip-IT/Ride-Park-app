@@ -987,7 +987,7 @@ export function AuthScreen() {
             </TouchableOpacity>
 
             <View style={styles.toggleContainer}>
-              <Text style={styles.toggleText}>Don't have an account? </Text>
+              <Text style={styles.toggleText}>Do not have an account? </Text>
               <TouchableOpacity onPress={goToSignUpChoices}>
                 <Text style={styles.toggleLink}>Sign Up</Text>
               </TouchableOpacity>

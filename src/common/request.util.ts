@@ -39,6 +39,8 @@ export function toObjectIdString(value: unknown): string {
 /**
  * User id from an authenticated request (AuthGuard attaches a Mongoose user doc).
  */
-export function getRequestUserId(req: { user?: { _id?: unknown; id?: unknown } }): string {
+export function getRequestUserId(req: {
+  user?: { _id?: unknown; id?: unknown };
+}): string {
   return toObjectIdString(req.user?._id ?? req.user?.id);
 }

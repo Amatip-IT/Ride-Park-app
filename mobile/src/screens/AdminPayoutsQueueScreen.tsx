@@ -32,14 +32,14 @@ export function AdminPayoutsQueueScreen() {
   useFocusEffect(useCallback(() => { fetchWithdrawals(); }, []));
 
   const handleApprove = (id: string) => {
-    Alert.alert('Approve Withdrawal', 'This will transfer funds via Stripe to the provider\'s bank account. Continue?', [
+    Alert.alert('Process Withdrawal', 'This authorizes the Stripe transfer and manual bank payout. Continue?', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Approve & Transfer', style: 'default', onPress: async () => {
+      { text: 'Authorize Payment', style: 'default', onPress: async () => {
         setActionLoading(id);
         try {
           const res = await adminApi.approveWithdrawal(id);
           if (res.data?.success) {
-            Alert.alert('Success', 'Funds transferred successfully');
+            Alert.alert('Withdrawal Updated', res.data.message || 'Stripe processing started');
             fetchWithdrawals();
           } else {
             Alert.alert('Error', res.data?.message || 'Failed to approve');
@@ -87,6 +87,15 @@ export function AdminPayoutsQueueScreen() {
         ) : (
           withdrawals.map((w: any) => {
             const provider = w.providerId || {};
+            const actionLabel = w.status === 'payout_failed'
+              ? 'Retry Payout'
+              : w.status === 'transferred'
+                ? 'Send Payout'
+                : w.status === 'transfer_failed'
+                  ? 'Retry Transfer'
+                  : 'Approve & Pay';
+            const canReject = !w.stripeTransferId && ['pending', 'approved', 'transfer_failed'].includes(w.status);
+            const payoutInFlight = w.status === 'payout_pending';
             return (
               <View key={w._id} style={styles.card}>
                 <View style={styles.cardHeader}>
@@ -97,20 +106,23 @@ export function AdminPayoutsQueueScreen() {
                   <Text style={styles.amount}>£{Number(w.amount).toFixed(2)}</Text>
                 </View>
                 <Text style={styles.dateText}>Requested: {new Date(w.createdAt).toLocaleDateString('en-GB')}</Text>
+                <Text style={styles.statusText}>Status: {String(w.status).replace(/_/g, ' ')}</Text>
                 <View style={styles.actions}>
                   <TouchableOpacity
                     style={[styles.approveBtn, actionLoading === w._id && { opacity: 0.6 }]}
                     onPress={() => handleApprove(w._id)}
-                    disabled={actionLoading === w._id}
+                    disabled={actionLoading === w._id || payoutInFlight}
                   >
-                    {actionLoading === w._id ? <ActivityIndicator color="#FFF" size="small" /> : (
-                      <><Ionicons name="checkmark" size={18} color="#FFF" /><Text style={styles.approveBtnText}>Approve & Pay</Text></>
+                    {payoutInFlight ? <Text style={styles.approveBtnText}>Processing at Stripe</Text> : actionLoading === w._id ? <ActivityIndicator color="#FFF" size="small" /> : (
+                      <><Ionicons name="checkmark" size={18} color="#FFF" /><Text style={styles.approveBtnText}>{actionLabel}</Text></>
                     )}
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.rejectBtn} onPress={() => setRejectModal(w._id)}>
-                    <Ionicons name="close" size={18} color={COLORS.error} />
-                    <Text style={styles.rejectBtnText}>Reject</Text>
-                  </TouchableOpacity>
+                  {canReject && (
+                    <TouchableOpacity style={styles.rejectBtn} onPress={() => setRejectModal(w._id)}>
+                      <Ionicons name="close" size={18} color={COLORS.error} />
+                      <Text style={styles.rejectBtnText}>Reject</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               </View>
             );
@@ -165,6 +177,7 @@ const styles = StyleSheet.create({
   providerEmail: { color: COLORS.textSecondary, fontSize: 13, marginTop: 2 },
   amount: { color: COLORS.electricTeal, fontSize: 22, fontWeight: FONT_WEIGHTS.bold },
   dateText: { color: COLORS.textTertiary, fontSize: 12, marginBottom: SPACING.md },
+  statusText: { color: COLORS.amber, fontSize: 12, textTransform: 'capitalize', marginBottom: SPACING.md },
 
   actions: { flexDirection: 'row', gap: SPACING.md },
   approveBtn: { flex: 1, backgroundColor: COLORS.success, borderRadius: BORDER_RADIUS.md, paddingVertical: SPACING.md, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },

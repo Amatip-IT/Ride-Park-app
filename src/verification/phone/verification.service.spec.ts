@@ -6,11 +6,11 @@ import { TwilioService } from '../services/phone/twilio.service';
 import { User } from '../../schemas/user.schema';
 import { OtpStorage } from '../../schemas/otp.schema';
 import { VerifiedStatus } from '../../schemas/verified-status.schema';
+import { createStoredOtp, hashOtp, MAX_OTP_ATTEMPTS } from 'src/utility/otp.util';
 
 describe('PhoneVerificationService', () => {
   let service: PhoneVerificationService;
 
-  // Helper function to create a fresh user object
   const createMockUser = (
     overrides: Partial<{
       _id: string;
@@ -19,6 +19,7 @@ describe('PhoneVerificationService', () => {
       isVerified: VerifiedStatus;
       otpStorage: OtpStorage | null;
       save: jest.Mock;
+      markModified: jest.Mock;
     }> = {},
   ) => ({
     _id: '507f1f77bcf86cd799439011',
@@ -31,10 +32,10 @@ describe('PhoneVerificationService', () => {
     } as VerifiedStatus,
     otpStorage: null as OtpStorage | null,
     save: jest.fn().mockResolvedValue(true),
+    markModified: jest.fn(),
     ...overrides,
   });
 
-  // Mock TwilioService
   const mockTwilioService = {
     sendOtpSms: jest
       .fn<Promise<boolean>, [string, string]>()
@@ -44,7 +45,6 @@ describe('PhoneVerificationService', () => {
       .mockResolvedValue(true),
   };
 
-  // Mock UserModel
   const mockUserModel = {
     findOne: jest.fn(),
   };
@@ -66,7 +66,6 @@ describe('PhoneVerificationService', () => {
     expect(service).toBeDefined();
   });
 
-  // SEND PHONE OTP
   describe('sendPhoneOtp', () => {
     it('should send OTP successfully to unverified user', async () => {
       const phoneNumber = '+1234567890';
@@ -79,20 +78,23 @@ describe('PhoneVerificationService', () => {
       const result = await service.sendPhoneOtp(phoneNumber);
 
       expect(result.success).toBe(true);
-      expect(result.message).toBe('OTP sent successfully to your phone');
+      expect(result.message).toMatch(/If an account exists/i);
       expect(result.expiresIn).toBe('10 minutes');
       expect(mockTwilioService.sendOtpSms).toHaveBeenCalled();
       expect(user.save).toHaveBeenCalled();
+      expect(user.otpStorage?.phoneOtp?.codeHash).toBeTruthy();
+      expect(user.otpStorage?.phoneOtp?.code).toBeUndefined();
     });
 
-    it('should throw NotFoundException when user does not exist', async () => {
+    it('should not reveal whether the phone is registered', async () => {
       mockUserModel.findOne.mockReturnValue({
         select: jest.fn().mockResolvedValue(null),
       });
 
-      await expect(service.sendPhoneOtp('+9999999999')).rejects.toThrow(
-        NotFoundException,
-      );
+      const result = await service.sendPhoneOtp('+9999999999');
+      expect(result.success).toBe(true);
+      expect(result.message).toMatch(/If an account exists/i);
+      expect(mockTwilioService.sendOtpSms).not.toHaveBeenCalled();
     });
 
     it('should throw BadRequestException when phone already verified', async () => {
@@ -112,10 +114,10 @@ describe('PhoneVerificationService', () => {
     it('should enforce 1-minute rate-limit', async () => {
       const user = createMockUser({
         otpStorage: {
-          phoneOtp: {
-            code: '123456',
-            expiresAt: new Date(Date.now() + 10 * 60 * 1000),
-          },
+          phoneOtp: createStoredOtp(
+            '123456',
+            new Date(Date.now() + 10 * 60 * 1000),
+          ),
         },
       });
 
@@ -139,19 +141,16 @@ describe('PhoneVerificationService', () => {
 
       const otpSent = mockTwilioService.sendOtpSms.mock.calls[0][1];
       expect(otpSent).toMatch(/^\d{6}$/);
+      expect(user.otpStorage?.phoneOtp?.codeHash).toBe(hashOtp(otpSent));
     });
   });
 
-  // VERIFY PHONE OTP
   describe('verifyPhoneOtp', () => {
     it('should verify OTP and mark phone as verified', async () => {
       const otp = '123456';
       const user = createMockUser({
         otpStorage: {
-          phoneOtp: {
-            code: otp,
-            expiresAt: new Date(Date.now() + 5 * 60 * 1000),
-          },
+          phoneOtp: createStoredOtp(otp, new Date(Date.now() + 5 * 60 * 1000)),
         },
       });
 
@@ -168,14 +167,14 @@ describe('PhoneVerificationService', () => {
       expect(user.save).toHaveBeenCalled();
     });
 
-    it('should throw NotFoundException if user does not exist', async () => {
+    it('should not reveal missing users on verify', async () => {
       mockUserModel.findOne.mockReturnValue({
         select: jest.fn().mockResolvedValue(null),
       });
 
       await expect(
         service.verifyPhoneOtp('+9999999999', '111111'),
-      ).rejects.toThrow(NotFoundException);
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should throw when phone already verified', async () => {
@@ -207,10 +206,10 @@ describe('PhoneVerificationService', () => {
     it('should throw when OTP is expired', async () => {
       const user = createMockUser({
         otpStorage: {
-          phoneOtp: {
-            code: '123456',
-            expiresAt: new Date(Date.now() - 1 * 60 * 1000),
-          },
+          phoneOtp: createStoredOtp(
+            '123456',
+            new Date(Date.now() - 1 * 60 * 1000),
+          ),
         },
       });
 
@@ -228,10 +227,10 @@ describe('PhoneVerificationService', () => {
     it('should throw when OTP is incorrect', async () => {
       const user = createMockUser({
         otpStorage: {
-          phoneOtp: {
-            code: '222222',
-            expiresAt: new Date(Date.now() + 5 * 60 * 1000),
-          },
+          phoneOtp: createStoredOtp(
+            '222222',
+            new Date(Date.now() + 5 * 60 * 1000),
+          ),
         },
       });
 
@@ -242,16 +241,34 @@ describe('PhoneVerificationService', () => {
       await expect(
         service.verifyPhoneOtp(user.phoneNumber, '123456'),
       ).rejects.toThrow('Invalid OTP. Please check and try again');
+      expect(user.otpStorage?.phoneOtp?.attempts).toBe(1);
+    });
+
+    it('should invalidate OTP after too many failed attempts', async () => {
+      const user = createMockUser({
+        otpStorage: {
+          phoneOtp: {
+            ...createStoredOtp('222222', new Date(Date.now() + 5 * 60 * 1000)),
+            attempts: MAX_OTP_ATTEMPTS - 1,
+          },
+        },
+      });
+
+      mockUserModel.findOne.mockReturnValue({
+        select: jest.fn().mockResolvedValue(user),
+      });
+
+      await expect(
+        service.verifyPhoneOtp(user.phoneNumber, '123456'),
+      ).rejects.toThrow(/Too many invalid OTP attempts/i);
+      expect(user.otpStorage?.phoneOtp).toBeUndefined();
     });
 
     it('should send welcome SMS after successful verification', async () => {
       const otp = '123456';
       const user = createMockUser({
         otpStorage: {
-          phoneOtp: {
-            code: otp,
-            expiresAt: new Date(Date.now() + 5 * 60 * 1000),
-          },
+          phoneOtp: createStoredOtp(otp, new Date(Date.now() + 5 * 60 * 1000)),
         },
       });
 
@@ -269,7 +286,6 @@ describe('PhoneVerificationService', () => {
     });
   });
 
-  // CHECK STATUS
   describe('checkPhoneVerificationStatus', () => {
     it('should return verified status', async () => {
       const user = createMockUser({

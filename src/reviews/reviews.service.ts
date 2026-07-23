@@ -31,7 +31,10 @@ export class ReviewsService {
           booking: data.bookingId,
         });
         if (existing) {
-          return { success: false, message: 'You have already reviewed this booking' };
+          return {
+            success: false,
+            message: 'You have already reviewed this booking',
+          };
         }
       }
 
@@ -90,10 +93,17 @@ export class ReviewsService {
       // Calculate average rating
       const avgResult = await this.reviewModel.aggregate([
         { $match: { serviceType, serviceId } },
-        { $group: { _id: null, avgRating: { $avg: '$rating' }, count: { $sum: 1 } } },
+        {
+          $group: {
+            _id: null,
+            avgRating: { $avg: '$rating' },
+            count: { $sum: 1 },
+          },
+        },
       ]);
 
-      const avgRating = avgResult.length > 0 ? Math.round(avgResult[0].avgRating * 10) / 10 : 0;
+      const avgRating =
+        avgResult.length > 0 ? Math.round(avgResult[0].avgRating * 10) / 10 : 0;
       const totalReviews = avgResult.length > 0 ? avgResult[0].count : 0;
 
       return {

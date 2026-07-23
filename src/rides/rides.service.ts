@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Ride, RideDocument } from 'src/schemas/ride.schema';
@@ -12,19 +12,27 @@ import { Response } from 'src/common/interfaces/response.interface';
 import { NotificationsService } from 'src/notifications/notifications.service';
 import { WalletService } from 'src/wallet/wallet.service';
 import { PaymentsService } from 'src/payments/payments.service';
-import { calculateRideCost, RATE_PER_MILE, RATE_PER_MINUTE_TAXI } from 'src/common/pricing.constants';
+import {
+  calculateRideCost,
+  RATE_PER_MILE,
+  RATE_PER_MINUTE_TAXI,
+} from 'src/common/pricing.constants';
 import { toObjectIdString } from 'src/common/request.util';
 
 @Injectable()
 export class RidesService {
+  private readonly logger = new Logger(RidesService.name);
+
   constructor(
     @InjectModel(Ride.name) private rideModel: Model<RideDocument>,
     @InjectModel(TaxiRideRequest.name)
     private taxiRequestModel: Model<TaxiRideRequestDocument>,
-    @InjectModel(Chauffeur.name) private chauffeurModel: Model<ChauffeurDocument>,
+    @InjectModel(Chauffeur.name)
+    private chauffeurModel: Model<ChauffeurDocument>,
     @InjectModel(Taxi.name) private taxiModel: Model<TaxiDocument>,
     private readonly notificationsService: NotificationsService,
     private readonly walletService: WalletService,
+    @Inject(forwardRef(() => PaymentsService))
     private readonly paymentsService: PaymentsService,
   ) {}
 
@@ -47,7 +55,11 @@ export class RidesService {
     distanceMiles: number,
     durationMinutes: number,
   ): Promise<Response> {
-    const pricing = this.calculateCost(serviceType, distanceMiles, durationMinutes);
+    const pricing = this.calculateCost(
+      serviceType,
+      distanceMiles,
+      durationMinutes,
+    );
 
     return {
       success: true,
@@ -109,7 +121,7 @@ export class RidesService {
         'Ride Started',
         'Your ride has started! Have a safe journey.',
         'ride',
-        { rideId: ride._id }
+        { rideId: ride._id },
       );
 
       return {
@@ -216,7 +228,10 @@ export class RidesService {
       }
 
       if (toObjectIdString(ride.passenger) !== toObjectIdString(passengerId)) {
-        return { success: false, message: 'Only the passenger can confirm arrival' };
+        return {
+          success: false,
+          message: 'Only the passenger can confirm arrival',
+        };
       }
 
       if (ride.status !== 'awaiting_payment') {
@@ -254,30 +269,78 @@ export class RidesService {
    */
   async payRide(rideId: string, passengerId: string): Promise<Response> {
     try {
-      const ride = await this.rideModel.findById(rideId);
-      if (!ride) {
+      const existingRide = await this.rideModel.findById(rideId);
+      if (!existingRide) {
         return { success: false, message: 'Ride not found' };
       }
 
-      if (toObjectIdString(ride.passenger) !== toObjectIdString(passengerId)) {
-        return { success: false, message: 'Only the passenger can pay for this ride' };
+      if (
+        toObjectIdString(existingRide.passenger) !==
+        toObjectIdString(passengerId)
+      ) {
+        return {
+          success: false,
+          message: 'Only the passenger can pay for this ride',
+        };
       }
 
-      if (ride.status === 'completed' && ride.paymentStatus === 'charged') {
-        return { success: true, data: ride, message: 'This ride has already been paid.' };
+      if (
+        existingRide.status === 'completed' &&
+        existingRide.paymentStatus === 'charged'
+      ) {
+        return {
+          success: true,
+          data: existingRide,
+          message: 'This ride has already been paid.',
+        };
       }
 
-      if (ride.status !== 'awaiting_payment') {
+      if (existingRide.status !== 'awaiting_payment') {
         return {
           success: false,
           message: 'Payment is not available for this ride yet',
         };
       }
 
-      if (!ride.passengerConfirmedAt) {
+      if (!existingRide.passengerConfirmedAt) {
         return {
           success: false,
           message: 'Please confirm you are at your destination before paying',
+        };
+      }
+
+      const ride = await this.rideModel.findOneAndUpdate(
+        {
+          _id: rideId,
+          status: 'awaiting_payment',
+          passengerConfirmedAt: { $ne: null },
+          paymentStatus: { $in: ['pending', 'payment_failed'] },
+        },
+        {
+          $set: {
+            paymentStatus: 'processing',
+            paymentProcessingAt: new Date(),
+          },
+          $inc: { paymentAttempt: 1 },
+        },
+        { new: true },
+      );
+
+      if (!ride) {
+        const latest = await this.rideModel.findById(rideId);
+        if (
+          latest?.status === 'completed' &&
+          latest.paymentStatus === 'charged'
+        ) {
+          return {
+            success: true,
+            data: latest,
+            message: 'This ride has already been paid.',
+          };
+        }
+        return {
+          success: false,
+          message: 'A payment for this ride is already being processed.',
         };
       }
 
@@ -287,7 +350,11 @@ export class RidesService {
         ride.paymentStatus = 'charged';
         await ride.save();
         await this.finalizePaidRide(ride);
-        return { success: true, data: ride, message: 'No payment required — ride completed.' };
+        return {
+          success: true,
+          data: ride,
+          message: 'No payment required — ride completed.',
+        };
       }
 
       let paymentIntentId: string;
@@ -297,6 +364,7 @@ export class RidesService {
           ride.totalCost,
           `Payment for Ride ${ride._id.toString()}`,
           { type: 'ride', rideId: ride._id.toString() },
+          `ride:${ride._id.toString()}:payment:${ride.paymentAttempt}`,
         );
         paymentIntentId = paymentIntent.id;
       } catch (paymentErr: any) {
@@ -370,8 +438,57 @@ export class RidesService {
         ride.driver.toString(),
         ride.totalCost,
         ride._id.toString(),
+        ride.paymentIntentId,
       );
     }
+  }
+
+  /**
+   * Idempotent recovery when Stripe confirms payment but the HTTP pay handler died mid-flight.
+   */
+  async reconcilePaymentSucceeded(
+    rideId: string,
+    paymentIntentId: string,
+  ): Promise<void> {
+    const ride = await this.rideModel.findById(rideId);
+    if (!ride) return;
+
+    if (
+      ride.status !== 'completed' ||
+      ride.paymentStatus !== 'charged' ||
+      !ride.paymentIntentId
+    ) {
+      ride.status = 'completed';
+      ride.completedAt = ride.completedAt || new Date();
+      ride.paymentStatus = 'charged';
+      ride.paymentIntentId = paymentIntentId;
+      await ride.save();
+    } else if (ride.paymentIntentId !== paymentIntentId) {
+      // Already charged under another PI — do not overwrite; still ensure earnings path
+      this.logger.warn(
+        `Ride ${rideId} already charged with ${ride.paymentIntentId}; webhook PI ${paymentIntentId}`,
+      );
+    }
+
+    await this.finalizePaidRide(ride);
+  }
+
+  async reconcilePaymentFailed(
+    rideId: string,
+    paymentIntentId: string,
+  ): Promise<void> {
+    const ride = await this.rideModel.findById(rideId);
+    if (!ride) return;
+    if (ride.paymentStatus === 'charged' && ride.status === 'completed') {
+      return;
+    }
+
+    ride.paymentStatus = 'payment_failed';
+    ride.paymentIntentId = paymentIntentId;
+    if (ride.status !== 'completed') {
+      ride.status = 'awaiting_payment';
+    }
+    await ride.save();
   }
 
   /**
@@ -392,11 +509,16 @@ export class RidesService {
         return { success: false, message: 'Ride not found' };
       }
 
-      const passengerId = (ride.passenger as any)?._id?.toString() || ride.passenger.toString();
-      const driverId = (ride.driver as any)?._id?.toString() || ride.driver.toString();
+      const passengerId =
+        (ride.passenger as any)?._id?.toString() || ride.passenger.toString();
+      const driverId =
+        (ride.driver as any)?._id?.toString() || ride.driver.toString();
 
       if (requestingUserId !== passengerId && requestingUserId !== driverId) {
-        return { success: false, message: 'You do not have access to this receipt' };
+        return {
+          success: false,
+          message: 'You do not have access to this receipt',
+        };
       }
 
       if (ride.status !== 'completed' || ride.paymentStatus !== 'charged') {
@@ -482,7 +604,10 @@ export class RidesService {
         requestingUserId !== passengerId &&
         (!driverId || requestingUserId !== driverId)
       ) {
-        return { success: false, message: 'You do not have access to this receipt' };
+        return {
+          success: false,
+          message: 'You do not have access to this receipt',
+        };
       }
 
       if (!request.ride) {
@@ -500,7 +625,8 @@ export class RidesService {
       if (linkedRide.status === 'awaiting_payment') {
         return {
           success: false,
-          message: 'Receipt is available after you confirm your location and complete payment',
+          message:
+            'Receipt is available after you confirm your location and complete payment',
         };
       }
 
@@ -533,6 +659,73 @@ export class RidesService {
       return {
         success: false,
         message: `Failed to fetch ride: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      };
+    }
+  }
+
+  /**
+   * Past rides + light stats for the logged-in driver/taxi driver.
+   */
+  async getDriverRideHistory(
+    driverId: string,
+    period?: 'day' | 'week' | 'month',
+  ): Promise<Response> {
+    try {
+      const filter: Record<string, unknown> = {
+        driver: driverId,
+        status: { $in: ['awaiting_payment', 'completed'] },
+      };
+
+      if (period) {
+        const since = new Date();
+        if (period === 'day') since.setHours(since.getHours() - 24);
+        else if (period === 'week') since.setDate(since.getDate() - 7);
+        else if (period === 'month') since.setMonth(since.getMonth() - 1);
+        filter.createdAt = { $gte: since };
+      }
+
+      const rides = await this.rideModel
+        .find(filter)
+        .populate('passenger', 'firstName lastName phoneNumber')
+        .sort({ completedAt: -1, createdAt: -1 })
+        .limit(100)
+        .exec();
+
+      const paid = rides.filter((r) => r.paymentStatus === 'charged');
+      const awaitingPayment = rides.filter(
+        (r) => r.status === 'awaiting_payment' || r.paymentStatus === 'processing',
+      );
+
+      const stats = {
+        totalRides: rides.length,
+        paidRides: paid.length,
+        awaitingPayment: awaitingPayment.length,
+        totalMiles: Number(
+          rides.reduce((sum, r) => sum + (r.distanceMiles || 0), 0).toFixed(1),
+        ),
+        totalMinutes: Math.round(
+          rides.reduce((sum, r) => sum + (r.durationMinutes || 0), 0),
+        ),
+        grossEarnings: Number(
+          paid.reduce((sum, r) => sum + (r.totalCost || 0), 0).toFixed(2),
+        ),
+        pendingEarnings: Number(
+          awaitingPayment
+            .reduce((sum, r) => sum + (r.totalCost || 0), 0)
+            .toFixed(2),
+        ),
+      };
+
+      return {
+        success: true,
+        data: { rides, stats },
+        message: `Found ${rides.length} past rides`,
+        meta: { total: rides.length },
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: `Failed to fetch ride history: ${error instanceof Error ? error.message : 'Unknown error'}`,
       };
     }
   }

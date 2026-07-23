@@ -239,7 +239,7 @@ describe('IdentityVerificationController', () => {
 
       expect(result.success).toBe(true);
       expect(result.hasDrivingLicense).toBe(false);
-      expect(result.message).toContain('re-verify with driving license');
+      expect(result.message).toContain('verify with driving license');
     });
   });
 });

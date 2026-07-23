@@ -65,14 +65,14 @@ export class TaxiRideRequest {
   @Prop({
     default: 'searching',
     enum: [
-      'searching',     // Actively looking for a driver
-      'accepted',      // A driver accepted
-      'arrived',       // Driver has arrived at pickup
-      'in_progress',   // Ride is underway
+      'searching', // Actively looking for a driver
+      'accepted', // A driver accepted
+      'arrived', // Driver has arrived at pickup
+      'in_progress', // Ride is underway
       'awaiting_payment', // Trip ended — passenger must confirm location and pay
-      'completed',     // Ride finished and paid
-      'cancelled',     // Passenger cancelled
-      'expired',       // No driver accepted in time
+      'completed', // Ride finished and paid
+      'cancelled', // Passenger cancelled
+      'expired', // No driver accepted in time
     ],
   })
   status: string;

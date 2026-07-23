@@ -1,7 +1,8 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Schema as MongooseSchema } from 'mongoose';
 
-export type AdminMessageTemplateDocument = HydratedDocument<AdminMessageTemplate>;
+export type AdminMessageTemplateDocument =
+  HydratedDocument<AdminMessageTemplate>;
 
 @Schema({ timestamps: true })
 export class AdminMessageTemplate {
@@ -10,7 +11,17 @@ export class AdminMessageTemplate {
 
   @Prop({
     required: true,
-    enum: ['verification', 'approval', 'rejection', 'expiry', 'suspension', 'earnings', 'booking', 'general', 'custom'],
+    enum: [
+      'verification',
+      'approval',
+      'rejection',
+      'expiry',
+      'suspension',
+      'earnings',
+      'booking',
+      'general',
+      'custom',
+    ],
     default: 'general',
   })
   category: string;
@@ -28,6 +39,7 @@ export class AdminMessageTemplate {
   createdBy?: string;
 }
 
-export const AdminMessageTemplateSchema = SchemaFactory.createForClass(AdminMessageTemplate);
+export const AdminMessageTemplateSchema =
+  SchemaFactory.createForClass(AdminMessageTemplate);
 
 AdminMessageTemplateSchema.index({ category: 1, isActive: 1 });

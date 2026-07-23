@@ -82,6 +82,15 @@ export class EmailService {
       return;
     }
 
+    // SMTP verification opens a network socket. Keep it opt-in so constructors
+    // remain side-effect free in tests and in short-lived maintenance commands.
+    if (
+      process.env.NODE_ENV === 'test' ||
+      this.configService.get<string>('SMTP_VERIFY_ON_STARTUP') !== 'true'
+    ) {
+      return;
+    }
+
     this.transporter.verify((error) => {
       if (error) {
         console.warn(
@@ -245,7 +254,9 @@ export class EmailService {
     text?: string;
   }): Promise<boolean> {
     if (!this.transporter) {
-      console.warn(`Email not sent to ${options.to}: transporter not configured`);
+      console.warn(
+        `Email not sent to ${options.to}: transporter not configured`,
+      );
       return false;
     }
 

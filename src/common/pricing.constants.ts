@@ -1,6 +1,6 @@
 /** Shared pricing — keep in sync with mobile/src/constants/pricing.ts */
-export const RATE_PER_MILE = 1.10;
-export const RATE_PER_MINUTE_TAXI = 0.20;
+export const RATE_PER_MILE = 1.1;
+export const RATE_PER_MINUTE_TAXI = 0.2;
 
 /** Assumed average speed when quoting chauffeur jobs from booked duration only (mph) */
 export const CHAUFFEUR_AVG_MPH = 20;

@@ -250,7 +250,7 @@ export function WalletScreenContent() {
           <View style={styles.infoBanner}>
             <Ionicons name="information-circle-outline" size={18} color={colors.info} />
             <Text style={styles.infoBannerText}>
-              Parking, chauffeur, and taxi bookings charge your saved card directly when the provider accepts or your trip completes. Add a card below before booking.
+              Parking, chauffeur, and taxi bookings use your saved card after the service, when you explicitly confirm payment. Add a card below before booking.
             </Text>
           </View>
 

@@ -17,7 +17,7 @@ describe('connect.util', () => {
         mapStripeConnectStatus({
           payouts_enabled: true,
           details_submitted: true,
-          requirements: {},
+          requirements: {} as any,
         }),
       ).toBe('active');
     });
@@ -27,7 +27,9 @@ describe('connect.util', () => {
         mapStripeConnectStatus({
           payouts_enabled: false,
           details_submitted: false,
-          requirements: { currently_due: ['individual.verification.document'] } as any,
+          requirements: {
+            currently_due: ['individual.verification.document'],
+          } as any,
         }),
       ).toBe('pending');
     });

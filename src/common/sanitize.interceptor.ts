@@ -14,9 +14,9 @@ function sanitizeValue(value: unknown): unknown {
   if (typeof value === 'string') {
     return value
       .replace(/<\/?[^>]+(>|$)/g, '') // strip HTML tags
-      .replace(/\x00/g, '')           // strip null bytes
-      .replace(/javascript:/gi, '')   // strip JS protocol
-      .replace(/on\w+\s*=/gi, '')     // strip inline event handlers
+      .replace(/\x00/g, '') // strip null bytes
+      .replace(/javascript:/gi, '') // strip JS protocol
+      .replace(/on\w+\s*=/gi, '') // strip inline event handlers
       .trim();
   }
 
@@ -47,7 +47,11 @@ export class SanitizeInterceptor implements NestInterceptor {
     const request = context.switchToHttp().getRequest();
 
     // Body can be reassigned; query/params are read-only on Express req — mutate in place only.
-    if (request.body && typeof request.body === 'object' && !Array.isArray(request.body)) {
+    if (
+      request.body &&
+      typeof request.body === 'object' &&
+      !Array.isArray(request.body)
+    ) {
       sanitizeObjectInPlace(request.body);
     }
 

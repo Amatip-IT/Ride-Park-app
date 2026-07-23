@@ -40,7 +40,10 @@ describe('TaxiBookingsService', () => {
     findOne: jest.fn(),
     updateOne: jest.fn().mockResolvedValue({}),
   };
-  const mockChauffeurModel: any = { findOne: jest.fn(), updateOne: jest.fn().mockResolvedValue({}) };
+  const mockChauffeurModel: any = {
+    findOne: jest.fn(),
+    updateOne: jest.fn().mockResolvedValue({}),
+  };
   const mockRideModel = { updateOne: jest.fn().mockResolvedValue({}) };
   const mockUserModel = {};
 
@@ -48,7 +51,9 @@ describe('TaxiBookingsService', () => {
     mockTaxiRequestModel = jest.fn().mockImplementation((dto) => ({
       ...dto,
       _id: '507f1f77bcf86cd799439021',
-      save: jest.fn().mockResolvedValue({ _id: '507f1f77bcf86cd799439021', ...dto }),
+      save: jest
+        .fn()
+        .mockResolvedValue({ _id: '507f1f77bcf86cd799439021', ...dto }),
     }));
     mockTaxiRequestModel.findById = jest.fn();
     mockTaxiRequestModel.findOne = jest.fn();
@@ -57,9 +62,15 @@ describe('TaxiBookingsService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         TaxiBookingsService,
-        { provide: getModelToken(TaxiRideRequest.name), useValue: mockTaxiRequestModel },
+        {
+          provide: getModelToken(TaxiRideRequest.name),
+          useValue: mockTaxiRequestModel,
+        },
         { provide: getModelToken(Taxi.name), useValue: mockTaxiModel },
-        { provide: getModelToken(Chauffeur.name), useValue: mockChauffeurModel },
+        {
+          provide: getModelToken(Chauffeur.name),
+          useValue: mockChauffeurModel,
+        },
         { provide: getModelToken(Ride.name), useValue: mockRideModel },
         { provide: getModelToken(User.name), useValue: mockUserModel },
         { provide: PaymentsService, useValue: mockPaymentsService },
@@ -81,6 +92,34 @@ describe('TaxiBookingsService', () => {
     beforeEach(() => {
       mockPaymentsService.getPaymentMethods.mockResolvedValue([{ id: 'pm_1' }]);
       mockTaxiRequestModel.findOne.mockResolvedValue(null);
+    });
+
+    it('blocks a second request while an earlier ride is awaiting payment', async () => {
+      mockTaxiRequestModel.findOne.mockResolvedValue({
+        _id: '507f1f77bcf86cd799439099',
+        status: 'awaiting_payment',
+      });
+
+      const result = await service.createRideRequest({
+        passengerId,
+        destinationAddress: 'Airport',
+        timingType: 'now',
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('already have an active ride');
+      expect(mockTaxiRequestModel.findOne).toHaveBeenCalledWith({
+        passenger: passengerId,
+        status: {
+          $in: [
+            'searching',
+            'accepted',
+            'arrived',
+            'in_progress',
+            'awaiting_payment',
+          ],
+        },
+      });
     });
 
     it('rejects when targeted driver is offline', async () => {
@@ -132,7 +171,9 @@ describe('TaxiBookingsService', () => {
 
       expect(result.success).toBe(true);
       expect(result.message).toContain('directly');
-      expect(mockNotificationsService.sendNotification).toHaveBeenCalledTimes(1);
+      expect(mockNotificationsService.sendNotification).toHaveBeenCalledTimes(
+        1,
+      );
       expect(mockNotificationsService.sendNotification).toHaveBeenCalledWith(
         driverUserId,
         expect.stringContaining('Direct Ride Request'),
@@ -164,7 +205,9 @@ describe('TaxiBookingsService', () => {
         targetDriver: '507f1f77bcf86cd799439014',
       });
 
-      const result = await service.acceptRideRequest(requestId, wrongDriverId, { etaMinutes: 5 });
+      const result = await service.acceptRideRequest(requestId, wrongDriverId, {
+        etaMinutes: 5,
+      });
 
       expect(result.success).toBe(false);
       expect(result.message).toContain('another driver');
@@ -173,11 +216,19 @@ describe('TaxiBookingsService', () => {
     it('allows the targeted driver to accept when driverId is an ObjectId-like value', async () => {
       const requestId = '507f1f77bcf86cd799439011';
       const driverUserId = '507f1f77bcf86cd799439014';
-      const driverIdObject = { _id: driverUserId, toString: () => driverUserId };
+      const driverIdObject = {
+        _id: driverUserId,
+        toString: () => driverUserId,
+      };
 
       mockTaxiModel.findOne.mockResolvedValue({
         status: 'approved',
-        vehicleInfo: { make: 'Toyota', model: 'Camry', color: 'Black', plateNumber: 'AB12 CDE' },
+        vehicleInfo: {
+          make: 'Toyota',
+          model: 'Camry',
+          color: 'Black',
+          plateNumber: 'AB12 CDE',
+        },
         driverNumber: '001',
         availability: 'online',
         save: jest.fn(),
@@ -207,7 +258,11 @@ describe('TaxiBookingsService', () => {
         passenger: driverUserId,
       });
 
-      const result = await service.acceptRideRequest(requestId, driverIdObject as any, { etaMinutes: 5 });
+      const result = await service.acceptRideRequest(
+        requestId,
+        driverIdObject as any,
+        { etaMinutes: 5 },
+      );
 
       expect(result.success).toBe(true);
       expect(mockTaxiRequestModel.findOneAndUpdate).toHaveBeenCalledWith(
@@ -241,21 +296,34 @@ describe('TaxiBookingsService', () => {
         .mockReturnValueOnce({
           populate: jest.fn().mockReturnValue({
             populate: jest.fn().mockReturnValue({
-              populate: jest.fn().mockReturnValue({
-                exec: jest.fn().mockResolvedValue(populated),
-              }),
+              exec: jest.fn().mockResolvedValue(populated),
             }),
           }),
         });
+      mockTaxiRequestModel.findOneAndUpdate.mockResolvedValue({
+        ...request,
+        status: 'awaiting_payment',
+        ride: rideId,
+      });
 
-      const result = await service.updateRequestStatus(requestId, 'awaiting_payment', rideId);
+      const result = await service.updateRequestStatus(
+        requestId,
+        'awaiting_payment',
+        rideId,
+      );
 
       expect(result.success).toBe(true);
-      expect(request.status).toBe('awaiting_payment');
-      expect(request.save).toHaveBeenCalled();
+      expect(mockTaxiRequestModel.findOneAndUpdate).toHaveBeenCalledWith(
+        { _id: requestId, status: 'in_progress' },
+        { $set: { status: 'awaiting_payment', ride: rideId } },
+        { new: true },
+      );
       expect(mockPaymentsService.chargeCustomer).not.toHaveBeenCalled();
       expect(mockWalletService.addEarning).not.toHaveBeenCalled();
-      expect(mockTaxiGateway.pushRequestUpdate).toHaveBeenCalledWith(requestId, populated);
+      expect(mockTaxiGateway.pushRequestUpdate).toHaveBeenCalledWith(
+        requestId,
+        populated,
+      );
     });
 
     it('rejects direct completed updates until passenger pays', async () => {
@@ -268,7 +336,11 @@ describe('TaxiBookingsService', () => {
 
       mockTaxiRequestModel.findById.mockResolvedValue(request);
 
-      const result = await service.updateRequestStatus(requestId, 'completed', rideId);
+      const result = await service.updateRequestStatus(
+        requestId,
+        'completed',
+        rideId,
+      );
 
       expect(result.success).toBe(false);
       expect(result.message).toContain('passenger confirms payment');
@@ -296,7 +368,11 @@ describe('TaxiBookingsService', () => {
           }),
         });
 
-      const result = await service.updateRequestStatus(requestId, 'completed', rideId);
+      const result = await service.updateRequestStatus(
+        requestId,
+        'completed',
+        rideId,
+      );
 
       expect(result.success).toBe(true);
       expect(result.message).toContain('already completed');
@@ -344,7 +420,10 @@ describe('TaxiBookingsService', () => {
 
       mockTaxiRequestModel.findById.mockResolvedValue(request);
 
-      const result = await service.cancelRideRequest(requestId, objectIdLike as any);
+      const result = await service.cancelRideRequest(
+        requestId,
+        objectIdLike as any,
+      );
 
       expect(result.success).toBe(true);
       expect(request.status).toBe('cancelled');

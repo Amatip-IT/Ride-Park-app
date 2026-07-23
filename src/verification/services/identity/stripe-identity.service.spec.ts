@@ -50,14 +50,14 @@ describe('StripeIdentityService', () => {
   });
 
   describe('initialization', () => {
-    it('should throw error if Stripe key is missing', () => {
+    it('should allow startup if Stripe key is missing', () => {
       const invalidConfigService: Partial<ConfigService> = {
         get: jest.fn(() => undefined),
       };
 
       expect(
         () => new StripeIdentityService(invalidConfigService as ConfigService),
-      ).toThrow(InternalServerErrorException);
+      ).not.toThrow();
     });
   });
 

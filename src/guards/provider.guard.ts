@@ -23,7 +23,9 @@ export class ProviderGuard implements CanActivate {
       throw new ForbiddenException('User information is missing in request');
     }
 
-    if (!PROVIDER_ROLES.includes(user.role as (typeof PROVIDER_ROLES)[number])) {
+    if (
+      !PROVIDER_ROLES.includes(user.role as (typeof PROVIDER_ROLES)[number])
+    ) {
       throw new ForbiddenException(
         'Only registered providers can access this feature',
       );

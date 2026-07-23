@@ -17,7 +17,9 @@ export class What3WordsService {
   constructor(private configService: ConfigService) {
     this.apiKey = this.configService.get<string>('WHAT3WORDS_API_KEY') || '';
     if (!this.apiKey) {
-      this.logger.warn('WHAT3WORDS_API_KEY is not set — location features will be limited');
+      this.logger.warn(
+        'WHAT3WORDS_API_KEY is not set — location features will be limited',
+      );
     }
   }
 
@@ -25,7 +27,10 @@ export class What3WordsService {
    * Convert lat/lng coordinates to a what3words address.
    * Returns the 3-word address, nearest place, country, and coordinates.
    */
-  async convertToThreeWordAddress(lat: number, lng: number): Promise<W3WConvertResult | null> {
+  async convertToThreeWordAddress(
+    lat: number,
+    lng: number,
+  ): Promise<W3WConvertResult | null> {
     if (!this.apiKey) return null;
 
     try {
@@ -33,14 +38,18 @@ export class What3WordsService {
       const response = await fetch(url);
 
       if (!response.ok) {
-        this.logger.error(`what3words API error: ${response.status} ${response.statusText}`);
+        this.logger.error(
+          `what3words API error: ${response.status} ${response.statusText}`,
+        );
         return null;
       }
 
       const data = await response.json();
 
       if (data.error) {
-        this.logger.error(`what3words API error: ${data.error.code} — ${data.error.message}`);
+        this.logger.error(
+          `what3words API error: ${data.error.code} — ${data.error.message}`,
+        );
         return null;
       }
 
@@ -51,7 +60,9 @@ export class What3WordsService {
         coordinates: { lat: data.coordinates.lat, lng: data.coordinates.lng },
       };
     } catch (error) {
-      this.logger.error(`Failed to call what3words API: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      this.logger.error(
+        `Failed to call what3words API: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
       return null;
     }
   }
@@ -68,14 +79,18 @@ export class What3WordsService {
       const response = await fetch(url);
 
       if (!response.ok) {
-        this.logger.error(`what3words API error: ${response.status} ${response.statusText}`);
+        this.logger.error(
+          `what3words API error: ${response.status} ${response.statusText}`,
+        );
         return null;
       }
 
       const data = await response.json();
 
       if (data.error) {
-        this.logger.error(`what3words API error: ${data.error.code} — ${data.error.message}`);
+        this.logger.error(
+          `what3words API error: ${data.error.code} — ${data.error.message}`,
+        );
         return null;
       }
 
@@ -86,7 +101,9 @@ export class What3WordsService {
         coordinates: { lat: data.coordinates.lat, lng: data.coordinates.lng },
       };
     } catch (error) {
-      this.logger.error(`Failed to call what3words API: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      this.logger.error(
+        `Failed to call what3words API: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
       return null;
     }
   }

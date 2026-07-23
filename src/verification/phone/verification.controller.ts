@@ -2,6 +2,7 @@ import { Controller, Post, Get, Body, Query } from '@nestjs/common';
 import { PhoneVerificationService } from './verification.service';
 import { SendPhoneOtpDto } from '../dto/send-phone-otp.dto';
 import { VerifyPhoneOtpDto } from '../dto/verify-phone-otp.dto';
+import { RateLimit } from 'src/common/rate-limit.decorator';
 
 @Controller('verification')
 export class PhoneVerificationController {
@@ -14,6 +15,7 @@ export class PhoneVerificationController {
    * POST /verification/send-phone-otp
    */
   @Post('send-phone-otp')
+  @RateLimit({ limit: 3, windowMs: 10 * 60_000 })
   async sendPhoneOtp(@Body() sendPhoneOtpDto: SendPhoneOtpDto) {
     return this.phoneVerificationService.sendPhoneOtp(
       sendPhoneOtpDto.phoneNumber,
@@ -25,6 +27,7 @@ export class PhoneVerificationController {
    * POST /verification/verify-phone-otp
    */
   @Post('verify-phone-otp')
+  @RateLimit({ limit: 10, windowMs: 10 * 60_000 })
   async verifyPhoneOtp(@Body() verifyPhoneOtpDto: VerifyPhoneOtpDto) {
     return this.phoneVerificationService.verifyPhoneOtp(
       verifyPhoneOtpDto.phoneNumber,

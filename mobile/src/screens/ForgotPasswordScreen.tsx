@@ -209,7 +209,7 @@ export function ForgotPasswordScreen() {
               onPress={handleRequestOtp}
               disabled={loading}
             >
-              <Text style={styles.resendText}>Didn't receive a code? Resend</Text>
+              <Text style={styles.resendText}>Did not receive a code? Resend</Text>
             </TouchableOpacity>
           </>
         )}

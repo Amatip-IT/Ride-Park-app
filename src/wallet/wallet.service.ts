@@ -1,57 +1,85 @@
-import { Injectable, HttpException, HttpStatus, InternalServerErrorException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  HttpException,
+  HttpStatus,
+  InternalServerErrorException,
+  Logger,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Wallet, WalletDocument } from 'src/schemas/wallet.schema';
-import { Transaction, TransactionDocument } from 'src/schemas/transaction.schema';
-import { PlatformSettings, PlatformSettingsDocument } from 'src/schemas/platform-settings.schema';
+import {
+  Transaction,
+  TransactionDocument,
+} from 'src/schemas/transaction.schema';
+import {
+  PlatformSettings,
+  PlatformSettingsDocument,
+} from 'src/schemas/platform-settings.schema';
 import { User, UserDocument } from 'src/schemas/user.schema';
 import { PaymentsService } from 'src/payments/payments.service';
 import { mapStripeConnectStatus } from './connect.util';
 import Stripe from 'stripe';
+import { WebhookEventsService } from '../webhooks/webhook-events.service';
+import {
+  getStripeServerKey,
+  getStripeWebhookSecret,
+} from '../payments/stripe-config';
 
 @Injectable()
 export class WalletService {
   private stripe: Stripe;
+  private readonly connectWebhookSecret: string;
   private readonly logger = new Logger(WalletService.name);
 
   constructor(
     @InjectModel(Wallet.name) private walletModel: Model<WalletDocument>,
-    @InjectModel(Transaction.name) private transactionModel: Model<TransactionDocument>,
-    @InjectModel(PlatformSettings.name) private platformSettingsModel: Model<PlatformSettingsDocument>,
+    @InjectModel(Transaction.name)
+    private transactionModel: Model<TransactionDocument>,
+    @InjectModel(PlatformSettings.name)
+    private platformSettingsModel: Model<PlatformSettingsDocument>,
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     private readonly paymentsService: PaymentsService,
+    private readonly webhookEventsService: WebhookEventsService,
   ) {
-    const key = process.env.STRIPE_SECRET_KEY;
-    if (!key && process.env.NODE_ENV !== 'test') {
-      throw new Error('STRIPE_SECRET_KEY is required');
-    }
-    this.stripe = new Stripe(key || 'sk_test_mock');
+    const key = getStripeServerKey('connect')!;
+    this.stripe = new Stripe(key);
+    this.connectWebhookSecret = getStripeWebhookSecret('connect')!;
   }
 
   async getPlatformFee(): Promise<number> {
     let settings = await this.platformSettingsModel.findOne();
     if (!settings) {
-      settings = await this.platformSettingsModel.create({ platformFeePercentage: 10 });
+      settings = await this.platformSettingsModel.create({
+        platformFeePercentage: 10,
+      });
     }
     return settings.platformFeePercentage;
   }
 
   async getWallet(providerId: string) {
-    let wallet = await this.walletModel.findOne({ providerId: new Types.ObjectId(providerId) });
+    let wallet = await this.walletModel.findOne({
+      providerId: new Types.ObjectId(providerId),
+    });
     if (!wallet) {
-      wallet = await this.walletModel.create({ providerId: new Types.ObjectId(providerId) });
+      wallet = await this.walletModel.create({
+        providerId: new Types.ObjectId(providerId),
+      });
     }
     return wallet;
   }
 
-  async syncConnectAccountStatus(wallet: WalletDocument): Promise<WalletDocument> {
+  async syncConnectAccountStatus(
+    wallet: WalletDocument,
+  ): Promise<WalletDocument> {
     if (!wallet.stripeConnectId) {
       return wallet;
     }
 
     const account = await this.stripe.accounts.retrieve(wallet.stripeConnectId);
     wallet.stripeConnectStatus = mapStripeConnectStatus(account);
-    wallet.stripeConnectRequirementsDue = account.requirements?.currently_due || [];
+    wallet.stripeConnectRequirementsDue =
+      account.requirements?.currently_due || [];
     await wallet.save();
     return wallet;
   }
@@ -78,22 +106,11 @@ export class WalletService {
     payload: string | Buffer,
     signature: string,
   ): Stripe.Event {
-    const webhookSecret =
-      process.env.STRIPE_CONNECT_WEBHOOK_SECRET ||
-      process.env.STRIPE_PAYMENTS_WEBHOOK_SECRET ||
-      process.env.STRIPE_WEBHOOK_SECRET;
-
-    if (!webhookSecret) {
-      throw new InternalServerErrorException(
-        'Stripe Connect webhook secret not configured',
-      );
-    }
-
     try {
       return this.stripe.webhooks.constructEvent(
         payload,
         signature,
-        webhookSecret,
+        this.connectWebhookSecret,
       );
     } catch (error) {
       this.logger.error('Connect webhook signature verification failed', error);
@@ -101,34 +118,53 @@ export class WalletService {
     }
   }
 
-  async handleConnectWebhookEvent(event: Stripe.Event): Promise<void> {
-    switch (event.type) {
-      case 'account.updated':
-        await this.handleAccountUpdated(event.data.object as Stripe.Account);
-        break;
-      case 'transfer.reversed':
-        await this.handleTransferReversed(event.data.object as Stripe.Transfer);
-        break;
-      default:
-        this.logger.debug(`Unhandled Connect webhook event: ${event.type}`);
-    }
+  async handleConnectWebhookEvent(event: Stripe.Event): Promise<boolean> {
+    return this.webhookEventsService.processOnce(
+      'connect',
+      event.id,
+      event.type,
+      async () => {
+        switch (event.type) {
+          case 'account.updated':
+            await this.handleAccountUpdated(event.data.object);
+            break;
+          case 'transfer.reversed':
+            await this.handleTransferReversed(event.data.object);
+            break;
+          case 'payout.created':
+          case 'payout.updated':
+          case 'payout.paid':
+          case 'payout.failed':
+          case 'payout.canceled':
+            await this.handlePayoutEvent(event.data.object);
+            break;
+          default:
+            this.logger.debug(`Unhandled Connect webhook event: ${event.type}`);
+        }
+      },
+    );
   }
 
   private async handleAccountUpdated(account: Stripe.Account) {
-    const wallet = await this.walletModel.findOne({ stripeConnectId: account.id });
+    const wallet = await this.walletModel.findOne({
+      stripeConnectId: account.id,
+    });
     if (!wallet) {
       return;
     }
 
     wallet.stripeConnectStatus = mapStripeConnectStatus(account);
-    wallet.stripeConnectRequirementsDue = account.requirements?.currently_due || [];
+    wallet.stripeConnectRequirementsDue =
+      account.requirements?.currently_due || [];
     await wallet.save();
   }
 
   private async handleTransferReversed(transfer: Stripe.Transfer) {
     const transactionId = transfer.metadata?.transactionId;
     if (!transactionId) {
-      this.logger.warn(`Transfer ${transfer.id} reversed without transactionId metadata`);
+      this.logger.warn(
+        `Transfer ${transfer.id} reversed without transactionId metadata`,
+      );
       return;
     }
 
@@ -137,12 +173,19 @@ export class WalletService {
       return;
     }
 
-    if (transaction.status === 'failed' || transaction.status === 'rejected') {
+    if (
+      transaction.status === 'failed' ||
+      transaction.status === 'rejected' ||
+      transaction.walletRefundedAt
+    ) {
       return;
     }
 
     transaction.status = 'failed';
-    transaction.adminNotes = 'Stripe transfer was reversed — funds returned to wallet';
+    transaction.failureCode = 'transfer_reversed';
+    transaction.walletRefundedAt = new Date();
+    transaction.adminNotes =
+      'Stripe transfer was reversed — funds returned to wallet';
     await transaction.save();
 
     await this.walletModel.findOneAndUpdate(
@@ -153,6 +196,64 @@ export class WalletService {
     this.logger.warn(
       `Withdrawal ${transactionId} reversed; refunded £${transaction.amount} to provider wallet`,
     );
+  }
+
+  private async handlePayoutEvent(payout: Stripe.Payout) {
+    const transactionId = payout.metadata?.transactionId;
+    const transaction = transactionId
+      ? await this.transactionModel.findById(transactionId)
+      : await this.transactionModel.findOne({ stripePayoutId: payout.id });
+
+    if (!transaction || transaction.type !== 'withdrawal') {
+      return;
+    }
+
+    const eventAttempt = Number(payout.metadata?.payoutAttempt || 0);
+    if (eventAttempt && eventAttempt < (transaction.payoutAttempt || 0)) {
+      this.logger.debug(
+        `Ignored stale payout event for withdrawal ${transaction._id.toString()} attempt ${eventAttempt}`,
+      );
+      return;
+    }
+
+    transaction.stripePayoutId = payout.id;
+
+    if (payout.status === 'paid') {
+      transaction.status = 'paid';
+      transaction.paidAt = new Date();
+      transaction.failureCode = undefined;
+      transaction.adminNotes = undefined;
+    } else if (payout.status === 'failed' || payout.status === 'canceled') {
+      transaction.status = 'payout_failed';
+      transaction.failureCode = payout.failure_code || payout.status;
+      transaction.adminNotes =
+        payout.failure_message ||
+        `Stripe payout ${payout.status}; correct the payout account and retry`;
+    } else {
+      transaction.status = 'payout_pending';
+    }
+
+    await transaction.save();
+  }
+
+  private async ensureManualPayouts(wallet: WalletDocument): Promise<void> {
+    if (!wallet.stripeConnectId || wallet.manualPayoutsConfigured) {
+      return;
+    }
+
+    await this.stripe.balanceSettings.update(
+      {
+        payments: {
+          payouts: {
+            schedule: { interval: 'manual' },
+          },
+        },
+      },
+      { stripeAccount: wallet.stripeConnectId },
+    );
+
+    wallet.manualPayoutsConfigured = true;
+    await wallet.save();
   }
 
   async topUpWallet(userId: string, amount: number) {
@@ -233,6 +334,8 @@ export class WalletService {
         wallet.stripeTosAcceptedAt = new Date();
       }
 
+      await this.ensureManualPayouts(wallet);
+
       const bankToken = await this.stripe.tokens.create({
         bank_account: {
           country: 'GB',
@@ -243,12 +346,23 @@ export class WalletService {
         },
       });
 
-      await this.stripe.accounts.createExternalAccount(stripeAccountId, {
-        external_account: bankToken.id,
-        default_for_currency: true,
-      });
+      const externalAccount = await this.stripe.accounts.createExternalAccount(
+        stripeAccountId,
+        {
+          external_account: bankToken.id,
+          default_for_currency: true,
+        },
+      );
 
-      wallet.bankDetails = details;
+      wallet.bankDetails = {
+        accountName: details.accountName,
+        last4: 'last4' in externalAccount ? externalAccount.last4 : undefined,
+        bankName:
+          'bank_name' in externalAccount
+            ? externalAccount.bank_name || undefined
+            : undefined,
+      };
+      wallet.stripeExternalAccountId = externalAccount.id;
       await wallet.save();
       await this.syncConnectAccountStatus(wallet);
 
@@ -267,12 +381,18 @@ export class WalletService {
 
   async requestWithdrawal(providerId: string, amount: number) {
     if (amount <= 0) {
-      throw new HttpException('Amount must be greater than zero', HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        'Amount must be greater than zero',
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     const wallet = await this.getWallet(providerId);
     if (!wallet.bankDetails || !wallet.stripeConnectId) {
-      throw new HttpException('Please add bank details first', HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        'Please add bank details first',
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     if (wallet.stripeConnectId) {
@@ -285,6 +405,8 @@ export class WalletService {
         HttpStatus.BAD_REQUEST,
       );
     }
+
+    await this.ensureManualPayouts(wallet);
 
     const result = await this.walletModel.findOneAndUpdate(
       { providerId: new Types.ObjectId(providerId), balance: { $gte: amount } },
@@ -304,28 +426,285 @@ export class WalletService {
       description: 'Withdrawal to Bank Account',
     });
 
-    return { success: true, message: 'Withdrawal requested successfully', data: transaction };
+    return {
+      success: true,
+      message: 'Withdrawal requested successfully',
+      data: transaction,
+    };
   }
 
-  async addEarning(providerId: string, grossAmount: number, referenceId: string) {
+  async approveWithdrawal(transactionId: string) {
+    const transaction = await this.transactionModel.findById(transactionId);
+    if (!transaction || transaction.type !== 'withdrawal') {
+      return { success: false, message: 'Withdrawal request not found' };
+    }
+
+    if (
+      transaction.status === 'paid' ||
+      transaction.status === 'payout_pending'
+    ) {
+      return {
+        success: true,
+        message:
+          transaction.status === 'paid'
+            ? 'Withdrawal is already paid'
+            : 'Payout is already being processed by Stripe',
+        data: transaction,
+      };
+    }
+
+    const retryableStatuses = [
+      'pending',
+      'approved',
+      'transferring',
+      'transfer_failed',
+      'transferred',
+      'payout_failed',
+    ];
+    if (!retryableStatuses.includes(transaction.status)) {
+      return {
+        success: false,
+        message: `Withdrawal cannot be processed from status ${transaction.status}`,
+      };
+    }
+
+    const wallet = await this.walletModel.findOne({
+      providerId: transaction.providerId,
+    });
+    if (!wallet?.stripeConnectId) {
+      return {
+        success: false,
+        message: 'Provider Stripe Connect account not found',
+      };
+    }
+
+    try {
+      const account = await this.stripe.accounts.retrieve(
+        wallet.stripeConnectId,
+      );
+      if (!account.payouts_enabled) {
+        return {
+          success: false,
+          message:
+            'Provider Stripe Connect account cannot receive payouts yet. They must complete verification.',
+        };
+      }
+
+      await this.ensureManualPayouts(wallet);
+      transaction.approvedAt = transaction.approvedAt || new Date();
+      transaction.stripeConnectedAccountId = wallet.stripeConnectId;
+
+      if (!transaction.stripeTransferId) {
+        transaction.status = 'transferring';
+        transaction.failureCode = undefined;
+        transaction.adminNotes = undefined;
+        await transaction.save();
+
+        try {
+          const transfer = await this.stripe.transfers.create(
+            {
+              amount: Math.round(transaction.amount * 100),
+              currency: 'gbp',
+              source_type: 'card',
+              destination: wallet.stripeConnectId,
+              description: `Gleezip withdrawal ${transactionId}`,
+              metadata: {
+                transactionId,
+                providerId: transaction.providerId.toString(),
+              },
+            },
+            { idempotencyKey: `withdrawal:${transactionId}:transfer` },
+          );
+
+          transaction.stripeTransferId = transfer.id;
+          transaction.referenceId = transfer.id;
+          transaction.status = 'transferred';
+          await transaction.save();
+        } catch (error: any) {
+          transaction.status = 'transfer_failed';
+          transaction.failureCode = error?.code || 'stripe_transfer_failed';
+          transaction.adminNotes = error?.message || 'Stripe transfer failed';
+          await transaction.save();
+          return {
+            success: false,
+            message: `Stripe transfer failed: ${transaction.adminNotes}`,
+            data: transaction,
+          };
+        }
+      }
+
+      return await this.createPayoutForWithdrawal(transaction, wallet);
+    } catch (error: any) {
+      this.logger.error(
+        `Withdrawal ${transactionId} processing failed: ${error?.message}`,
+      );
+      return {
+        success: false,
+        message: error?.message || 'Stripe withdrawal processing failed',
+        data: transaction,
+      };
+    }
+  }
+
+  private async createPayoutForWithdrawal(
+    transaction: TransactionDocument,
+    wallet: WalletDocument,
+  ) {
+    const transactionId = transaction._id.toString();
+    const payoutAttempt = (transaction.payoutAttempt || 0) + 1;
+    transaction.payoutAttempt = payoutAttempt;
+    transaction.status = 'payout_pending';
+    transaction.failureCode = undefined;
+    transaction.adminNotes = undefined;
+    await transaction.save();
+
+    try {
+      const payout = await this.stripe.payouts.create(
+        {
+          amount: Math.round(transaction.amount * 100),
+          currency: 'gbp',
+          source_type: 'card',
+          method: 'standard',
+          description: `Gleezip withdrawal ${transactionId}`,
+          metadata: {
+            transactionId,
+            providerId: transaction.providerId.toString(),
+            payoutAttempt: payoutAttempt.toString(),
+          },
+        },
+        {
+          stripeAccount: wallet.stripeConnectId,
+          idempotencyKey: `withdrawal:${transactionId}:payout:${payoutAttempt}`,
+        },
+      );
+
+      transaction.stripePayoutId = payout.id;
+      if (payout.status === 'paid') {
+        transaction.status = 'paid';
+        transaction.paidAt = new Date();
+      } else if (payout.status === 'failed' || payout.status === 'canceled') {
+        transaction.status = 'payout_failed';
+        transaction.failureCode = payout.failure_code || payout.status;
+        transaction.adminNotes =
+          payout.failure_message || `Stripe payout ${payout.status}`;
+      } else {
+        transaction.status = 'payout_pending';
+      }
+      await transaction.save();
+
+      return {
+        success: true,
+        message:
+          transaction.status === 'paid'
+            ? 'Withdrawal paid successfully'
+            : 'Withdrawal approved; Stripe is processing the bank payout',
+        data: transaction,
+      };
+    } catch (error: any) {
+      const code = error?.code || error?.raw?.code || 'stripe_payout_failed';
+      transaction.status =
+        code === 'balance_insufficient' ? 'transferred' : 'payout_failed';
+      transaction.failureCode = code;
+      transaction.adminNotes = error?.message || 'Stripe payout failed';
+      await transaction.save();
+
+      return {
+        success: code === 'balance_insufficient',
+        message:
+          code === 'balance_insufficient'
+            ? 'Funds were transferred to the provider Stripe balance and are waiting to become available. Retry the payout later.'
+            : `Stripe payout failed: ${transaction.adminNotes}`,
+        data: transaction,
+      };
+    }
+  }
+
+  async reconcileWithdrawal(transactionId: string) {
+    const transaction = await this.transactionModel.findById(transactionId);
+    if (!transaction || transaction.type !== 'withdrawal') {
+      return { success: false, message: 'Withdrawal request not found' };
+    }
+
+    if (transaction.status === 'paid') {
+      return {
+        success: true,
+        message: 'Withdrawal is already paid',
+        data: transaction,
+      };
+    }
+
+    if (
+      transaction.status === 'payout_pending' &&
+      transaction.stripePayoutId &&
+      transaction.stripeConnectedAccountId
+    ) {
+      const payout = await this.stripe.payouts.retrieve(
+        transaction.stripePayoutId,
+        { stripeAccount: transaction.stripeConnectedAccountId },
+      );
+      await this.handlePayoutEvent(payout);
+      const refreshed = await this.transactionModel.findById(transactionId);
+      return {
+        success:
+          refreshed?.status === 'paid' ||
+          refreshed?.status === 'payout_pending',
+        message: `Stripe payout status reconciled as ${refreshed?.status || payout.status}`,
+        data: refreshed,
+      };
+    }
+
+    return this.approveWithdrawal(transactionId);
+  }
+
+  async addEarning(
+    providerId: string,
+    grossAmount: number,
+    referenceId: string,
+    stripePaymentIntentId?: string,
+  ) {
+    if (
+      grossAmount > 0 &&
+      !stripePaymentIntentId &&
+      process.env.NODE_ENV !== 'test'
+    ) {
+      throw new Error(
+        'A successful Stripe PaymentIntent is required before crediting earnings',
+      );
+    }
     const feePercentage = await this.getPlatformFee();
     const platformFee = (grossAmount * feePercentage) / 100;
     const netAmount = grossAmount - platformFee;
+    const providerObjectId = new Types.ObjectId(providerId);
 
-    const wallet = await this.getWallet(providerId);
-    wallet.balance += netAmount;
-    wallet.totalEarnings += grossAmount;
-    await wallet.save();
+    await this.getWallet(providerId);
+    const walletUpdate = await this.walletModel.updateOne(
+      {
+        providerId: providerObjectId,
+        creditedReferences: { $ne: referenceId },
+      },
+      {
+        $inc: { balance: netAmount, totalEarnings: grossAmount },
+        $addToSet: { creditedReferences: referenceId },
+      },
+    );
 
-    const transaction = await this.transactionModel.create({
-      providerId: new Types.ObjectId(providerId),
-      type: 'earning',
-      amount: grossAmount,
-      platformFee: platformFee,
-      status: 'completed',
-      description: 'Job Earning',
-      referenceId,
-    });
+    const transaction = await this.transactionModel.findOneAndUpdate(
+      { providerId: providerObjectId, type: 'earning', referenceId },
+      {
+        $setOnInsert: {
+          amount: grossAmount,
+          platformFee,
+          status: 'completed',
+          description: 'Job Earning',
+          stripePaymentIntentId,
+        },
+      },
+      { upsert: true, new: true },
+    );
+
+    if (walletUpdate.modifiedCount === 0) {
+      this.logger.debug(`Skipped duplicate earning credit for ${referenceId}`);
+    }
 
     return transaction;
   }
@@ -343,7 +722,9 @@ export class WalletService {
       query.createdAt = { $gte: startDate };
     }
 
-    const transactions = await this.transactionModel.find(query).sort({ createdAt: -1 });
+    const transactions = await this.transactionModel
+      .find(query)
+      .sort({ createdAt: -1 });
     return { success: true, data: transactions };
   }
 }

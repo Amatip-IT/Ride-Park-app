@@ -17,9 +17,12 @@ export class Wallet {
   @Prop({ type: Object, default: null })
   bankDetails: {
     accountName: string;
-    accountNumber: string; // 8 digits
-    sortCode: string; // 6 digits
+    last4?: string;
+    bankName?: string;
   };
+
+  @Prop()
+  stripeExternalAccountId?: string;
 
   @Prop({ default: null })
   stripeConnectId: string; // Stripe Custom Account ID
@@ -32,6 +35,13 @@ export class Wallet {
 
   @Prop({ type: Date })
   stripeTosAcceptedAt?: Date;
+
+  @Prop({ default: false })
+  manualPayoutsConfigured: boolean;
+
+  @Prop({ type: [String], default: [], select: false })
+  creditedReferences: string[];
 }
 
 export const WalletSchema = SchemaFactory.createForClass(Wallet);
+WalletSchema.index({ stripeConnectId: 1 }, { unique: true, sparse: true });

@@ -5,7 +5,9 @@ import { AuthGuard } from './auth.guard';
 
 @Global()
 @Module({
-  imports: [MongooseModule.forFeature([{ name: User.name, schema: UserSchema }])],
+  imports: [
+    MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
+  ],
   providers: [AuthGuard],
   exports: [AuthGuard, MongooseModule],
 })

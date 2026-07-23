@@ -16,5 +16,6 @@ export interface Response {
     nearestPlace?: string;
     country?: string;
     coordinates?: { lat: number; lng: number };
+    searchMode?: 'gps' | 'town_fallback' | string;
   };
 }

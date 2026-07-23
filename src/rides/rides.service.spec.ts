@@ -26,6 +26,7 @@ describe('RidesService', () => {
 
   const mockRideModel = {
     findById: jest.fn(),
+    findOneAndUpdate: jest.fn(),
   };
 
   const mockTaxiRequestModel = {
@@ -39,8 +40,14 @@ describe('RidesService', () => {
       providers: [
         RidesService,
         { provide: getModelToken(Ride.name), useValue: mockRideModel },
-        { provide: getModelToken(TaxiRideRequest.name), useValue: mockTaxiRequestModel },
-        { provide: getModelToken(Chauffeur.name), useValue: mockChauffeurModel },
+        {
+          provide: getModelToken(TaxiRideRequest.name),
+          useValue: mockTaxiRequestModel,
+        },
+        {
+          provide: getModelToken(Chauffeur.name),
+          useValue: mockChauffeurModel,
+        },
         { provide: getModelToken(Taxi.name), useValue: mockTaxiModel },
         { provide: NotificationsService, useValue: mockNotificationsService },
         { provide: WalletService, useValue: mockWalletService },
@@ -112,6 +119,9 @@ describe('RidesService', () => {
       expect(mockPaymentsService.chargeCustomer).not.toHaveBeenCalled();
 
       ride.passengerConfirmedAt = new Date();
+      ride.paymentStatus = 'pending';
+      ride.paymentAttempt = 1;
+      mockRideModel.findOneAndUpdate.mockResolvedValue(ride);
       const paid = await service.payRide(rideId, passengerId);
 
       expect(paid.success).toBe(true);
@@ -119,6 +129,31 @@ describe('RidesService', () => {
       expect(mockWalletService.addEarning).toHaveBeenCalledTimes(1);
       expect(ride.status).toBe('completed');
       expect(ride.paymentStatus).toBe('charged');
+    });
+
+    it('does not charge when another request already claimed payment', async () => {
+      const rideId = '507f1f77bcf86cd799439021';
+      const passengerId = '507f1f77bcf86cd799439022';
+      const ride: any = {
+        _id: rideId,
+        status: 'awaiting_payment',
+        paymentStatus: 'pending',
+        passenger: passengerId,
+        passengerConfirmedAt: new Date(),
+        totalCost: 20,
+      };
+
+      mockRideModel.findById
+        .mockResolvedValueOnce(ride)
+        .mockResolvedValueOnce({ ...ride, paymentStatus: 'processing' });
+      mockRideModel.findOneAndUpdate.mockResolvedValue(null);
+
+      const result = await service.payRide(rideId, passengerId);
+
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('already being processed');
+      expect(mockPaymentsService.chargeCustomer).not.toHaveBeenCalled();
+      expect(mockWalletService.addEarning).not.toHaveBeenCalled();
     });
   });
 });

@@ -17,7 +17,9 @@ import { Chauffeur, ChauffeurDocument } from 'src/schemas/chauffeur.schema';
   cors: { origin: '*' },
   namespace: '/taxi',
 })
-export class TaxiBookingsGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class TaxiBookingsGateway
+  implements OnGatewayConnection, OnGatewayDisconnect
+{
   @WebSocketServer()
   server: Server;
 
@@ -26,7 +28,8 @@ export class TaxiBookingsGateway implements OnGatewayConnection, OnGatewayDiscon
 
   constructor(
     @InjectModel(Taxi.name) private taxiModel: Model<TaxiDocument>,
-    @InjectModel(Chauffeur.name) private chauffeurModel: Model<ChauffeurDocument>,
+    @InjectModel(Chauffeur.name)
+    private chauffeurModel: Model<ChauffeurDocument>,
   ) {}
 
   handleConnection(client: Socket) {
@@ -87,7 +90,8 @@ export class TaxiBookingsGateway implements OnGatewayConnection, OnGatewayDiscon
   @SubscribeMessage('update_location')
   async handleUpdateLocation(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: {
+    @MessageBody()
+    data: {
       requestId: string;
       driverId: string;
       lat: number;
@@ -106,11 +110,21 @@ export class TaxiBookingsGateway implements OnGatewayConnection, OnGatewayDiscon
       };
 
       const [taxiRecord, chauffeurRecord] = await Promise.all([
-        this.taxiModel.findOneAndUpdate({ user: driverId }, { $set: updateData }, { new: true }),
-        this.chauffeurModel.findOneAndUpdate({ user: driverId }, { $set: updateData }, { new: true }),
+        this.taxiModel.findOneAndUpdate(
+          { user: driverId },
+          { $set: updateData },
+          { new: true },
+        ),
+        this.chauffeurModel.findOneAndUpdate(
+          { user: driverId },
+          { $set: updateData },
+          { new: true },
+        ),
       ]);
 
-      console.log(`Updated coordinates for driver ${driverId} in DB to: (${lat}, ${lng})`);
+      console.log(
+        `Updated coordinates for driver ${driverId} in DB to: (${lat}, ${lng})`,
+      );
 
       // 2. Broadcast coordinates to everyone in the ride room
       if (requestId) {
@@ -149,6 +163,8 @@ export class TaxiBookingsGateway implements OnGatewayConnection, OnGatewayDiscon
       return;
     }
     this.server.to(`ride_${requestId}`).emit('request_updated', payload);
-    console.log(`Pushed real-time update to room ride_${requestId}: status = ${payload.status}`);
+    console.log(
+      `Pushed real-time update to room ride_${requestId}: status = ${payload.status}`,
+    );
   }
 }

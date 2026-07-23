@@ -62,7 +62,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('send_message')
   async handleSendMessage(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: {
+    @MessageBody()
+    data: {
       senderId: string;
       recipientId: string;
       bookingId?: string;
@@ -103,7 +104,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() data: { userId: string; senderId: string },
   ) {
     await this.chatService.markAsRead(data.userId, data.senderId);
-    
+
     // Optionally notify the sender that their messages were read
     const senderSockets = this.userSockets.get(data.senderId);
     if (senderSockets && senderSockets.size > 0) {

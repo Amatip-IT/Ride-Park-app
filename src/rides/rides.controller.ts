@@ -23,7 +23,8 @@ export class RidesController {
    */
   @Post('estimate')
   async getEstimate(
-    @Body() body: {
+    @Body()
+    body: {
       serviceType: 'driver' | 'taxi';
       distanceMiles: number;
       durationMinutes: number;
@@ -31,7 +32,10 @@ export class RidesController {
   ) {
     if (!body.serviceType || !body.distanceMiles) {
       throw new HttpException(
-        { success: false, message: 'serviceType and distanceMiles are required' },
+        {
+          success: false,
+          message: 'serviceType and distanceMiles are required',
+        },
         HttpStatus.BAD_REQUEST,
       );
     }
@@ -51,7 +55,8 @@ export class RidesController {
   @UseGuards(AuthGuard)
   async startRide(
     @Req() req: any,
-    @Body() body: {
+    @Body()
+    body: {
       passengerId?: string;
       driverId: string;
       serviceType: 'driver' | 'taxi';
@@ -99,7 +104,8 @@ export class RidesController {
   async completeRide(
     @Req() req: any,
     @Param('id') id: string,
-    @Body() body: {
+    @Body()
+    body: {
       distanceMiles: number;
       durationMinutes: number;
     },
@@ -111,7 +117,7 @@ export class RidesController {
       throw new HttpException(rideResult, HttpStatus.NOT_FOUND);
     }
 
-    const ride = rideResult.data as any;
+    const ride = rideResult.data;
     const driverId = ride.driver?._id?.toString() || ride.driver?.toString();
     if (callerId !== driverId) {
       throw new HttpException(
@@ -140,7 +146,10 @@ export class RidesController {
   @UseGuards(AuthGuard)
   async confirmArrival(@Param('id') id: string, @Req() req: any) {
     const userId = (req.user._id || req.user.id)?.toString();
-    const result = await this.ridesService.confirmPassengerAtDestination(id, userId);
+    const result = await this.ridesService.confirmPassengerAtDestination(
+      id,
+      userId,
+    );
     if (!result.success) {
       throw new HttpException(result, HttpStatus.BAD_REQUEST);
     }
@@ -178,6 +187,35 @@ export class RidesController {
   }
 
   /**
+   * GET /rides/driver/history
+   * Past rides + light analytics for the logged-in driver
+   */
+  @Get('driver/history')
+  @UseGuards(AuthGuard)
+  async getDriverHistory(
+    @Req() req: any,
+    @Query('period') period?: 'day' | 'week' | 'month',
+  ) {
+    const role = req.user.role;
+    if (role !== 'driver' && role !== 'taxi_driver' && role !== 'admin') {
+      throw new HttpException(
+        { success: false, message: 'Only drivers can view ride history' },
+        HttpStatus.FORBIDDEN,
+      );
+    }
+
+    const driverId = (req.user._id || req.user.id)?.toString();
+    const result = await this.ridesService.getDriverRideHistory(
+      driverId,
+      period,
+    );
+    if (!result.success) {
+      throw new HttpException(result, HttpStatus.BAD_REQUEST);
+    }
+    return result;
+  }
+
+  /**
    * GET /rides/:id/receipt
    * Trip receipt (passenger or driver on that ride)
    */
@@ -205,11 +243,16 @@ export class RidesController {
     }
 
     const callerId = (req.user._id || req.user.id)?.toString();
-    const ride = result.data as any;
-    const passengerId = ride.passenger?._id?.toString() || ride.passenger?.toString();
+    const ride = result.data;
+    const passengerId =
+      ride.passenger?._id?.toString() || ride.passenger?.toString();
     const driverId = ride.driver?._id?.toString() || ride.driver?.toString();
 
-    if (callerId !== passengerId && callerId !== driverId && req.user.role !== 'admin') {
+    if (
+      callerId !== passengerId &&
+      callerId !== driverId &&
+      req.user.role !== 'admin'
+    ) {
       throw new HttpException(
         { success: false, message: 'You do not have access to this ride' },
         HttpStatus.FORBIDDEN,

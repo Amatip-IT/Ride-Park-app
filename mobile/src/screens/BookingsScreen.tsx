@@ -46,10 +46,11 @@ export function BookingsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [ratingTarget, setRatingTarget] = useState<RatingTarget | null>(null);
+  const [processingAction, setProcessingAction] = useState<string | null>(null);
 
-  const fetchBookings = async (isRefresh = false) => {
+  const fetchBookings = async (isRefresh = false, background = false) => {
     if (isRefresh) setRefreshing(true);
-    else setLoading(true);
+    else if (!background) setLoading(true);
 
     try {
       setFetchError(null);
@@ -66,7 +67,7 @@ export function BookingsScreen() {
     } catch (err) {
       setFetchError(getApiErrorMessage(err, 'Could not load your bookings. Pull down to retry.'));
     } finally {
-      setLoading(false);
+      if (!background) setLoading(false);
       setRefreshing(false);
     }
   };
@@ -76,6 +77,18 @@ export function BookingsScreen() {
       fetchBookings();
     }, [])
   );
+
+  const hasProcessingPayment =
+    bookings.some((booking) => booking.paymentStatus === 'processing') ||
+    rideRequests.some((request) =>
+      typeof request.ride === 'object' && request.ride?.paymentStatus === 'processing',
+    );
+
+  useEffect(() => {
+    if (!hasProcessingPayment) return;
+    const interval = setInterval(() => fetchBookings(false, true), 10000);
+    return () => clearInterval(interval);
+  }, [hasProcessingPayment]);
 
   const handleCancelBooking = (booking: any) => {
     Alert.alert(
@@ -87,16 +100,21 @@ export function BookingsScreen() {
           text: 'Yes, Cancel',
           style: 'destructive',
           onPress: async () => {
+            const actionKey = `booking:${booking._id}:cancel`;
+            if (processingAction) return;
+            setProcessingAction(actionKey);
             try {
               const res = await bookingsApi.cancelBooking(booking._id);
               if (res.data?.success) {
                 Alert.alert('Cancelled', res.data.message || 'Your booking has been cancelled');
-                fetchBookings();
               } else {
                 Alert.alert('Error', res.data?.message || 'Failed to cancel');
               }
             } catch (err) {
               Alert.alert('Error', getApiErrorMessage(err, 'Failed to cancel booking'));
+            } finally {
+              await fetchBookings();
+              setProcessingAction(null);
             }
           },
         },
@@ -105,6 +123,8 @@ export function BookingsScreen() {
   };
 
   const handleConfirmBookingArrival = async (booking: any) => {
+    if (processingAction) return;
+    setProcessingAction(`booking:${booking._id}:confirm`);
     try {
       const res = await bookingsApi.confirmBookingArrival(booking._id);
       if (res.data?.success) {
@@ -115,6 +135,8 @@ export function BookingsScreen() {
       }
     } catch (err) {
       Alert.alert('Error', getApiErrorMessage(err, 'Could not confirm your location'));
+    } finally {
+      setProcessingAction(null);
     }
   };
 
@@ -139,6 +161,8 @@ export function BookingsScreen() {
         {
           text: 'Pay Now',
           onPress: async () => {
+            if (processingAction || booking.paymentStatus === 'processing') return;
+            setProcessingAction(`booking:${booking._id}:pay`);
             try {
               const res = await bookingsApi.payBooking(booking._id);
               if (res.data?.success) {
@@ -150,12 +174,14 @@ export function BookingsScreen() {
                     { text: 'OK' },
                   ]
                 );
-                fetchBookings();
               } else {
                 Alert.alert('Payment Failed', res.data?.message || 'Could not process payment. Please try again.');
               }
             } catch (err) {
               Alert.alert('Payment Failed', getApiErrorMessage(err, 'Could not process payment. Please check your card.'));
+            } finally {
+              await fetchBookings();
+              setProcessingAction(null);
             }
           },
         },
@@ -176,12 +202,19 @@ export function BookingsScreen() {
     return ride.estimatedCost || 0;
   };
 
+  const getRidePaymentStatus = (ride: any): string | undefined => {
+    const linked = ride.ride;
+    return typeof linked === 'object' ? linked?.paymentStatus : undefined;
+  };
+
   const handleConfirmRideArrival = async (ride: any) => {
+    if (processingAction) return;
     const rideRecordId = getRideRecordId(ride);
     if (!rideRecordId) {
       Alert.alert('Error', 'Ride details are not ready yet. Please try again shortly.');
       return;
     }
+    setProcessingAction(`ride:${ride._id}:confirm`);
     try {
       const res = await ridesApi.confirmArrival(String(rideRecordId));
       if (res.data?.success) {
@@ -192,6 +225,8 @@ export function BookingsScreen() {
       }
     } catch (err) {
       Alert.alert('Error', getApiErrorMessage(err, 'Could not confirm your location'));
+    } finally {
+      setProcessingAction(null);
     }
   };
 
@@ -201,6 +236,9 @@ export function BookingsScreen() {
       Alert.alert('Error', 'Ride details are not ready yet. Please try again shortly.');
       return;
     }
+
+    const linkedPaymentStatus = getRidePaymentStatus(ride);
+    if (processingAction || linkedPaymentStatus === 'processing') return;
 
     if (!ride.passengerConfirmedAt) {
       Alert.alert(
@@ -223,6 +261,8 @@ export function BookingsScreen() {
         {
           text: 'Pay Now',
           onPress: async () => {
+            if (processingAction) return;
+            setProcessingAction(`ride:${ride._id}:pay`);
             try {
               const res = await ridesApi.payRide(String(rideRecordId));
               if (res.data?.success) {
@@ -255,12 +295,14 @@ export function BookingsScreen() {
                     { text: 'OK' },
                   ],
                 );
-                fetchBookings();
               } else {
                 Alert.alert('Payment Failed', res.data?.message || 'Could not process payment. Please try again.');
               }
             } catch (err) {
               Alert.alert('Payment Failed', getApiErrorMessage(err, 'Could not process payment. Please check your card.'));
+            } finally {
+              await fetchBookings();
+              setProcessingAction(null);
             }
           },
         },
@@ -278,6 +320,8 @@ export function BookingsScreen() {
           text: 'Yes, Cancel',
           style: 'destructive',
           onPress: async () => {
+            if (processingAction) return;
+            setProcessingAction(`ride:${ride._id}:cancel`);
             try {
               const res = await taxiBookingsApi.cancelRequest(ride._id);
               if (res.data?.success) {
@@ -286,8 +330,10 @@ export function BookingsScreen() {
               } else {
                 Alert.alert('Error', res.data?.message || 'Failed to cancel');
               }
-            } catch (err: any) {
-              Alert.alert('Error', err?.response?.data?.message || 'Failed to cancel ride');
+            } catch (err) {
+              Alert.alert('Error', getApiErrorMessage(err, 'Failed to cancel ride'));
+            } finally {
+              setProcessingAction(null);
             }
           },
         },
@@ -312,6 +358,7 @@ export function BookingsScreen() {
     const date = booking.createdAt ? new Date(booking.createdAt).toLocaleDateString('en-GB', {
       day: 'numeric', month: 'short', year: 'numeric',
     }) : '';
+    const isBookingAction = processingAction?.startsWith(`booking:${booking._id}:`) ?? false;
 
     return (
       <View key={booking._id} style={styles.bookingCard}>
@@ -351,32 +398,54 @@ export function BookingsScreen() {
 
         {booking.responseMessage && (
           <View style={styles.responseBox}>
-            <Text style={styles.responseLabel}>Provider's response:</Text>
+            <Text style={styles.responseLabel}>Provider response:</Text>
             <Text style={styles.responseText}>{booking.responseMessage}</Text>
           </View>
         )}
 
         {booking.status === 'awaiting_payment' && (
           <>
-            {!booking.passengerConfirmedAt ? (
+            {booking.paymentStatus === 'processing' ? (
+              <View style={styles.processingBanner}>
+                <ActivityIndicator color={colors.amber} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.processingTitle}>Payment processing</Text>
+                  <Text style={styles.processingText}>This booking will refresh automatically.</Text>
+                </View>
+              </View>
+            ) : !booking.passengerConfirmedAt ? (
               <TouchableOpacity
-                style={styles.trackBtn}
+                style={[styles.trackBtn, isBookingAction && { opacity: 0.6 }]}
                 onPress={() => handleConfirmBookingArrival(booking)}
+                disabled={!!processingAction}
                 activeOpacity={0.8}
               >
-                <Ionicons name="location-outline" size={16} color={colors.electricTeal} />
-                <Text style={styles.trackBtnText}>I'm at the location</Text>
+                {isBookingAction ? (
+                  <ActivityIndicator color={colors.electricTeal} />
+                ) : (
+                  <>
+                    <Ionicons name="location-outline" size={16} color={colors.electricTeal} />
+                    <Text style={styles.trackBtnText}>I am at the location</Text>
+                  </>
+                )}
               </TouchableOpacity>
             ) : (
               <TouchableOpacity
-                style={styles.payNowBtn}
+                style={[styles.payNowBtn, isBookingAction && { opacity: 0.6 }]}
                 onPress={() => handlePayBooking(booking)}
+                disabled={!!processingAction}
                 activeOpacity={0.8}
               >
-                <Ionicons name="card-outline" size={18} color="#FFF" />
-                <Text style={styles.payNowBtnText}>
-                  Pay £{(booking.quotedPrice || 0).toFixed(2)}
-                </Text>
+                {isBookingAction ? (
+                  <ActivityIndicator color="#FFF" />
+                ) : (
+                  <>
+                    <Ionicons name="card-outline" size={18} color="#FFF" />
+                    <Text style={styles.payNowBtnText}>
+                      {booking.paymentStatus === 'payment_failed' ? 'Retry' : 'Pay'} £{(booking.quotedPrice || 0).toFixed(2)}
+                    </Text>
+                  </>
+                )}
               </TouchableOpacity>
             )}
           </>
@@ -411,8 +480,9 @@ export function BookingsScreen() {
 
         {canCancelBooking(booking.status) && (
           <TouchableOpacity
-            style={styles.cancelBtn}
+            style={[styles.cancelBtn, isBookingAction && { opacity: 0.6 }]}
             onPress={() => handleCancelBooking(booking)}
+            disabled={!!processingAction}
           >
             <Ionicons name="close" size={16} color={colors.coralRed} />
             <Text style={styles.cancelBtnText}>Cancel Booking</Text>
@@ -442,6 +512,8 @@ export function BookingsScreen() {
     const date = ride.createdAt ? new Date(ride.createdAt).toLocaleDateString('en-GB', {
       day: 'numeric', month: 'short', year: 'numeric',
     }) : '';
+    const ridePaymentStatus = getRidePaymentStatus(ride);
+    const isRideAction = processingAction?.startsWith(`ride:${ride._id}:`) ?? false;
 
     return (
       <View key={ride._id} style={styles.bookingCard}>
@@ -492,8 +564,9 @@ export function BookingsScreen() {
 
         {canCancelRide(ride.status) && (
           <TouchableOpacity
-            style={styles.cancelBtn}
+            style={[styles.cancelBtn, isRideAction && { opacity: 0.6 }]}
             onPress={() => handleCancelRide(ride)}
+            disabled={!!processingAction}
           >
             <Ionicons name="close" size={16} color={colors.coralRed} />
             <Text style={styles.cancelBtnText}>Cancel Ride</Text>
@@ -502,24 +575,46 @@ export function BookingsScreen() {
 
         {ride.status === 'awaiting_payment' && (
           <>
-            {!ride.passengerConfirmedAt ? (
+            {ridePaymentStatus === 'processing' ? (
+              <View style={styles.processingBanner}>
+                <ActivityIndicator color={colors.amber} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.processingTitle}>Payment processing</Text>
+                  <Text style={styles.processingText}>Your ride will refresh automatically.</Text>
+                </View>
+              </View>
+            ) : !ride.passengerConfirmedAt ? (
               <TouchableOpacity
-                style={styles.trackBtn}
+                style={[styles.trackBtn, isRideAction && { opacity: 0.6 }]}
                 onPress={() => handleConfirmRideArrival(ride)}
+                disabled={!!processingAction}
               >
-                <Ionicons name="location-outline" size={16} color={colors.electricTeal} />
-                <Text style={styles.trackBtnText}>I'm at my destination</Text>
+                {isRideAction ? (
+                  <ActivityIndicator color={colors.electricTeal} />
+                ) : (
+                  <>
+                    <Ionicons name="location-outline" size={16} color={colors.electricTeal} />
+                    <Text style={styles.trackBtnText}>I am at my destination</Text>
+                  </>
+                )}
               </TouchableOpacity>
             ) : (
               <TouchableOpacity
-                style={styles.payNowBtn}
+                style={[styles.payNowBtn, isRideAction && { opacity: 0.6 }]}
                 onPress={() => handlePayRide(ride)}
+                disabled={!!processingAction}
                 activeOpacity={0.8}
               >
-                <Ionicons name="card-outline" size={18} color="#FFF" />
-                <Text style={styles.payNowBtnText}>
-                  Pay £{getRideFare(ride).toFixed(2)}
-                </Text>
+                {isRideAction ? (
+                  <ActivityIndicator color="#FFF" />
+                ) : (
+                  <>
+                    <Ionicons name="card-outline" size={18} color="#FFF" />
+                    <Text style={styles.payNowBtnText}>
+                      {ridePaymentStatus === 'payment_failed' ? 'Retry' : 'Pay'} £{getRideFare(ride).toFixed(2)}
+                    </Text>
+                  </>
+                )}
               </TouchableOpacity>
             )}
           </>
@@ -716,6 +811,14 @@ const makeStyles = (colors: ThemeColors) =>
       backgroundColor: colors.electricTeal,
     },
     payNowBtnText: { color: '#FFF', fontSize: FONT_SIZES.body, fontWeight: FONT_WEIGHTS.bold },
+    processingBanner: {
+      flexDirection: 'row', alignItems: 'center', gap: SPACING.md,
+      marginTop: SPACING.md, padding: SPACING.md,
+      borderRadius: BORDER_RADIUS.md, backgroundColor: `${colors.amber}15`,
+      borderWidth: 1, borderColor: `${colors.amber}40`,
+    },
+    processingTitle: { color: colors.amber, fontSize: 14, fontWeight: FONT_WEIGHTS.bold },
+    processingText: { color: colors.textSecondary, fontSize: 12, marginTop: 2 },
     emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 60 },
     iconCircle: {
       width: 100, height: 100, borderRadius: 50,

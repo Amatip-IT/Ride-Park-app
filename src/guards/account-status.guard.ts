@@ -29,7 +29,7 @@ export class AccountStatusGuard implements CanActivate {
     // Check if banned (permanent)
     if (dbUser.accountStatus === 'banned') {
       throw new ForbiddenException(
-        'Your account has been permanently banned. Contact support for more information.'
+        'Your account has been permanently banned. Contact support for more information.',
       );
     }
 
@@ -50,7 +50,7 @@ export class AccountStatusGuard implements CanActivate {
           ? dbUser.suspensionEndDate.toLocaleDateString()
           : 'indefinite';
         throw new ForbiddenException(
-          `Your account is suspended until ${endDateStr}. Reason: ${dbUser.suspensionReason || 'No reason provided'}`
+          `Your account is suspended until ${endDateStr}. Reason: ${dbUser.suspensionReason || 'No reason provided'}`,
         );
       }
     }

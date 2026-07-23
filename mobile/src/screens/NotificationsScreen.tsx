@@ -154,7 +154,7 @@ export function NotificationsScreen() {
         <View style={styles.emptyContainer}>
           <Ionicons name="notifications-off-outline" size={64} color={COLORS.textTertiary} />
           <Text style={styles.emptyTitle}>No Notifications</Text>
-          <Text style={styles.emptyText}>You're all caught up! We'll notify you about ride updates, bookings, and payments.</Text>
+          <Text style={styles.emptyText}>You are all caught up! We will notify you about ride updates, bookings, and payments.</Text>
         </View>
       ) : (
         <FlatList

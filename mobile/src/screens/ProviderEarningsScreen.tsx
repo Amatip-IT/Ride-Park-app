@@ -15,6 +15,24 @@ import * as Sharing from 'expo-sharing';
 
 type Period = 'day' | 'week' | 'month' | undefined;
 
+const payoutStatusMeta = (status: string) => {
+  if (status === 'paid' || status === 'completed') {
+    return { label: status === 'paid' ? 'Paid' : 'Completed', color: COLORS.success };
+  }
+  if (status === 'rejected' || status === 'failed' || status === 'payout_failed' || status === 'transfer_failed') {
+    const label = status === 'payout_failed' ? 'Payout failed' : status === 'transfer_failed' ? 'Transfer failed' : status;
+    return { label, color: COLORS.error };
+  }
+  const labels: Record<string, string> = {
+    pending: 'Awaiting approval',
+    approved: 'Approved',
+    transferring: 'Transferring',
+    transferred: 'Ready for payout',
+    payout_pending: 'Bank payout pending',
+  };
+  return { label: labels[status] || status, color: COLORS.amber };
+};
+
 export function ProviderEarningsScreen() {
   const { user } = useAuthStore();
   const navigation = useNavigation<any>();
@@ -234,7 +252,9 @@ export function ProviderEarningsScreen() {
   const totalJobs = transactions.filter(t => t.type === 'earning').length;
   const totalCharges = transactions.reduce((sum: number, t: any) => sum + (t.platformFee || 0), 0);
 
-  const renderTransaction = (item: any) => (
+  const renderTransaction = (item: any) => {
+    const statusMeta = payoutStatusMeta(item.status);
+    return (
     <View key={item._id} style={styles.transactionCard}>
       <View style={[styles.iconBox, { backgroundColor: item.type === 'withdrawal' ? `${COLORS.amber}20` : `${COLORS.electricTeal}20` }]}>
         <Ionicons name={item.type === 'withdrawal' ? 'card-outline' : 'car-sport-outline'} size={22} color={item.type === 'withdrawal' ? COLORS.amber : COLORS.electricTeal} />
@@ -243,8 +263,8 @@ export function ProviderEarningsScreen() {
         <Text style={styles.transactionTitle} numberOfLines={1}>{item.description || item.type}</Text>
         <View style={styles.dateRow}>
           <Text style={styles.transactionDate}>{new Date(item.createdAt).toLocaleDateString('en-GB')}</Text>
-          <View style={[styles.statusPill, { backgroundColor: item.status === 'completed' ? `${COLORS.success}20` : item.status === 'pending' ? `${COLORS.amber}20` : `${COLORS.error}20` }]}>
-            <Text style={[styles.statusText, { color: item.status === 'completed' ? COLORS.success : item.status === 'pending' ? COLORS.amber : COLORS.error }]}>{item.status}</Text>
+          <View style={[styles.statusPill, { backgroundColor: `${statusMeta.color}20` }]}>
+            <Text style={[styles.statusText, { color: statusMeta.color }]}>{statusMeta.label}</Text>
           </View>
         </View>
       </View>
@@ -255,7 +275,8 @@ export function ProviderEarningsScreen() {
         {item.platformFee > 0 && <Text style={styles.feeText}>Fee: £{Number(item.platformFee).toFixed(2)}</Text>}
       </View>
     </View>
-  );
+    );
+  };
 
   if (loading && !wallet) {
     return (

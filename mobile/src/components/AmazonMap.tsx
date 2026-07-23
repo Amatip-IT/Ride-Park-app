@@ -12,6 +12,9 @@ interface AmazonMapProps {
   driverLat?: number;
   driverLng?: number;
   driverRotation?: number;
+  /** Single-location pin (e.g. parking space) */
+  locationLat?: number;
+  locationLng?: number;
   /** Driving route polyline (ordered lat/lng points) */
   routeCoordinates?: MapCoordinate[];
 }
@@ -24,12 +27,14 @@ export function AmazonMap({
   driverLat,
   driverLng,
   driverRotation = 0,
+  locationLat,
+  locationLng,
   routeCoordinates = [],
 }: AmazonMapProps) {
   const webViewRef = useRef<WebView>(null);
 
-  const centerLng = driverLng || pickupLng || -0.1276;
-  const centerLat = driverLat || pickupLat || 51.5072;
+  const centerLng = driverLng || locationLng || pickupLng || -0.1276;
+  const centerLat = driverLat || locationLat || pickupLat || 51.5072;
 
   const routeJson = useMemo(
     () => JSON.stringify(routeCoordinates.filter((p) => p.lat && p.lng)),
@@ -38,12 +43,14 @@ export function AmazonMap({
 
   const mapKey = useMemo(
     () =>
-      `map-${pickupLat}-${pickupLng}-${destinationLat}-${destinationLng}-${routeCoordinates.length}`,
+      `map-${pickupLat}-${pickupLng}-${destinationLat}-${destinationLng}-${locationLat}-${locationLng}-${routeCoordinates.length}`,
     [
       pickupLat,
       pickupLng,
       destinationLat,
       destinationLng,
+      locationLat,
+      locationLng,
       routeCoordinates.length,
     ],
   );
@@ -87,6 +94,21 @@ export function AmazonMap({
             border-radius: 50%;
             border: 3px solid white;
             box-shadow: 0 0 10px rgba(0,0,0,0.5);
+          }
+          .marker-location {
+            background-color: #3B82F6;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            border: 3px solid white;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 700;
+            font-size: 14px;
+            font-family: system-ui, sans-serif;
           }
           .marker-car {
             display: flex;
@@ -247,6 +269,17 @@ export function AmazonMap({
                   .setLngLat([${destinationLng ?? 0}, ${destinationLat ?? 0}])
                   .addTo(map);
                 bounds.extend([${destinationLng ?? 0}, ${destinationLat ?? 0}]);
+                hasBounds = true;
+              }
+
+              if (${locationLng ? 'true' : 'false'}) {
+                const locEl = document.createElement('div');
+                locEl.className = 'marker-location';
+                locEl.textContent = 'P';
+                new maplibregl.Marker({ element: locEl })
+                  .setLngLat([${locationLng ?? 0}, ${locationLat ?? 0}])
+                  .addTo(map);
+                bounds.extend([${locationLng ?? 0}, ${locationLat ?? 0}]);
                 hasBounds = true;
               }
 

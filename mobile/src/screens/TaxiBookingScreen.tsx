@@ -62,31 +62,32 @@ export function TaxiBookingScreen() {
   const [calculatingEstimate, setCalculatingEstimate] = useState(false);
   const [activeRequest, setActiveRequest] = useState<any>(null);
   const [loadingActiveRequest, setLoadingActiveRequest] = useState(true);
+  const [activeRequestError, setActiveRequestError] = useState<string | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
 
-  // On screen focus, check if there's already an active ride request
+  const checkExistingRequest = useCallback(async () => {
+    setLoadingActiveRequest(true);
+    try {
+      const res = await taxiBookingsApi.getMyRequests();
+      if (res.data?.success && res.data.data) {
+        const active = res.data.data.find((r: any) =>
+          ['searching', 'accepted', 'arrived', 'in_progress', 'awaiting_payment'].includes(r.status),
+        );
+        setActiveRequest(active || null);
+        setActiveRequestError(null);
+      }
+    } catch (err) {
+      setActiveRequestError(getApiErrorMessage(err, 'Could not check for an active ride.'));
+    } finally {
+      setLoadingActiveRequest(false);
+    }
+  }, []);
+
+  // Do not permit a second request until we know there is no active or unpaid ride.
   useFocusEffect(
     useCallback(() => {
-      const checkExistingRequest = async () => {
-        setLoadingActiveRequest(true);
-        try {
-          const res = await taxiBookingsApi.getMyRequests();
-          if (res.data?.success && res.data.data) {
-            const active = res.data.data.find((r: any) =>
-              ['searching', 'accepted', 'arrived', 'in_progress'].includes(r.status),
-            );
-            if (active) {
-              setActiveRequest(active);
-            }
-          }
-        } catch (err) {
-          // Silently fail — the user can still create a new request
-        } finally {
-          setLoadingActiveRequest(false);
-        }
-      };
       checkExistingRequest();
-    }, [])
+    }, [checkExistingRequest]),
   );
 
   const handleUseMyLocation = useCallback(async () => {
@@ -120,7 +121,7 @@ export function TaxiBookingScreen() {
       setPickupMethod('gps');
       setPickupAddress(address);
       if (geo?.postalCode) setPickupPostcode(geo.postalCode);
-    } catch (error) {
+      } catch {
       Alert.alert('Error', 'Failed to get your location. Please enter it manually.');
     } finally {
       setFetchingLocation(false);
@@ -340,11 +341,27 @@ export function TaxiBookingScreen() {
     );
   }
 
+  if (activeRequestError) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', padding: SPACING.xl }]}>
+          <Ionicons name="cloud-offline-outline" size={54} color={COLORS.coralRed} />
+          <Text style={[styles.headerTitle, { marginTop: SPACING.lg, textAlign: 'center' }]}>Unable to check active rides</Text>
+          <Text style={{ color: COLORS.textSecondary, marginTop: SPACING.sm, textAlign: 'center' }}>{activeRequestError}</Text>
+          <TouchableOpacity style={[styles.gpsBtn, { marginTop: SPACING.xl }]} onPress={checkExistingRequest}>
+            <Text style={styles.gpsBtnText}>Try Again</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   // If we have an active request, show the waiting/matched view
   if (activeRequest) {
     const isAccepted = ['accepted', 'arrived', 'in_progress'].includes(activeRequest.status);
     const isSearching = activeRequest.status === 'searching';
     const isArrived = activeRequest.status === 'arrived';
+    const isAwaitingPayment = activeRequest.status === 'awaiting_payment';
 
     return (
       <SafeAreaView style={styles.safeArea}>
@@ -353,6 +370,8 @@ export function TaxiBookingScreen() {
             <Text style={styles.headerTitle}>
               {isArrived
                 ? '📍 Driver Has Arrived'
+                : isAwaitingPayment
+                  ? 'Payment Required'
                 : isAccepted
                   ? '🎉 Driver Found!'
                   : '🔍 Finding a Driver...'}
@@ -367,6 +386,8 @@ export function TaxiBookingScreen() {
               <Text style={styles.statusTitle}>
                 {isArrived
                   ? 'Your driver is at the pickup point'
+                  : isAwaitingPayment
+                    ? 'Your trip has ended'
                   : isAccepted
                     ? 'Your driver is on the way!'
                     : 'Notifying nearby drivers...'}
@@ -374,6 +395,8 @@ export function TaxiBookingScreen() {
               <Text style={styles.statusDesc}>
                 {isArrived
                   ? 'Head to the pickup location or cancel if you no longer need the ride.'
+                  : isAwaitingPayment
+                    ? 'Confirm your destination and complete payment before requesting another ride.'
                   : isAccepted
                     ? `Arriving in ~${activeRequest.driverEtaMinutes ?? '—'} minutes`
                     : 'Please wait while we match you with a driver.'}
@@ -422,7 +445,7 @@ export function TaxiBookingScreen() {
             </View>
 
             {/* Track driver on map when accepted */}
-            {(isAccepted || isArrived) && (
+            {(isAccepted || isArrived || isAwaitingPayment) && (
               <TouchableOpacity
                 style={{
                   backgroundColor: COLORS.electricTeal,
@@ -439,7 +462,9 @@ export function TaxiBookingScreen() {
                 onPress={() => navigation.navigate('PassengerTracking', { requestId: activeRequest._id })}
                 activeOpacity={0.8}
               >
-                <Text style={{ color: '#FFF', fontSize: 16, fontWeight: 'bold' as any }}>📍 Track Driver on Map</Text>
+                <Text style={{ color: '#FFF', fontSize: 16, fontWeight: 'bold' as any }}>
+                  {isAwaitingPayment ? 'Complete Payment' : '📍 Track Driver on Map'}
+                </Text>
               </TouchableOpacity>
             )}
 

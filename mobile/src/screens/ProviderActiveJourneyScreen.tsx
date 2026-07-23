@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, SafeAreaView,
-  ActivityIndicator, Alert, Platform, Linking,
+  ActivityIndicator, Alert, Linking,
 } from 'react-native';
 import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
@@ -49,6 +49,7 @@ export function ProviderActiveJourneyScreen() {
 
   const [requestItem, setRequestItem] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [journeyState, setJourneyState] = useState<JourneyState>('accepted');
   const [rideId, setRideId] = useState<string | null>(null);
@@ -58,7 +59,14 @@ export function ProviderActiveJourneyScreen() {
   const accumulatedMilesRef = useRef(0);
 
   const { user } = useAuthStore();
-  const { connect, joinRide, leaveRide, updateDriverLocation, driverLocation } = useTaxiStore();
+  const {
+    connect,
+    joinRide,
+    leaveRide,
+    updateDriverLocation,
+    driverLocation,
+    activeRequest,
+  } = useTaxiStore();
   const { routeCoordinates, etaLabel } = useRideRouteAndEta(requestItem, driverLocation);
 
   const applyRequestData = useCallback((data: any) => {
@@ -77,14 +85,17 @@ export function ProviderActiveJourneyScreen() {
     }
   }, []);
 
-  const fetchRequest = async () => {
+  const fetchRequest = async (showAlert = true) => {
     try {
       const res = await taxiBookingsApi.getRequest(requestId);
       if (res.data?.success) {
         applyRequestData(res.data.data);
+        setFetchError(null);
       }
     } catch (err) {
-      Alert.alert('Error', getApiErrorMessage(err, 'Failed to load trip details.'));
+      const message = getApiErrorMessage(err, 'Failed to load trip details.');
+      setFetchError(message);
+      if (showAlert) Alert.alert('Error', message);
     } finally {
       setLoading(false);
     }
@@ -92,6 +103,26 @@ export function ProviderActiveJourneyScreen() {
 
   useEffect(() => {
     fetchRequest();
+  }, [requestId]);
+
+  useEffect(() => {
+    if (!user) return;
+    const userId = user._id || (user as any).id;
+    connect(userId);
+    joinRide(requestId);
+    return () => leaveRide(requestId);
+  }, [connect, joinRide, leaveRide, requestId, user]);
+
+  useEffect(() => {
+    if (activeRequest?._id?.toString() === requestId) {
+      applyRequestData(activeRequest);
+      setFetchError(null);
+    }
+  }, [activeRequest, applyRequestData, requestId]);
+
+  useEffect(() => {
+    const interval = setInterval(() => fetchRequest(false), 15000);
+    return () => clearInterval(interval);
   }, [requestId]);
 
   const trackLocation = ['accepted', 'arrived', 'in_progress'].includes(journeyState);
@@ -118,7 +149,7 @@ export function ProviderActiveJourneyScreen() {
             const driverId = user?._id || (user as any)?.id;
 
             // Use device heading if available; otherwise compute bearing from last position
-            let bearing = heading > 0 ? heading : 0;
+            let bearing = heading != null && heading > 0 ? heading : 0;
             const last = lastPositionRef.current;
             if (bearing <= 0 && last) {
               const dLng = longitude - last.lng;
@@ -153,17 +184,13 @@ export function ProviderActiveJourneyScreen() {
     };
 
     if (user && trackLocation) {
-      const userId = user._id || (user as any).id;
-      connect(userId);
-      joinRide(requestId);
       startWatching();
     }
 
     return () => {
       locationSubscription?.remove();
-      leaveRide(requestId);
     };
-  }, [requestId, user, journeyState, trackLocation]);
+  }, [requestId, user, journeyState, trackLocation, updateDriverLocation]);
 
   const resolveTripMetrics = () => {
     const estimatedMiles = requestItem?.estimatedDistanceMiles || 5;
@@ -327,7 +354,11 @@ export function ProviderActiveJourneyScreen() {
       case 'in_progress':
         return 'Complete Ride';
       case 'awaiting_payment':
-        return 'Waiting for Passenger Payment';
+        return requestItem?.ride?.paymentStatus === 'processing'
+          ? 'Passenger Payment Processing'
+          : requestItem?.ride?.paymentStatus === 'payment_failed'
+            ? 'Passenger Retrying Payment'
+            : 'Waiting for Passenger Payment';
       case 'completed':
         return 'Finish & Return Home';
       default:
@@ -391,6 +422,12 @@ export function ProviderActiveJourneyScreen() {
       </View>
 
       <View style={styles.detailsContainer}>
+        {fetchError && (
+          <TouchableOpacity style={styles.errorBanner} onPress={() => fetchRequest()}>
+            <Ionicons name="cloud-offline-outline" size={18} color={COLORS.coralRed} />
+            <Text style={styles.errorBannerText}>Updates paused. Tap to retry.</Text>
+          </TouchableOpacity>
+        )}
         <View style={styles.headerRow}>
           <Text style={styles.passengerStr}>
             {requestItem.passenger?.firstName} {requestItem.passenger?.lastName}
@@ -479,6 +516,12 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 10,
   },
+  errorBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
+    backgroundColor: `${COLORS.coralRed}15`, borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.sm, marginBottom: SPACING.md,
+  },
+  errorBannerText: { flex: 1, color: COLORS.coralRed, fontSize: FONT_SIZES.small },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',

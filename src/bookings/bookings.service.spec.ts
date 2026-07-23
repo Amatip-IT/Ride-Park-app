@@ -31,6 +31,8 @@ describe('BookingsService', () => {
   mockBookingModel.find = jest.fn();
   mockBookingModel.findOne = jest.fn();
   mockBookingModel.findById = jest.fn();
+  mockBookingModel.findOneAndUpdate = jest.fn();
+  mockBookingModel.updateOne = jest.fn();
 
   const mockParkingSpaceModel = {
     findById: jest.fn(),
@@ -43,9 +45,18 @@ describe('BookingsService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         BookingsService,
-        { provide: getModelToken(BookingRequest.name), useValue: mockBookingModel },
-        { provide: getModelToken(ParkingSpace.name), useValue: mockParkingSpaceModel },
-        { provide: getModelToken(Chauffeur.name), useValue: mockChauffeurModel },
+        {
+          provide: getModelToken(BookingRequest.name),
+          useValue: mockBookingModel,
+        },
+        {
+          provide: getModelToken(ParkingSpace.name),
+          useValue: mockParkingSpaceModel,
+        },
+        {
+          provide: getModelToken(Chauffeur.name),
+          useValue: mockChauffeurModel,
+        },
         { provide: NotificationsService, useValue: mockNotificationsService },
         { provide: WalletService, useValue: mockWalletService },
         { provide: PaymentsService, useValue: mockPaymentsService },
@@ -57,7 +68,7 @@ describe('BookingsService', () => {
   });
 
   describe('autoCompleteExpiredBookings', () => {
-    it('credits provider wallet when auto-completing expired parking bookings', async () => {
+    it('requests payment instead of crediting earnings for an expired paid booking', async () => {
       const bookingId = '507f1f77bcf86cd799439011';
       const providerId = '507f1f77bcf86cd799439012';
       const requesterId = '507f1f77bcf86cd799439013';
@@ -87,12 +98,19 @@ describe('BookingsService', () => {
 
       expect(result.success).toBe(true);
       expect(result.data?.completedCount).toBe(1);
-      expect(mockWalletService.addEarning).toHaveBeenCalledWith(
-        providerId,
-        15,
-        bookingId,
+      expect(mockWalletService.addEarning).not.toHaveBeenCalled();
+      expect(booking.status).toBe('awaiting_payment');
+      expect(mockNotificationsService.sendNotification).toHaveBeenCalledWith(
+        requesterId,
+        expect.stringContaining('Payment Required'),
+        expect.stringContaining('£15.00'),
+        'payment',
+        expect.objectContaining({
+          bookingId,
+          status: 'awaiting_payment',
+          action: 'pay',
+        }),
       );
-      expect(booking.status).toBe('completed');
     });
 
     it('skips wallet credit when quotedPrice is zero', async () => {
@@ -112,6 +130,7 @@ describe('BookingsService', () => {
 
       expect(result.success).toBe(true);
       expect(mockWalletService.addEarning).not.toHaveBeenCalled();
+      expect(booking.status).toBe('completed');
     });
   });
 
@@ -201,11 +220,64 @@ describe('BookingsService', () => {
 
       mockBookingModel.findById = jest.fn().mockResolvedValue(booking);
 
-      const result = await service.cancelBooking(requestId, objectIdLike as any);
+      const result = await service.cancelBooking(
+        requestId,
+        objectIdLike as any,
+      );
 
       expect(result.success).toBe(true);
       expect(booking.status).toBe('cancelled');
       expect(booking.save).toHaveBeenCalled();
+    });
+
+    it('blocks cancellation when payment is due after service', async () => {
+      const requestId = '507f1f77bcf86cd799439011';
+      const requesterId = '507f1f77bcf86cd799439013';
+
+      mockBookingModel.findById = jest.fn().mockResolvedValue({
+        _id: requestId,
+        status: 'awaiting_payment',
+        requester: requesterId,
+        serviceType: 'parking',
+        save: jest.fn(),
+      });
+
+      const result = await service.cancelBooking(requestId, requesterId);
+
+      expect(result.success).toBe(false);
+      expect(result.message).toMatch(/payment is due/i);
+    });
+  });
+
+  describe('respondToRequest', () => {
+    it('allows only the operation that atomically claims a pending request', async () => {
+      const requestId = '507f1f77bcf86cd799439031';
+      const providerId = '507f1f77bcf86cd799439032';
+      mockBookingModel.findById.mockResolvedValue({
+        _id: requestId,
+        provider: providerId,
+        requester: '507f1f77bcf86cd799439033',
+        status: 'pending',
+        serviceType: 'driver',
+      });
+      mockBookingModel.findOneAndUpdate.mockResolvedValue(null);
+
+      const result = await service.respondToRequest(
+        requestId,
+        providerId,
+        'accept',
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('already handled');
+      expect(mockBookingModel.findOneAndUpdate).toHaveBeenCalledWith(
+        { _id: requestId, status: 'pending' },
+        expect.objectContaining({
+          $set: expect.objectContaining({ status: 'accepted' }),
+        }),
+        { new: true },
+      );
+      expect(mockNotificationsService.sendNotification).not.toHaveBeenCalled();
     });
   });
 });

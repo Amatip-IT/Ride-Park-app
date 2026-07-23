@@ -1,7 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { Notification, NotificationDocument } from 'src/schemas/notification.schema';
+import {
+  Notification,
+  NotificationDocument,
+} from 'src/schemas/notification.schema';
 import { User, UserDocument } from 'src/schemas/user.schema';
 import { Response } from 'src/common/interfaces/response.interface';
 
@@ -27,7 +30,8 @@ export class NotificationsService {
   private expo: any;
 
   constructor(
-    @InjectModel(Notification.name) private notificationModel: Model<NotificationDocument>,
+    @InjectModel(Notification.name)
+    private notificationModel: Model<NotificationDocument>,
     @InjectModel(User.name) private userModel: Model<UserDocument>,
   ) {
     this.initExpo();
@@ -50,7 +54,7 @@ export class NotificationsService {
     title: string,
     body: string,
     type: 'ride' | 'booking' | 'payment' | 'system' | 'promo',
-    data?: Record<string, any>
+    data?: Record<string, any>,
   ): Promise<void> {
     try {
       // 1. Save to database
@@ -77,13 +81,15 @@ export class NotificationsService {
       }
 
       // 3. Send via Expo Push Notifications
-      const messages: ExpoPushMessage[] = [{
-        to: user.pushToken,
-        sound: 'default',
-        title,
-        body,
-        data: { ...data, notificationId: notification._id, type },
-      }];
+      const messages: ExpoPushMessage[] = [
+        {
+          to: user.pushToken,
+          sound: 'default',
+          title,
+          body,
+          data: { ...data, notificationId: notification._id, type },
+        },
+      ];
 
       const chunks = this.expo.chunkPushNotifications(messages);
       for (const chunk of chunks) {
@@ -94,7 +100,9 @@ export class NotificationsService {
         }
       }
     } catch (error) {
-      this.logger.error(`Failed to send notification: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      this.logger.error(
+        `Failed to send notification: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
     }
   }
 
@@ -130,7 +138,7 @@ export class NotificationsService {
       const notification = await this.notificationModel.findOneAndUpdate(
         { _id: notificationId, userId },
         { read: true },
-        { new: true }
+        { new: true },
       );
 
       if (!notification) {
@@ -150,7 +158,7 @@ export class NotificationsService {
     try {
       await this.notificationModel.updateMany(
         { userId, read: false },
-        { read: true }
+        { read: true },
       );
       return { success: true, message: 'All notifications marked as read' };
     } catch (error) {

@@ -31,7 +31,14 @@ export class BookingRequest {
   // Request status
   @Prop({
     default: 'pending',
-    enum: ['pending', 'accepted', 'rejected', 'cancelled', 'awaiting_payment', 'completed'],
+    enum: [
+      'pending',
+      'accepted',
+      'rejected',
+      'cancelled',
+      'awaiting_payment',
+      'completed',
+    ],
   })
   status: string;
 
@@ -62,6 +69,18 @@ export class BookingRequest {
   @Prop({ type: String })
   paymentIntentId?: string;
 
+  @Prop({
+    default: 'pending',
+    enum: ['pending', 'processing', 'charged', 'payment_failed'],
+  })
+  paymentStatus: string;
+
+  @Prop({ type: Number, default: 0 })
+  paymentAttempt: number;
+
+  @Prop({ type: Date })
+  paymentProcessingAt?: Date;
+
   @Prop({ type: Date })
   respondedAt?: Date;
 
@@ -84,3 +103,7 @@ BookingRequestSchema.index({ requester: 1, status: 1 });
 BookingRequestSchema.index({ provider: 1, status: 1 });
 BookingRequestSchema.index({ serviceType: 1 });
 BookingRequestSchema.index({ createdAt: -1 });
+BookingRequestSchema.index(
+  { paymentIntentId: 1 },
+  { unique: true, sparse: true },
+);

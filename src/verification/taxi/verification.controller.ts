@@ -66,10 +66,13 @@ export class TaxiVerificationController {
   @UseGuards(AuthGuard, IdentityVerifiedGuard)
   @Post('apply')
   @UseInterceptors(
-    FileFieldsInterceptor([
-      { name: 'vehiclePhotos', maxCount: 4 },
-      { name: 'insuranceCertificate', maxCount: 1 },
-    ]),
+    FileFieldsInterceptor(
+      [
+        { name: 'vehiclePhotos', maxCount: 4 },
+        { name: 'insuranceCertificate', maxCount: 1 },
+      ],
+      { limits: { fileSize: 10 * 1024 * 1024 } },
+    ),
   )
   applyTaxi(
     @Request() req: AuthenticatedRequest,

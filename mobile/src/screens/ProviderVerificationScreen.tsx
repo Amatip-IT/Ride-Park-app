@@ -8,6 +8,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/store/authStore';
 import { providerApi } from '@/api';
 import { searchLocationByPosition } from '@/api/amazonLocation';
+import { LocationAutocompleteInput, PlaceSuggestion } from '@/components/LocationAutocompleteInput';
+import { AmazonMap } from '@/components/AmazonMap';
+import { useLocationBias } from '@/hooks/useLocationBias';
 import { useFocusEffect, useNavigation, NavigationProp } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
@@ -80,6 +83,25 @@ export function ProviderVerificationScreen() {
   const [selectedImages, setSelectedImages] = useState<Record<string, string[]>>({});
   const [rejectionReason, setRejectionReason] = useState<string | null>(null);
   const [locatingGps, setLocatingGps] = useState(false);
+  const biasPosition = useLocationBias();
+
+  const parkLat = formData.parkLat ? parseFloat(formData.parkLat) : NaN;
+  const parkLng = formData.parkLng ? parseFloat(formData.parkLng) : NaN;
+  const hasParkCoordinates = Number.isFinite(parkLat) && Number.isFinite(parkLng);
+
+  const handleAddressSelect = (place: PlaceSuggestion) => {
+    const streetParts = [place.addressNumber, place.street].filter(Boolean).join(' ');
+    const address = streetParts || place.label;
+
+    setFormData(prev => ({
+      ...prev,
+      parkAddress: address,
+      parkPostcode: place.postalCode || prev.parkPostcode || '',
+      ...(place.point
+        ? { parkLat: String(place.point.lat), parkLng: String(place.point.lng) }
+        : {}),
+    }));
+  };
 
   const handleUseCurrentLocation = async () => {
     setLocatingGps(true);
@@ -103,6 +125,8 @@ export function ProviderVerificationScreen() {
           ...prev,
           parkAddress: fullAddress,
           parkPostcode: result.postalCode || prev.parkPostcode || '',
+          parkLat: String(loc.coords.latitude),
+          parkLng: String(loc.coords.longitude),
         }));
 
         Alert.alert(
@@ -158,7 +182,13 @@ export function ProviderVerificationScreen() {
     setCurrentId(park._id);
     setStatus(park.status || 'not_applied');
     setDocuments(park.documents || {});
-    setFormData(park.documents || {});
+    const coords = park.location?.coordinates;
+    setFormData({
+      ...(park.documents || {}),
+      ...(coords?.lat && coords?.lng
+        ? { parkLat: String(coords.lat), parkLng: String(coords.lng) }
+        : {}),
+    });
     setSelectedImages({});
     setRejectionReason(park.rejectionReason || null);
     setViewState('create_edit');
@@ -301,7 +331,7 @@ export function ProviderVerificationScreen() {
               <View style={styles.emptyState}>
                 <Ionicons name="map-outline" size={60} color={COLORS.softSlate} />
                 <Text style={styles.emptyTitle}>No Parks Found</Text>
-                <Text style={styles.emptyDesc}>You haven't added any parking spaces yet.</Text>
+                <Text style={styles.emptyDesc}>You have not added any parking spaces yet.</Text>
               </View>
             ) : (
               verifications.map((park) => {
@@ -410,21 +440,29 @@ export function ProviderVerificationScreen() {
                   </View>
 
                   {section.title === 'Park Details' && (
-                    <TouchableOpacity
-                      style={styles.useLocationBtn}
-                      onPress={handleUseCurrentLocation}
-                      disabled={locatingGps}
-                      activeOpacity={0.7}
-                    >
-                      {locatingGps ? (
-                        <ActivityIndicator size="small" color={COLORS.electricTeal} />
-                      ) : (
-                        <Ionicons name="locate" size={18} color={COLORS.electricTeal} />
+                    <>
+                      <TouchableOpacity
+                        style={styles.useLocationBtn}
+                        onPress={handleUseCurrentLocation}
+                        disabled={locatingGps}
+                        activeOpacity={0.7}
+                      >
+                        {locatingGps ? (
+                          <ActivityIndicator size="small" color={COLORS.electricTeal} />
+                        ) : (
+                          <Ionicons name="locate" size={18} color={COLORS.electricTeal} />
+                        )}
+                        <Text style={styles.useLocationBtnText}>
+                          {locatingGps ? 'Getting your location...' : 'Use my current location'}
+                        </Text>
+                      </TouchableOpacity>
+
+                      {hasParkCoordinates && (
+                        <View style={styles.mapPreviewContainer}>
+                          <AmazonMap locationLat={parkLat} locationLng={parkLng} />
+                        </View>
                       )}
-                      <Text style={styles.useLocationBtnText}>
-                        {locatingGps ? 'Getting your location...' : 'Use my current location'}
-                      </Text>
-                    </TouchableOpacity>
+                    </>
                   )}
 
                   {section.fields.map(field => {
@@ -504,15 +542,34 @@ export function ProviderVerificationScreen() {
                         <Text style={styles.label}>
                           {field.label} {field.required && <Text style={styles.requiredAsterisk}>*</Text>}
                         </Text>
-                        <TextInput
-                          style={styles.input}
-                          value={formData[field.key] !== undefined ? formData[field.key] : value || ''}
-                          onChangeText={(text) => setFormData({ ...formData, [field.key]: text })}
-                          placeholder={field.placeholder || ''}
-                          placeholderTextColor={COLORS.textTertiary}
-                          keyboardType={field.keyboardType || 'default'}
-                          multiline={field.label.includes('Description') || field.label.includes('Rules')}
-                        />
+                        {field.key === 'parkAddress' ? (
+                          <LocationAutocompleteInput
+                            style={styles.input}
+                            value={formData[field.key] !== undefined ? formData[field.key] : value || ''}
+                            onChangeText={(text) =>
+                              setFormData(prev => ({
+                                ...prev,
+                                [field.key]: text,
+                                parkLat: '',
+                                parkLng: '',
+                              }))
+                            }
+                            onSelectPlace={handleAddressSelect}
+                            searchOptions={{ biasPosition: biasPosition ?? undefined }}
+                            placeholder={field.placeholder || 'Search for your park address'}
+                            placeholderTextColor={COLORS.textTertiary}
+                          />
+                        ) : (
+                          <TextInput
+                            style={styles.input}
+                            value={formData[field.key] !== undefined ? formData[field.key] : value || ''}
+                            onChangeText={(text) => setFormData({ ...formData, [field.key]: text })}
+                            placeholder={field.placeholder || ''}
+                            placeholderTextColor={COLORS.textTertiary}
+                            keyboardType={field.keyboardType || 'default'}
+                            multiline={field.label.includes('Description') || field.label.includes('Rules')}
+                          />
+                        )}
                       </View>
                     );
                   })}
@@ -637,6 +694,15 @@ const styles = StyleSheet.create({
     color: COLORS.electricTeal,
     fontSize: FONT_SIZES.label,
     fontWeight: FONT_WEIGHTS.semibold,
+  },
+  mapPreviewContainer: {
+    width: '100%',
+    height: 180,
+    borderRadius: BORDER_RADIUS.lg,
+    overflow: 'hidden',
+    marginBottom: SPACING.lg,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
 
   fieldContainer: { marginBottom: SPACING.xl },

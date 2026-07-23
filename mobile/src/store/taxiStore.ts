@@ -8,7 +8,7 @@ const getBaseUrl = () => {
   try {
     const url = new URL(apiUrl);
     return `${url.protocol}//${url.host}`;
-  } catch (e) {
+  } catch {
     return defaultUrl;
   }
 };
@@ -16,6 +16,8 @@ const getBaseUrl = () => {
 interface TaxiState {
   socket: Socket | null;
   isConnected: boolean;
+  currentUserId: string | null;
+  joinedRideIds: string[];
   activeRequest: any | null;
   driverLocation: { lat: number; lng: number; rotation: number } | null;
   
@@ -37,46 +39,65 @@ interface TaxiState {
 export const useTaxiStore = create<TaxiState>((set, get) => ({
   socket: null,
   isConnected: false,
+  currentUserId: null,
+  joinedRideIds: [],
   activeRequest: null,
   driverLocation: null,
 
   connect: (userId: string) => {
-    let isConfigured = false;
-    
-    if (get().socket) {
-      if (!get().socket!.connected) {
-        get().socket!.connect();
+    const existingSocket = get().socket;
+    set({ currentUserId: userId });
+
+    if (existingSocket) {
+      if (existingSocket.connected) {
+        existingSocket.emit('authenticate', { userId });
+        get().joinedRideIds.forEach((requestId) => {
+          existingSocket.emit('join_ride', { requestId });
+        });
+      } else {
+        existingSocket.connect();
       }
-      isConfigured = true;
+      return;
     }
 
-    const socket = get().socket || io(`${getBaseUrl()}/taxi`, {
+    const socket = io(`${getBaseUrl()}/taxi`, {
       transports: ['websocket'],
       autoConnect: true,
     });
 
-    if (!isConfigured) {
-      socket.on('connect', () => {
-        console.log('Taxi socket connected:', socket.id);
-        set({ isConnected: true });
-        socket.emit('authenticate', { userId });
+    socket.on('connect', () => {
+      console.log('Taxi socket connected:', socket.id);
+      set({ isConnected: true });
+      const activeUserId = get().currentUserId;
+      if (activeUserId) {
+        socket.emit('authenticate', { userId: activeUserId });
+      }
+      get().joinedRideIds.forEach((requestId) => {
+        socket.emit('join_ride', { requestId });
       });
+    });
 
-      socket.on('disconnect', () => {
-        console.log('Taxi socket disconnected');
-        set({ isConnected: false });
-      });
+    socket.on('disconnect', () => {
+      console.log('Taxi socket disconnected');
+      set({ isConnected: false });
+    });
 
-      socket.on('request_updated', (updatedRequest: any) => {
+    socket.on('connect_error', () => {
+      set({ isConnected: false });
+    });
+
+    socket.on('request_updated', (updatedRequest: any) => {
+      const updatedRequestId = updatedRequest?._id?.toString();
+      if (updatedRequestId && get().joinedRideIds.includes(updatedRequestId)) {
         console.log('Taxi request received real-time update:', updatedRequest.status);
         set({ activeRequest: updatedRequest });
-      });
+      }
+    });
 
-      socket.on('driver_location_updated', (data: { lat: number; lng: number; rotation: number }) => {
-        console.log('Driver location update received in real-time:', data.lat, data.lng);
-        set({ driverLocation: data });
-      });
-    }
+    socket.on('driver_location_updated', (data: { lat: number; lng: number; rotation: number }) => {
+      console.log('Driver location update received in real-time:', data.lat, data.lng);
+      set({ driverLocation: data });
+    });
 
     set({ socket });
   },
@@ -85,22 +106,31 @@ export const useTaxiStore = create<TaxiState>((set, get) => ({
     const { socket } = get();
     if (socket) {
       socket.disconnect();
-      set({ socket: null, isConnected: false, activeRequest: null, driverLocation: null });
+      set({
+        socket: null,
+        isConnected: false,
+        currentUserId: null,
+        joinedRideIds: [],
+        activeRequest: null,
+        driverLocation: null,
+      });
     }
   },
 
   joinRide: (requestId: string) => {
     const { socket } = get();
+    if (!get().joinedRideIds.includes(requestId)) {
+      set({ joinedRideIds: [...get().joinedRideIds, requestId] });
+    }
     if (socket?.connected) {
       socket.emit('join_ride', { requestId });
       console.log(`Joined ride room for request: ${requestId}`);
-    } else {
-      console.warn('Taxi socket not connected, cannot join ride room');
     }
   },
 
   leaveRide: (requestId: string) => {
     const { socket } = get();
+    set({ joinedRideIds: get().joinedRideIds.filter((id) => id !== requestId) });
     if (socket?.connected) {
       socket.emit('leave_ride', { requestId });
       console.log(`Left ride room for request: ${requestId}`);

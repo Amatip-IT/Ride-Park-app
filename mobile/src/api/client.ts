@@ -89,10 +89,10 @@ class ApiClient {
         if (status === 401) {
           message = 'Your session has expired. Please sign in again.';
         } else if (isTimeout || isNetwork) {
-          message =
-            `Cannot reach the server at ${API_BASE_URL}. ` +
-            'On a phone, use your PC IPv4 in mobile/.env (same Wi‑Fi), port 5001, then restart Expo. ' +
-            `(${error.code || 'network'})`;
+          message = 'You appear to be offline or the service is temporarily unavailable. Check your connection and try again.';
+          if (__DEV__) {
+            message += ` API: ${API_BASE_URL} (${error.code || 'network'}).`;
+          }
         }
 
         return Promise.reject({
@@ -122,6 +122,9 @@ class ApiClient {
         if (!data?.success || !data?.token) return null;
 
         await secureStorage.setItem('authToken', data.token);
+        if (data.refreshToken) {
+          await secureStorage.setItem(REFRESH_TOKEN_KEY, data.refreshToken);
+        }
         useAuthStore.getState().setToken(data.token);
         return data.token as string;
       } catch {

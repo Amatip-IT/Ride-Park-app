@@ -12,7 +12,12 @@ export const DISPUTE_CATEGORIES = [
   'other',
 ] as const;
 
-export const DISPUTE_STATUSES = ['open', 'investigating', 'resolved', 'closed'] as const;
+export const DISPUTE_STATUSES = [
+  'open',
+  'investigating',
+  'resolved',
+  'closed',
+] as const;
 
 export const DISPUTE_RESOLUTIONS = [
   'override_driver_approval',
@@ -25,7 +30,12 @@ export const DISPUTE_RESOLUTIONS = [
 
 @Schema({ timestamps: true })
 export class Dispute {
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true, index: true })
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'User',
+    required: true,
+    index: true,
+  })
   filedBy: string;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', index: true })
@@ -40,7 +50,12 @@ export class Dispute {
   @Prop({ type: [String], default: [] })
   evidenceUrls: string[];
 
-  @Prop({ required: true, enum: DISPUTE_STATUSES, default: 'open', index: true })
+  @Prop({
+    required: true,
+    enum: DISPUTE_STATUSES,
+    default: 'open',
+    index: true,
+  })
   status: string;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User' })
@@ -60,6 +75,12 @@ export class Dispute {
 
   @Prop()
   resolvedAt?: Date;
+
+  @Prop()
+  stripeRefundId?: string;
+
+  @Prop()
+  refundAmount?: number;
 
   @Prop()
   relatedServiceType?: string;

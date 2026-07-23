@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, SafeAreaView,
-  ActivityIndicator, Alert, Platform, Linking, Animated,
+  ActivityIndicator, Alert, Linking, Animated,
 } from 'react-native';
 import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
@@ -25,14 +25,16 @@ export function PassengerTrackingScreen() {
   const { requestId } = route.params;
 
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [showRating, setShowRating] = useState(false);
   const [ratingDismissed, setRatingDismissed] = useState(false);
   const [payLoading, setPayLoading] = useState(false);
+  const [confirmLoading, setConfirmLoading] = useState(false);
+  const [cancelLoading, setCancelLoading] = useState(false);
   
   const { user } = useAuthStore();
   const {
     connect,
-    disconnect,
     joinRide,
     leaveRide,
     activeRequest,
@@ -48,9 +50,10 @@ export function PassengerTrackingScreen() {
       const res = await taxiBookingsApi.getRequest(requestId);
       if (res.data?.success) {
         setActiveRequest(res.data.data);
+        setFetchError(null);
       }
     } catch (err) {
-      console.log('Failed to fetch request:', err);
+      setFetchError(getApiErrorMessage(err, 'Live updates are temporarily unavailable.'));
     } finally {
       setLoading(false);
     }
@@ -71,10 +74,10 @@ export function PassengerTrackingScreen() {
     };
   }, [requestId, user]);
 
-  // Keep a long fallback polling interval (30s) just in case of network drops
+  // Poll as a fallback because payment completion can occur outside the socket service.
   useFocusEffect(
     useCallback(() => {
-      const interval = setInterval(fetchRequest, 30000);
+      const interval = setInterval(fetchRequest, 15000);
       return () => clearInterval(interval);
     }, [requestId])
   );
@@ -115,12 +118,16 @@ export function PassengerTrackingScreen() {
     typeof linkedRide === 'object' && linkedRide?.totalCost != null
       ? linkedRide.totalCost
       : request?.estimatedCost || 0;
+  const paymentStatus =
+    typeof linkedRide === 'object' ? linkedRide?.paymentStatus : undefined;
 
   const handleConfirmArrival = async () => {
+    if (confirmLoading) return;
     if (!rideRecordId) {
       Alert.alert('Error', 'Ride details are not ready yet. Please try again shortly.');
       return;
     }
+    setConfirmLoading(true);
     try {
       const res = await ridesApi.confirmArrival(String(rideRecordId));
       if (res.data?.success) {
@@ -131,10 +138,13 @@ export function PassengerTrackingScreen() {
       }
     } catch (err) {
       Alert.alert('Error', getApiErrorMessage(err, 'Could not confirm your location'));
+    } finally {
+      setConfirmLoading(false);
     }
   };
 
   const handlePayRide = () => {
+    if (payLoading || paymentStatus === 'processing') return;
     if (!rideRecordId) {
       Alert.alert('Error', 'Ride details are not ready yet. Please try again shortly.');
       return;
@@ -184,6 +194,7 @@ export function PassengerTrackingScreen() {
             } catch (err) {
               Alert.alert('Payment Failed', getApiErrorMessage(err, 'Could not process payment.'));
             } finally {
+              await fetchRequest();
               setPayLoading(false);
             }
           },
@@ -194,6 +205,12 @@ export function PassengerTrackingScreen() {
 
   const getStatusText = () => {
     if (!request) return '';
+    if (request.status === 'awaiting_payment' && paymentStatus === 'processing') {
+      return 'Payment is processing';
+    }
+    if (request.status === 'awaiting_payment' && paymentStatus === 'payment_failed') {
+      return 'Payment needs your attention';
+    }
     switch (request.status) {
       case 'accepted': return '🚗 Driver is on the way';
       case 'arrived': return '📍 Driver has arrived';
@@ -226,6 +243,7 @@ export function PassengerTrackingScreen() {
   };
 
   const handleCancelRide = () => {
+    if (cancelLoading) return;
     Alert.alert(
       'Cancel Ride',
       getCancelRideMessage(request.status),
@@ -235,6 +253,7 @@ export function PassengerTrackingScreen() {
           text: 'Yes, Cancel',
           style: 'destructive',
           onPress: async () => {
+            setCancelLoading(true);
             try {
               const res = await taxiBookingsApi.cancelRequest(requestId);
               if (res.data?.success) {
@@ -243,8 +262,10 @@ export function PassengerTrackingScreen() {
               } else {
                 Alert.alert('Error', res.data?.message || 'Failed to cancel');
               }
-            } catch (err: any) {
-              Alert.alert('Error', err?.response?.data?.message || 'Failed to cancel ride');
+            } catch (err) {
+              Alert.alert('Error', getApiErrorMessage(err, 'Failed to cancel ride'));
+            } finally {
+              setCancelLoading(false);
             }
           },
         },
@@ -290,6 +311,12 @@ export function PassengerTrackingScreen() {
 
       {/* Bottom Details Sheet */}
       <View style={styles.detailsSheet}>
+        {fetchError && (
+          <TouchableOpacity style={styles.errorBanner} onPress={fetchRequest}>
+            <Ionicons name="cloud-offline-outline" size={18} color={COLORS.coralRed} />
+            <Text style={styles.errorBannerText}>Updates paused. Tap to retry.</Text>
+          </TouchableOpacity>
+        )}
         {/* Status Banner */}
         <View style={[styles.statusBanner, { backgroundColor: `${getStatusColor()}15` }]}>
           <Text style={[styles.statusText, { color: getStatusColor() }]}>
@@ -374,10 +401,28 @@ export function PassengerTrackingScreen() {
         {request.status === 'awaiting_payment' && (
           <>
             {!request.passengerConfirmedAt ? (
-              <TouchableOpacity style={styles.receiptBtn} onPress={handleConfirmArrival}>
-                <Ionicons name="location-outline" size={18} color={COLORS.electricTeal} />
-                <Text style={styles.receiptBtnText}>I'm at my destination</Text>
+              <TouchableOpacity
+                style={styles.receiptBtn}
+                onPress={handleConfirmArrival}
+                disabled={confirmLoading}
+              >
+                {confirmLoading ? (
+                  <ActivityIndicator color={COLORS.electricTeal} />
+                ) : (
+                  <>
+                    <Ionicons name="location-outline" size={18} color={COLORS.electricTeal} />
+                    <Text style={styles.receiptBtnText}>I am at my destination</Text>
+                  </>
+                )}
               </TouchableOpacity>
+            ) : paymentStatus === 'processing' ? (
+              <View style={styles.processingBanner}>
+                <ActivityIndicator color={COLORS.amber} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.processingTitle}>Payment processing</Text>
+                  <Text style={styles.processingText}>We will refresh automatically.</Text>
+                </View>
+              </View>
             ) : (
               <TouchableOpacity
                 style={[styles.receiptBtn, { backgroundColor: COLORS.electricTeal }]}
@@ -422,8 +467,13 @@ export function PassengerTrackingScreen() {
             <TouchableOpacity
               style={[styles.backButton, { flex: 1, borderColor: COLORS.coralRed }]}
               onPress={handleCancelRide}
+              disabled={cancelLoading}
             >
-              <Text style={[styles.backButtonText, { color: COLORS.coralRed }]}>Cancel Ride</Text>
+              {cancelLoading ? (
+                <ActivityIndicator color={COLORS.coralRed} />
+              ) : (
+                <Text style={[styles.backButtonText, { color: COLORS.coralRed }]}>Cancel Ride</Text>
+              )}
             </TouchableOpacity>
           )}
         </View>
@@ -460,6 +510,20 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.1, shadowRadius: 12, elevation: 12,
   },
+  errorBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
+    padding: SPACING.sm, marginBottom: SPACING.md,
+    borderRadius: BORDER_RADIUS.md, backgroundColor: `${COLORS.coralRed}15`,
+  },
+  errorBannerText: { flex: 1, color: COLORS.coralRed, fontSize: FONT_SIZES.small },
+  processingBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.md,
+    padding: SPACING.md, marginBottom: SPACING.md,
+    borderRadius: BORDER_RADIUS.lg, backgroundColor: `${COLORS.amber}15`,
+    borderWidth: 1, borderColor: `${COLORS.amber}40`,
+  },
+  processingTitle: { color: COLORS.amber, fontSize: 14, fontWeight: FONT_WEIGHTS.bold },
+  processingText: { color: COLORS.textSecondary, fontSize: 12, marginTop: 2 },
   statusBanner: {
     paddingVertical: SPACING.md, paddingHorizontal: SPACING.lg,
     borderRadius: BORDER_RADIUS.lg, alignItems: 'center',

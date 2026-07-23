@@ -58,14 +58,14 @@ describe('TwilioService', () => {
   });
 
   describe('initialization', () => {
-    it('should throw error if Twilio credentials are missing', () => {
+    it('should allow startup if Twilio credentials are missing', () => {
       const invalidConfigService: Partial<ConfigService> = {
         get: jest.fn(() => undefined),
       };
 
       expect(
         () => new TwilioService(invalidConfigService as ConfigService),
-      ).toThrow(InternalServerErrorException);
+      ).not.toThrow();
     });
   });
 
@@ -145,9 +145,7 @@ describe('TwilioService', () => {
       const callArgs = mockCreate.mock.calls[0]?.[0] as
         | MessageCreateParams
         | undefined;
-      expect(callArgs?.body).toContain(
-        `Welcome to Gleezip, ${firstName}`,
-      );
+      expect(callArgs?.body).toContain(`Welcome to Gleezip, ${firstName}`);
       expect(callArgs?.body).toContain('verified');
     });
 

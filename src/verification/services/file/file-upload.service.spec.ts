@@ -1,6 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import { InternalServerErrorException } from '@nestjs/common';
 import { FileUploadService } from './file-upload.service';
 import {
   S3Client,
@@ -10,8 +9,9 @@ import {
 
 // Mock AWS SDK
 jest.mock('@aws-sdk/client-s3');
-jest.mock('uuid', () => ({
-  v4: jest.fn(() => 'test-uuid-1234'),
+jest.mock('crypto', () => ({
+  ...jest.requireActual('crypto'),
+  randomUUID: jest.fn(() => 'test-uuid-1234'),
 }));
 
 describe('FileUploadService', () => {
@@ -52,14 +52,12 @@ describe('FileUploadService', () => {
     expect(service).toBeDefined();
   });
 
-  it('should throw error if AWS credentials not configured', () => {
+  it('should allow startup if AWS credentials are not configured', () => {
     const emptyConfigService = {
       get: jest.fn().mockReturnValue(''),
     } as unknown as ConfigService;
 
-    expect(() => new FileUploadService(emptyConfigService)).toThrow(
-      InternalServerErrorException,
-    );
+    expect(() => new FileUploadService(emptyConfigService)).not.toThrow();
   });
 
   describe('uploadFile', () => {
@@ -146,7 +144,7 @@ describe('FileUploadService', () => {
       });
 
       await expect(service.uploadFile(mockFile, 'test-folder')).rejects.toThrow(
-        InternalServerErrorException,
+        'S3 error',
       );
     });
   });

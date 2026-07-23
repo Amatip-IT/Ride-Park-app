@@ -1,5 +1,5 @@
 /** Statuses where the consumer may cancel a parking/chauffeur booking */
-export const CANCELLABLE_BOOKING_STATUSES = ['pending', 'accepted', 'awaiting_payment'] as const;
+export const CANCELLABLE_BOOKING_STATUSES = ['pending', 'accepted'] as const;
 
 /** Statuses where the passenger may cancel a taxi request (not after trip starts) */
 export const CANCELLABLE_RIDE_STATUSES = ['searching', 'accepted', 'arrived'] as const;
@@ -14,10 +14,10 @@ export function canCancelRide(status: string): boolean {
 
 export function getCancelBookingMessage(
   status: string,
-  quotedPrice?: number,
+  _quotedPrice?: number,
 ): string {
-  if (status === 'accepted' && quotedPrice != null && quotedPrice > 0) {
-    return `If payment was already taken, a refund of ${quotedPrice.toFixed(2)} GBP will be issued. Are you sure you want to cancel?`;
+  if (status === 'accepted') {
+    return 'The provider has reserved this service for you. Are you sure you want to cancel?';
   }
   return 'Are you sure you want to cancel this booking?';
 }

@@ -93,7 +93,10 @@ export class ProviderController {
     );
 
     if (!result.success) {
-      throw new HttpException({ message: result.message }, HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        { message: result.message },
+        HttpStatus.BAD_REQUEST,
+      );
     }
     return result;
   }
@@ -103,10 +106,7 @@ export class ProviderController {
    * Toggle a parking space on/off (manually pause/resume listings)
    */
   @Patch('spaces/:id/toggle-availability')
-  async toggleSpaceAvailability(
-    @Req() req: any,
-    @Param('id') spaceId: string,
-  ) {
+  async toggleSpaceAvailability(@Req() req: any, @Param('id') spaceId: string) {
     const user = req.user;
     if (user.role !== 'parking_provider') {
       throw new HttpException(
@@ -121,7 +121,10 @@ export class ProviderController {
     );
 
     if (!result.success) {
-      throw new HttpException({ message: result.message }, HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        { message: result.message },
+        HttpStatus.BAD_REQUEST,
+      );
     }
     return result;
   }
@@ -149,7 +152,10 @@ export class ProviderController {
     );
 
     if (!result.success) {
-      throw new HttpException({ message: result.message }, HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        { message: result.message },
+        HttpStatus.BAD_REQUEST,
+      );
     }
     return result;
   }
@@ -161,7 +167,8 @@ export class ProviderController {
   @Post('submit-driver-verification')
   async submitDriverVerification(
     @Req() req: any,
-    @Body() body: {
+    @Body()
+    body: {
       docField: string;
       docUrl: string;
     },
@@ -187,7 +194,10 @@ export class ProviderController {
     );
 
     if (!result.success) {
-      throw new HttpException({ message: result.message }, HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        { message: result.message },
+        HttpStatus.BAD_REQUEST,
+      );
     }
     return result;
   }
@@ -199,7 +209,8 @@ export class ProviderController {
   @Post('submit-taxi-verification')
   async submitTaxiVerification(
     @Req() req: any,
-    @Body() body: {
+    @Body()
+    body: {
       docField: string;
       docUrl: string;
       plateNumber?: string;
@@ -229,7 +240,10 @@ export class ProviderController {
     );
 
     if (!result.success) {
-      throw new HttpException({ message: result.message }, HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        { message: result.message },
+        HttpStatus.BAD_REQUEST,
+      );
     }
     return result;
   }
@@ -323,27 +337,43 @@ export class ProviderController {
    * Upload a document to S3
    */
   @Post('upload-document')
-  @UseInterceptors(FileInterceptor('file'))
-  async uploadDocument(
-    @Req() req: any,
-    @UploadedFile() file: any,
-  ) {
+  @UseInterceptors(
+    FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }),
+  )
+  async uploadDocument(@Req() req: any, @UploadedFile() file: any) {
     if (!file) {
-      throw new HttpException({ message: 'No file provided' }, HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        { message: 'No file provided' },
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     const user = req.user;
     const userId = user._id || user.id;
-    
+
     // Validate file type (allow images and pdfs)
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+    const allowedTypes = [
+      'image/jpeg',
+      'image/png',
+      'image/webp',
+      'application/pdf',
+    ];
     if (!this.fileUploadService.validateFileType(file, allowedTypes)) {
-      throw new HttpException({ message: 'Invalid file type. Only JPEG, PNG, WEBP and PDF are allowed.' }, HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        {
+          message:
+            'Invalid file type. Only JPEG, PNG, WEBP and PDF are allowed.',
+        },
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     // Validate size (e.g. 10MB)
     if (!this.fileUploadService.validateFileSize(file, 10)) {
-      throw new HttpException({ message: 'File too large. Maximum size is 10MB.' }, HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        { message: 'File too large. Maximum size is 10MB.' },
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     try {
@@ -351,7 +381,10 @@ export class ProviderController {
       const url = await this.fileUploadService.uploadFile(file, folder);
       return { success: true, url, message: 'Document uploaded successfully' };
     } catch (error: any) {
-      throw new HttpException({ message: `S3 Error: ${error.message}` }, HttpStatus.INTERNAL_SERVER_ERROR);
+      throw new HttpException(
+        { message: `S3 Error: ${error.message}` },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 

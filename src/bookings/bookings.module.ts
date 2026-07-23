@@ -1,9 +1,15 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { BookingsService } from './bookings.service';
 import { BookingsController } from './bookings.controller';
-import { BookingRequest, BookingRequestSchema } from 'src/schemas/booking-request.schema';
-import { ParkingSpace, ParkingSpaceSchema } from 'src/schemas/parking-space.schema';
+import {
+  BookingRequest,
+  BookingRequestSchema,
+} from 'src/schemas/booking-request.schema';
+import {
+  ParkingSpace,
+  ParkingSpaceSchema,
+} from 'src/schemas/parking-space.schema';
 import { User, UserSchema } from 'src/schemas/user.schema';
 import { Chauffeur, ChauffeurSchema } from 'src/schemas/chauffeur.schema';
 import { NotificationsModule } from 'src/notifications/notifications.module';
@@ -20,7 +26,7 @@ import { PaymentsModule } from 'src/payments/payments.module';
     ]),
     NotificationsModule,
     WalletModule,
-    PaymentsModule,
+    forwardRef(() => PaymentsModule),
   ],
   controllers: [BookingsController],
   providers: [BookingsService],

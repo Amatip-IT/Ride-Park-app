@@ -6,22 +6,45 @@ import { AdminMessagingController } from './admin-messaging.controller';
 import { AdminAnalyticsController } from './admin-analytics.controller';
 import { AdminMessagingService } from './admin-messaging.service';
 import { AdminAnalyticsService } from './admin-analytics.service';
-import { ParkingVerification, ParkingVerificationSchema } from 'src/schemas/parking-verification.schema';
-import { ParkingSpace, ParkingSpaceSchema } from 'src/schemas/parking-space.schema';
+import {
+  ParkingVerification,
+  ParkingVerificationSchema,
+} from 'src/schemas/parking-verification.schema';
+import {
+  ParkingSpace,
+  ParkingSpaceSchema,
+} from 'src/schemas/parking-space.schema';
 import { User, UserSchema } from 'src/schemas/user.schema';
 import { Wallet, WalletSchema } from 'src/schemas/wallet.schema';
 import { Transaction, TransactionSchema } from 'src/schemas/transaction.schema';
-import { PlatformSettings, PlatformSettingsSchema } from 'src/schemas/platform-settings.schema';
+import {
+  PlatformSettings,
+  PlatformSettingsSchema,
+} from 'src/schemas/platform-settings.schema';
 import { Chauffeur, ChauffeurSchema } from 'src/schemas/chauffeur.schema';
 import { Taxi, TaxiSchema } from 'src/schemas/taxi.schema';
 import { UtilityModule } from 'src/utility/utility.module';
 import { NotificationsModule } from 'src/notifications/notifications.module';
 import { VerificationModule } from 'src/verification/verification.module';
 import { AdminGuard } from 'src/guards/admin.guard';
-import { AdminAuditLog, AdminAuditLogSchema } from 'src/schemas/admin-audit-log.schema';
-import { AdminMessage, AdminMessageSchema } from 'src/schemas/admin-message.schema';
-import { AdminMessageTemplate, AdminMessageTemplateSchema } from 'src/schemas/admin-message-template.schema';
+import {
+  AdminAuditLog,
+  AdminAuditLogSchema,
+} from 'src/schemas/admin-audit-log.schema';
+import {
+  AdminMessage,
+  AdminMessageSchema,
+} from 'src/schemas/admin-message.schema';
+import {
+  AdminMessageTemplate,
+  AdminMessageTemplateSchema,
+} from 'src/schemas/admin-message-template.schema';
 import { AdminAuditService } from './admin-audit.service';
+import { WalletModule } from '../wallet/wallet.module';
+import {
+  WebhookEvent,
+  WebhookEventSchema,
+} from '../schemas/webhook-event.schema';
 
 @Module({
   imports: [
@@ -37,12 +60,18 @@ import { AdminAuditService } from './admin-audit.service';
       { name: AdminAuditLog.name, schema: AdminAuditLogSchema },
       { name: AdminMessage.name, schema: AdminMessageSchema },
       { name: AdminMessageTemplate.name, schema: AdminMessageTemplateSchema },
+      { name: WebhookEvent.name, schema: WebhookEventSchema },
     ]),
     UtilityModule,
     NotificationsModule,
     VerificationModule,
+    WalletModule,
   ],
-  controllers: [AdminController, AdminMessagingController, AdminAnalyticsController],
+  controllers: [
+    AdminController,
+    AdminMessagingController,
+    AdminAnalyticsController,
+  ],
   providers: [
     AdminService,
     AdminAuditService,
@@ -50,6 +79,11 @@ import { AdminAuditService } from './admin-audit.service';
     AdminAnalyticsService,
     AdminGuard,
   ],
-  exports: [AdminService, AdminAuditService, AdminMessagingService, AdminAnalyticsService],
+  exports: [
+    AdminService,
+    AdminAuditService,
+    AdminMessagingService,
+    AdminAnalyticsService,
+  ],
 })
 export class AdminModule {}

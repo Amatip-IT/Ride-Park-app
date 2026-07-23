@@ -60,17 +60,23 @@ export class Ride {
   totalCost: number; // distanceCost + timeCost
 
   // Rate per mile (£1.10)
-  @Prop({ type: Number, default: 1.10 })
+  @Prop({ type: Number, default: 1.1 })
   ratePerMile: number;
 
   // Rate per minute (£0.20 for taxi, 0 for driver)
-  @Prop({ type: Number, default: 0.20 })
+  @Prop({ type: Number, default: 0.2 })
   ratePerMinute: number;
 
   // Ride status
   @Prop({
     default: 'pending',
-    enum: ['pending', 'in_progress', 'awaiting_payment', 'completed', 'cancelled'],
+    enum: [
+      'pending',
+      'in_progress',
+      'awaiting_payment',
+      'completed',
+      'cancelled',
+    ],
   })
   status: string;
 
@@ -81,13 +87,19 @@ export class Ride {
   // Payment status (tracks whether the Stripe charge succeeded)
   @Prop({
     default: 'pending',
-    enum: ['pending', 'charged', 'payment_failed'],
+    enum: ['pending', 'processing', 'charged', 'payment_failed'],
   })
   paymentStatus: string;
 
   // Stripe PaymentIntent ID (stored after successful charge on completion)
   @Prop({ type: String })
   paymentIntentId?: string;
+
+  @Prop({ type: Number, default: 0 })
+  paymentAttempt: number;
+
+  @Prop({ type: Date })
+  paymentProcessingAt?: Date;
 
   // Timestamps for the ride lifecycle
   @Prop({ type: Date })
@@ -103,8 +115,10 @@ export class Ride {
 export const RideSchema: MongooseSchema<Ride> =
   SchemaFactory.createForClass(Ride);
 
+RideSchema.index({ booking: 1 }, { unique: true, sparse: true });
+RideSchema.index({ paymentIntentId: 1 }, { unique: true, sparse: true });
+
 // Indexes
 RideSchema.index({ passenger: 1, status: 1 });
 RideSchema.index({ driver: 1, status: 1 });
-RideSchema.index({ booking: 1 });
 RideSchema.index({ serviceType: 1 });

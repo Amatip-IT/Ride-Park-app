@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import { ApiResponse } from '@/types';
+import { ApiResponse, BookingRequest, RideRecord, TaxiRideRequest } from '@/types';
 
 const api = apiClient.getInstance();
 
@@ -66,26 +66,26 @@ export const bookingsApi = {
 
   // Get current user's bookings (consumer view)
   getMyBookings: (status?: string) =>
-    api.get<ApiResponse>(`/bookings/my${status ? `?status=${status}` : ''}`),
+    api.get<ApiResponse<BookingRequest[]>>(`/bookings/my${status ? `?status=${status}` : ''}`),
 
   // Get incoming requests (provider view)
   getProviderRequests: (status?: string) =>
-    api.get<ApiResponse>(`/bookings/provider${status ? `?status=${status}` : ''}`),
+    api.get<ApiResponse<BookingRequest[]>>(`/bookings/provider${status ? `?status=${status}` : ''}`),
 
   // Provider responds to a request (accept or reject)
   respondToRequest: (id: string, action: 'accept' | 'reject', responseMessage?: string) =>
-    api.patch<ApiResponse>(`/bookings/${id}/respond`, { action, responseMessage }),
+    api.patch<ApiResponse<BookingRequest>>(`/bookings/${id}/respond`, { action, responseMessage }),
 
   // Provider marks a booking as completed (frees the parking spot)
   completeBooking: (id: string) =>
-    api.patch<ApiResponse>(`/bookings/${id}/complete`),
+    api.patch<ApiResponse<BookingRequest>>(`/bookings/${id}/complete`),
 
   // Consumer confirms payment for a parking booking
   payBooking: (id: string) =>
-    api.post<ApiResponse>(`/bookings/${id}/pay`),
+    api.post<ApiResponse<BookingRequest>>(`/bookings/${id}/pay`),
 
   confirmBookingArrival: (id: string) =>
-    api.post<ApiResponse>(`/bookings/${id}/confirm-arrival`),
+    api.post<ApiResponse<BookingRequest>>(`/bookings/${id}/confirm-arrival`),
 
   // Consumer cancels a booking
   cancelBooking: (id: string) =>
@@ -471,22 +471,25 @@ export const ridesApi = {
     api.post<ApiResponse>('/rides/start', data),
 
   completeRide: (rideId: string, distanceMiles: number, durationMinutes: number) =>
-    api.post<ApiResponse>(`/rides/${rideId}/complete`, { distanceMiles, durationMinutes }),
+    api.post<ApiResponse<RideRecord>>(`/rides/${rideId}/complete`, { distanceMiles, durationMinutes }),
 
   confirmArrival: (rideId: string) =>
-    api.post<ApiResponse>(`/rides/${rideId}/confirm-arrival`),
+    api.post<ApiResponse<RideRecord>>(`/rides/${rideId}/confirm-arrival`),
 
   payRide: (rideId: string) =>
-    api.post<ApiResponse>(`/rides/${rideId}/pay`),
+    api.post<ApiResponse<RideRecord>>(`/rides/${rideId}/pay`),
 
   retryPayment: (rideId: string) =>
     api.post<ApiResponse>(`/rides/${rideId}/pay`),
 
   getRide: (rideId: string) =>
-    api.get<ApiResponse>(`/rides/${rideId}`),
+    api.get<ApiResponse<RideRecord>>(`/rides/${rideId}`),
 
   getReceipt: (rideId: string) =>
     api.get<ApiResponse>(`/rides/${rideId}/receipt`),
+
+  getDriverHistory: (period?: 'day' | 'week' | 'month') =>
+    api.get<ApiResponse>(`/rides/driver/history${period ? `?period=${period}` : ''}`),
 };
 
 // ── Taxi Bookings API (ride requests) ──
@@ -523,11 +526,11 @@ export const taxiBookingsApi = {
 
   // Passenger: my ride history
   getMyRequests: () =>
-    api.get<ApiResponse>('/taxi-bookings/my-requests'),
+    api.get<ApiResponse<TaxiRideRequest[]>>('/taxi-bookings/my-requests'),
 
   // Get ride request details
   getRequest: (requestId: string) =>
-    api.get<ApiResponse>(`/taxi-bookings/${requestId}`),
+    api.get<ApiResponse<TaxiRideRequest>>(`/taxi-bookings/${requestId}`),
 
   getReceipt: (requestId: string) =>
     api.get<ApiResponse>(`/taxi-bookings/${requestId}/receipt`),

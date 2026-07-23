@@ -3,17 +3,32 @@ import { InjectModel } from '@nestjs/mongoose';
 import { User, UserDocument } from 'src/schemas/user.schema';
 import { Model } from 'mongoose';
 import * as bcrypt from 'bcrypt';
-import { generateToken, generateRefreshToken, verifyRefreshToken } from 'src/utility/authUtilities';
+import {
+  generateToken,
+  generateRefreshToken,
+  verifyRefreshToken,
+  MAX_FAILED_LOGIN_ATTEMPTS,
+  LOGIN_LOCK_DURATION_MS,
+} from 'src/utility/authUtilities';
 import { user_settings } from 'src/schemas/user-settings-schema';
 import { EmailVerificationService } from 'src/verification/email/verification.service';
 import { Response } from 'src/common/interfaces/response.interface';
-import { isStrongPassword, PASSWORD_STRENGTH_MESSAGE } from 'src/utility/password.util';
+import {
+  isStrongPassword,
+  PASSWORD_STRENGTH_MESSAGE,
+} from 'src/utility/password.util';
 import { CreateUserDto } from './dto/create-user.dto';
 
 import { Taxi, TaxiDocument } from 'src/schemas/taxi.schema';
 import { Wallet, WalletDocument } from 'src/schemas/wallet.schema';
-import { BookingRequest, BookingRequestDocument } from 'src/schemas/booking-request.schema';
-import { ParkingVerification, ParkingVerificationDocument } from 'src/schemas/parking-verification.schema';
+import {
+  BookingRequest,
+  BookingRequestDocument,
+} from 'src/schemas/booking-request.schema';
+import {
+  ParkingVerification,
+  ParkingVerificationDocument,
+} from 'src/schemas/parking-verification.schema';
 import { Chauffeur, ChauffeurDocument } from 'src/schemas/chauffeur.schema';
 
 interface UserWithId extends User {
@@ -28,9 +43,12 @@ export class UsersService {
     @InjectModel(user_settings.name)
     private userSettingsModel: Model<user_settings>,
     @InjectModel(Wallet.name) private walletModel: Model<WalletDocument>,
-    @InjectModel(BookingRequest.name) private bookingRequestModel: Model<BookingRequestDocument>,
-    @InjectModel(ParkingVerification.name) private parkingVerificationModel: Model<ParkingVerificationDocument>,
-    @InjectModel(Chauffeur.name) private chauffeurModel: Model<ChauffeurDocument>,
+    @InjectModel(BookingRequest.name)
+    private bookingRequestModel: Model<BookingRequestDocument>,
+    @InjectModel(ParkingVerification.name)
+    private parkingVerificationModel: Model<ParkingVerificationDocument>,
+    @InjectModel(Chauffeur.name)
+    private chauffeurModel: Model<ChauffeurDocument>,
     private emailVerificationService: EmailVerificationService,
   ) {}
 
@@ -71,12 +89,14 @@ export class UsersService {
       if (emailTaken) {
         return {
           success: false,
-          message: 'An account with this email address already exists. Please sign in or use a different email.',
+          message:
+            'An account with this email address already exists. Please sign in or use a different email.',
         };
       }
 
       if (usernameTaken) {
-        const suggestions = await this.generateUsernameSuggestions(normalizedUsername);
+        const suggestions =
+          await this.generateUsernameSuggestions(normalizedUsername);
         return {
           success: false,
           message: `The username "${normalizedUsername}" is already taken.`,
@@ -98,10 +118,16 @@ export class UsersService {
         };
       }
 
-      const allowedRoles = ['user', 'parking_provider', 'driver', 'taxi_driver'];
-      const role = createUserDTO.role && allowedRoles.includes(createUserDTO.role)
-        ? createUserDTO.role
-        : 'user';
+      const allowedRoles = [
+        'user',
+        'parking_provider',
+        'driver',
+        'taxi_driver',
+      ];
+      const role =
+        createUserDTO.role && allowedRoles.includes(createUserDTO.role)
+          ? createUserDTO.role
+          : 'user';
 
       const providerRoles = ['parking_provider', 'driver', 'taxi_driver'];
       const isProvider = providerRoles.includes(role);
@@ -185,6 +211,31 @@ export class UsersService {
     }
   }
 
+  private clearExpiredLoginLock(user: UserDocument): void {
+    if (user.lockUntil && user.lockUntil <= new Date()) {
+      user.failedLoginAttempts = 0;
+      user.lockUntil = null;
+    }
+  }
+
+  private async registerFailedLogin(user: UserDocument): Promise<Response> {
+    user.failedLoginAttempts = (user.failedLoginAttempts || 0) + 1;
+    if (user.failedLoginAttempts >= MAX_FAILED_LOGIN_ATTEMPTS) {
+      user.lockUntil = new Date(Date.now() + LOGIN_LOCK_DURATION_MS);
+      await user.save();
+      return {
+        success: false,
+        message:
+          'Account temporarily locked due to too many failed login attempts. Try again in 15 minutes.',
+      };
+    }
+    await user.save();
+    return {
+      success: false,
+      message: 'Invalid email or password',
+    };
+  }
+
   /* METHOD TO LOGIN A USER */
   async loginUser(loginDto: {
     email: string;
@@ -206,6 +257,18 @@ export class UsersService {
         };
       }
 
+      this.clearExpiredLoginLock(user);
+      if (user.lockUntil && user.lockUntil > new Date()) {
+        const minutesLeft = Math.max(
+          1,
+          Math.ceil((user.lockUntil.getTime() - Date.now()) / 60_000),
+        );
+        return {
+          success: false,
+          message: `Account temporarily locked due to too many failed login attempts. Try again in ${minutesLeft} minute${minutesLeft === 1 ? '' : 's'}.`,
+        };
+      }
+
       // Compare provided password with stored hashed password
       const isPasswordValid: boolean = await bcrypt.compare(
         loginDto.password,
@@ -213,10 +276,7 @@ export class UsersService {
       );
 
       if (!isPasswordValid) {
-        return {
-          success: false,
-          message: 'Invalid email or password',
-        };
+        return this.registerFailedLogin(user);
       }
 
       // Block banned users
@@ -229,7 +289,10 @@ export class UsersService {
 
       // Block suspended users (auto-clear if suspension expired)
       if (user.accountStatus === 'suspended') {
-        if (user.suspensionEndDate && new Date(user.suspensionEndDate) <= new Date()) {
+        if (
+          user.suspensionEndDate &&
+          new Date(user.suspensionEndDate) <= new Date()
+        ) {
           user.accountStatus = 'active';
           user.suspensionReason = undefined;
           user.suspensionEndDate = undefined;
@@ -245,6 +308,10 @@ export class UsersService {
         }
       }
 
+      // Correct password — clear lockout counters before OTP step
+      user.failedLoginAttempts = 0;
+      user.lockUntil = null;
+
       // Update lastLoggedInAt to current time
       const currentTime = new Date();
       user.lastLoggedInAt = currentTime;
@@ -254,16 +321,15 @@ export class UsersService {
         user.username = user.username.toLowerCase().trim();
       }
 
-      // LOCAL TESTING: OTP disabled — sign in with email/password only.
-      // Re-enable before deployment.
-      /*
       // Always require OTP for every login to enforce security
       if (!loginDto.otp) {
+        await user.save();
         // Send OTP to user's email (non-blocking to avoid SMTP timeout)
-        this.emailVerificationService.sendEmailOtp(
-          loginDto.email,
-          'Login',
-        ).catch(err => console.error('Failed to send login OTP email:', err));
+        this.emailVerificationService
+          .sendEmailOtp(loginDto.email, 'Login')
+          .catch((err) =>
+            console.error('Failed to send login OTP email:', err),
+          );
 
         // Respond immediately — don't wait for email delivery
         return {
@@ -284,25 +350,33 @@ export class UsersService {
       if (!verifyResponse.success) {
         return verifyResponse;
       }
-      */
 
       // OTP verified successfully, save user (which updates lastLoggedInAt)
       await user.save();
 
       if (user && typeof user === 'object') {
+        const tokenVersion = user.tokenVersion ?? 0;
         // Generate JWT token
         const token = generateToken({
           _id: user._id.toString(),
           role: user.role,
+          tokenVersion,
         });
-        
+
         // Generate and save refresh token
-        const refreshToken = generateRefreshToken(user._id.toString());
+        const refreshToken = generateRefreshToken(
+          user._id.toString(),
+          tokenVersion,
+        );
         user.refreshToken = refreshToken;
         await user.save();
 
         // Remove password and refreshToken before returning user data
-        const { password, refreshToken: _, ...userWithoutSensitiveData } = user.toObject();
+        const {
+          password,
+          refreshToken: _,
+          ...userWithoutSensitiveData
+        } = user.toObject();
 
         return {
           success: true,
@@ -399,21 +473,44 @@ export class UsersService {
   /* METHOD TO HANDLE FORGOT PASSWORD */
   async forgotPassword(email: string): Promise<Response> {
     try {
-      const user = await this.userModel.findOne({ email });
+      const normalizedEmail = email?.toLowerCase().trim();
+      const user = await this.userModel.findOne({ email: normalizedEmail });
       if (!user) {
-        return { success: false, message: 'No account found with this email' };
+        return {
+          success: true,
+          message:
+            'If an account exists for this email, a password reset code has been sent',
+        };
       }
-      return await this.emailVerificationService.sendEmailOtp(email, 'password_reset');
-    } catch (error) {
+      const result = await this.emailVerificationService.sendEmailOtp(
+        normalizedEmail,
+        'password_reset',
+      );
       return {
-        success: false,
-        message: error instanceof Error ? error.message : 'Failed to send password reset code',
+        success: true,
+        message:
+          result.message ||
+          'If an account exists for this email, a password reset code has been sent',
+      };
+    } catch (error) {
+      // Avoid leaking existence via error differences for unknown emails
+      if (error instanceof Error && /wait \d+ seconds/i.test(error.message)) {
+        return { success: false, message: error.message };
+      }
+      return {
+        success: true,
+        message:
+          'If an account exists for this email, a password reset code has been sent',
       };
     }
   }
 
   /* METHOD TO RESET PASSWORD */
-  async resetPassword(email: string, otp: string, newPassword: string): Promise<Response> {
+  async resetPassword(
+    email: string,
+    otp: string,
+    newPassword: string,
+  ): Promise<Response> {
     try {
       // Validate password strength
       if (!isStrongPassword(newPassword)) {
@@ -423,60 +520,114 @@ export class UsersService {
         };
       }
 
-      const user = await this.userModel.findOne({ email }).select('+password');
+      const user = await this.userModel
+        .findOne({ email })
+        .select('+password +refreshToken');
       if (!user) {
         return { success: false, message: 'User not found' };
       }
 
-      const verifyResponse = await this.emailVerificationService.verifyEmailOtp(email, otp, 'password_reset');
+      const verifyResponse = await this.emailVerificationService.verifyEmailOtp(
+        email,
+        otp,
+        'password_reset',
+      );
       if (!verifyResponse.success) {
         return verifyResponse;
       }
 
       // Set the plain-text password — the Mongoose pre-save hook will hash it once
       user.password = newPassword;
+      // Invalidate all outstanding sessions
+      user.refreshToken = null as any;
+      user.tokenVersion = (user.tokenVersion ?? 0) + 1;
+      user.failedLoginAttempts = 0;
+      user.lockUntil = null;
       await user.save();
 
-      return { success: true, message: 'Password reset successfully. You can now login.' };
+      return {
+        success: true,
+        message: 'Password reset successfully. You can now login.',
+      };
     } catch (error) {
       return {
         success: false,
-        message: error instanceof Error ? error.message : 'Failed to reset password',
+        message:
+          error instanceof Error ? error.message : 'Failed to reset password',
       };
     }
   }
 
-  /* METHOD TO REFRESH ACCESS TOKEN */
+  /* METHOD TO REFRESH ACCESS TOKEN (rotates refresh token; reuse revokes all sessions) */
   async refreshUserToken(refreshToken: string): Promise<Response> {
     try {
       const decodedInfo = verifyRefreshToken(refreshToken);
-      const user = await this.userModel.findById(decodedInfo.id).select('+refreshToken');
-      
-      if (!user || user.refreshToken !== refreshToken) {
+      const user = await this.userModel
+        .findById(decodedInfo.id)
+        .select('+refreshToken');
+
+      if (!user) {
+        return { success: false, message: 'Invalid or revoked refresh token' };
+      }
+
+      // Reuse of an old/stolen refresh token after rotation → revoke everything
+      if (!user.refreshToken || user.refreshToken !== refreshToken) {
+        user.refreshToken = null as any;
+        user.tokenVersion = (user.tokenVersion ?? 0) + 1;
+        await user.save();
+        return { success: false, message: 'Invalid or revoked refresh token' };
+      }
+
+      if ((decodedInfo.tv ?? 0) !== (user.tokenVersion ?? 0)) {
+        user.refreshToken = null as any;
+        user.tokenVersion = (user.tokenVersion ?? 0) + 1;
+        await user.save();
         return { success: false, message: 'Invalid or revoked refresh token' };
       }
 
       if (user.accountStatus === 'banned') {
-        return { success: false, message: 'This account has been permanently banned.' };
+        return {
+          success: false,
+          message: 'This account has been permanently banned.',
+        };
       }
 
       if (user.accountStatus === 'suspended') {
-        if (user.suspensionEndDate && new Date(user.suspensionEndDate) <= new Date()) {
+        if (
+          user.suspensionEndDate &&
+          new Date(user.suspensionEndDate) <= new Date()
+        ) {
           user.accountStatus = 'active';
           user.suspensionReason = undefined;
           user.suspensionEndDate = undefined;
           await user.save();
         } else {
-          return { success: false, message: 'This account is currently suspended.' };
+          return {
+            success: false,
+            message: 'This account is currently suspended.',
+          };
         }
       }
 
+      const tokenVersion = user.tokenVersion ?? 0;
       const newAccessToken = generateToken({
         _id: user._id.toString(),
         role: user.role,
+        tokenVersion,
       });
-      
-      return { success: true, message: 'Token refreshed successfully', token: newAccessToken };
+      const newRefreshToken = generateRefreshToken(
+        user._id.toString(),
+        tokenVersion,
+      );
+      user.refreshToken = newRefreshToken;
+      await user.save();
+
+      return {
+        success: true,
+        message: 'Token refreshed successfully',
+        token: newAccessToken,
+        refreshToken: newRefreshToken,
+      };
     } catch (error) {
       return { success: false, message: 'Invalid or expired refresh token' };
     }
@@ -488,11 +639,18 @@ export class UsersService {
 
   async getProfile(userId: string): Promise<Response> {
     try {
-      const user = await this.userModel.findById(userId).select('-password -refreshToken').exec();
+      const user = await this.userModel
+        .findById(userId)
+        .select('-password -refreshToken')
+        .exec();
       if (!user) {
         return { success: false, message: 'User not found' };
       }
-      return { success: true, data: user, message: 'Profile fetched successfully' };
+      return {
+        success: true,
+        data: user,
+        message: 'Profile fetched successfully',
+      };
     } catch (error) {
       return {
         success: false,
@@ -503,11 +661,18 @@ export class UsersService {
 
   async findOneById(id: string): Promise<Response> {
     try {
-      const user = await this.userModel.findById(id).select('-password -refreshToken').exec();
+      const user = await this.userModel
+        .findById(id)
+        .select('-password -refreshToken')
+        .exec();
       if (!user) {
         return { success: false, message: 'User not found' };
       }
-      return { success: true, data: user, message: 'User fetched successfully' };
+      return {
+        success: true,
+        data: user,
+        message: 'User fetched successfully',
+      };
     } catch (error) {
       return {
         success: false,
@@ -516,16 +681,26 @@ export class UsersService {
     }
   }
 
-  async updateById(id: string, updateUserDto: Partial<User>): Promise<Response> {
+  async updateById(
+    id: string,
+    updateUserDto: Partial<User>,
+  ): Promise<Response> {
     try {
       const user = await this.userModel
-        .findByIdAndUpdate(id, updateUserDto, { new: true, runValidators: true })
+        .findByIdAndUpdate(id, updateUserDto, {
+          new: true,
+          runValidators: true,
+        })
         .select('-password -refreshToken')
         .exec();
       if (!user) {
         return { success: false, message: 'User not found' };
       }
-      return { success: true, data: user, message: 'User updated successfully' };
+      return {
+        success: true,
+        data: user,
+        message: 'User updated successfully',
+      };
     } catch (error) {
       return {
         success: false,
@@ -555,7 +730,9 @@ export class UsersService {
 
       // Protect admin accounts — ensure at least one admin remains
       if (user.role === 'admin') {
-        const adminCount = await this.userModel.countDocuments({ role: 'admin' });
+        const adminCount = await this.userModel.countDocuments({
+          role: 'admin',
+        });
         if (adminCount <= 1) {
           return {
             success: false,

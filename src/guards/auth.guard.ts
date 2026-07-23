@@ -42,7 +42,9 @@ export class AuthGuard implements CanActivate {
     }
 
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET); //verify token with the secret jwt key
+      const decoded = jwt.verify(token, process.env.JWT_SECRET, {
+        algorithms: ['HS256'],
+      });
 
       // if the verification is successful, fetch the user from database
       if (decoded && typeof decoded['id'] === 'string') {
@@ -50,6 +52,14 @@ export class AuthGuard implements CanActivate {
 
         if (!user) {
           throw new UnauthorizedException('User not found');
+        }
+
+        const tokenVersion =
+          typeof decoded['tv'] === 'number' ? decoded['tv'] : 0;
+        if (tokenVersion !== (user.tokenVersion ?? 0)) {
+          throw new UnauthorizedException(
+            'Session invalidated. Please sign in again.',
+          );
         }
 
         // Attach user to request object for further use
@@ -60,6 +70,9 @@ export class AuthGuard implements CanActivate {
         );
       }
     } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
       console.error('Token verification error:', error);
       throw new UnauthorizedException('Not authorized, authorization failed');
     }

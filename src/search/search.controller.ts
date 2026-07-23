@@ -99,12 +99,18 @@ export class SearchController {
     @Query('limit') limit?: string,
   ) {
     if (!lat || !lng) {
-      throw new HttpException({ message: 'Both lat and lng query parameters are required' }, HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        { message: 'Both lat and lng query parameters are required' },
+        HttpStatus.BAD_REQUEST,
+      );
     }
     const parsedLat = parseFloat(lat);
     const parsedLng = parseFloat(lng);
     if (isNaN(parsedLat) || isNaN(parsedLng)) {
-      throw new HttpException({ message: 'lat and lng must be valid numbers' }, HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        { message: 'lat and lng must be valid numbers' },
+        HttpStatus.BAD_REQUEST,
+      );
     }
     return this.searchService.searchDriversByLocation(
       parsedLat,
@@ -141,12 +147,18 @@ export class SearchController {
     @Query('limit') limit?: string,
   ) {
     if (!lat || !lng) {
-      throw new HttpException({ message: 'Both lat and lng query parameters are required' }, HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        { message: 'Both lat and lng query parameters are required' },
+        HttpStatus.BAD_REQUEST,
+      );
     }
     const parsedLat = parseFloat(lat);
     const parsedLng = parseFloat(lng);
     if (isNaN(parsedLat) || isNaN(parsedLng)) {
-      throw new HttpException({ message: 'lat and lng must be valid numbers' }, HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        { message: 'lat and lng must be valid numbers' },
+        HttpStatus.BAD_REQUEST,
+      );
     }
     return this.searchService.searchTaxisByLocation(
       parsedLat,

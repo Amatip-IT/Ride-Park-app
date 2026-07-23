@@ -1,8 +1,18 @@
-import { Controller, Get, Post, Body, Req, UseGuards, Query, HttpException, HttpStatus } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Req,
+  UseGuards,
+  Query,
+} from '@nestjs/common';
 import { WalletService } from './wallet.service';
 import { AuthGuard } from 'src/guards/auth.guard';
 import { ProviderGuard } from 'src/guards/provider.guard';
 import { extractClientIp } from 'src/common/request.util';
+import { RateLimit } from 'src/common/rate-limit.decorator';
+import { UpdateBankDetailsDto, WalletAmountDto } from './dto/wallet.dto';
 
 @Controller('wallet')
 @UseGuards(AuthGuard)
@@ -24,30 +34,17 @@ export class WalletController {
   }
 
   @Post('top-up')
-  async topUpWallet(@Req() req: any, @Body() body: { amount: number }) {
+  @RateLimit({ limit: 5, windowMs: 10 * 60_000 })
+  async topUpWallet(@Req() req: any, @Body() body: WalletAmountDto) {
     const userId = String(req.user._id || req.user.id);
-    if (!body.amount || body.amount <= 0) {
-      throw new HttpException('Valid amount is required', HttpStatus.BAD_REQUEST);
-    }
     return this.walletService.topUpWallet(userId, body.amount);
   }
 
   @Post('bank-details')
   @UseGuards(ProviderGuard)
-  async updateBankDetails(
-    @Req() req: any,
-    @Body()
-    body: {
-      accountName: string;
-      accountNumber: string;
-      sortCode: string;
-      acceptedStripeTerms?: boolean;
-    },
-  ) {
+  @RateLimit({ limit: 5, windowMs: 60 * 60_000 })
+  async updateBankDetails(@Req() req: any, @Body() body: UpdateBankDetailsDto) {
     const userId = req.user._id || req.user.id;
-    if (!body.accountName || !body.accountNumber || !body.sortCode) {
-      throw new HttpException('Missing bank details', HttpStatus.BAD_REQUEST);
-    }
     return this.walletService.updateBankDetails(
       userId,
       {
@@ -64,14 +61,17 @@ export class WalletController {
 
   @Post('withdraw')
   @UseGuards(ProviderGuard)
-  async requestWithdrawal(@Req() req: any, @Body() body: { amount: number }) {
+  @RateLimit({ limit: 5, windowMs: 60 * 60_000 })
+  async requestWithdrawal(@Req() req: any, @Body() body: WalletAmountDto) {
     const userId = req.user._id || req.user.id;
-    if (!body.amount) throw new HttpException('Amount is required', HttpStatus.BAD_REQUEST);
     return this.walletService.requestWithdrawal(userId, body.amount);
   }
 
   @Get('transactions')
-  async getTransactions(@Req() req: any, @Query('period') period?: 'day' | 'week' | 'month') {
+  async getTransactions(
+    @Req() req: any,
+    @Query('period') period?: 'day' | 'week' | 'month',
+  ) {
     const userId = req.user._id || req.user.id;
     return this.walletService.getTransactions(userId, period);
   }

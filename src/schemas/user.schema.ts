@@ -65,7 +65,10 @@ export class User {
   termsAcceptedAt?: Date;
 
   // Identity Verification fields for providers/drivers
-  @Prop({ type: String, enum: ['driver_license', 'national_identity_card', 'passport'] })
+  @Prop({
+    type: String,
+    enum: ['driver_license', 'national_identity_card', 'passport'],
+  })
   idType?: string;
 
   @Prop({ type: String })
@@ -74,7 +77,11 @@ export class User {
   @Prop({ type: String })
   proofOfAddressUrl?: string;
 
-  @Prop({ type: String, enum: ['none', 'pending', 'verified', 'rejected'], default: 'none' })
+  @Prop({
+    type: String,
+    enum: ['none', 'pending', 'verified', 'rejected'],
+    default: 'none',
+  })
   identityStatus?: string;
 
   @Prop({ required: true, select: false })
@@ -102,6 +109,16 @@ export class User {
 
   @Prop({ type: String, select: false, default: null })
   refreshToken?: string;
+
+  /** Bumped on password reset / refresh-token reuse to invalidate outstanding access JWTs */
+  @Prop({ type: Number, default: 0 })
+  tokenVersion: number;
+
+  @Prop({ type: Number, default: 0 })
+  failedLoginAttempts: number;
+
+  @Prop({ type: Date, default: null })
+  lockUntil?: Date | null;
 
   @Prop({ type: String, default: null })
   pushToken?: string;

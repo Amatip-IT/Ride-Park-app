@@ -111,16 +111,40 @@ export function AdminIdentityQueueScreen() {
   };
 
   const handleReject = (id: string, name: string) => {
-    Alert.prompt
-      ? Alert.prompt(
-          'Reject Identity',
-          `Enter a reason for rejecting ${name}'s documents:`,
-          async (reason: string) => {
-            if (!reason?.trim()) return;
+    if (typeof Alert.prompt === 'function') {
+      Alert.prompt(
+        'Reject Identity',
+        `Enter a reason for rejecting ${name}'s documents:`,
+        async (reason: string) => {
+          if (!reason?.trim()) return;
+          try {
+            setProcessingId(id);
+            await adminApi.rejectIdentityVerification(id, reason);
+            Alert.alert('Done', 'Identity verification rejected.');
+            fetchRecords();
+          } catch {
+            Alert.alert('Error', 'Failed to reject.');
+          } finally {
+            setProcessingId(null);
+          }
+        },
+      );
+      return;
+    }
+
+    Alert.alert(
+      'Reject Identity',
+      `Are you sure you want to reject ${name}'s documents?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reject',
+          style: 'destructive',
+          onPress: async () => {
             try {
               setProcessingId(id);
-              await adminApi.rejectIdentityVerification(id, reason);
-              Alert.alert('Done', 'Identity verification rejected.');
+              await adminApi.rejectIdentityVerification(id, 'Rejected by admin');
+              Alert.alert('Done', 'Identity rejected.');
               fetchRecords();
             } catch {
               Alert.alert('Error', 'Failed to reject.');
@@ -128,30 +152,9 @@ export function AdminIdentityQueueScreen() {
               setProcessingId(null);
             }
           },
-        )
-      : Alert.alert(
-          'Reject Identity',
-          `Are you sure you want to reject ${name}'s documents?`,
-          [
-            { text: 'Cancel', style: 'cancel' },
-            {
-              text: 'Reject',
-              style: 'destructive',
-              onPress: async () => {
-                try {
-                  setProcessingId(id);
-                  await adminApi.rejectIdentityVerification(id, 'Rejected by admin');
-                  Alert.alert('Done', 'Identity rejected.');
-                  fetchRecords();
-                } catch {
-                  Alert.alert('Error', 'Failed to reject.');
-                } finally {
-                  setProcessingId(null);
-                }
-              },
-            },
-          ],
-        );
+        },
+      ],
+    );
   };
 
   const openDocument = async (url: string) => {

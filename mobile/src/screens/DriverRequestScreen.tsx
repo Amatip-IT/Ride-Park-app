@@ -284,7 +284,7 @@ export function DriverRequestScreen() {
                 {' '}({chauffeurQuote.billableHours} billable hr{chauffeurQuote.billableHours !== 1 ? 's' : ''})
               </Text>
               <Text style={styles.quoteText}>
-                Estimated charge: {formatCurrency(chauffeurQuote.quotedPrice)} (charged when driver accepts)
+                Estimated total: {formatCurrency(chauffeurQuote.quotedPrice)} (paid after the service)
               </Text>
             </View>
           </View>
@@ -304,7 +304,7 @@ export function DriverRequestScreen() {
           <View style={styles.pricingInfo}>
             <Ionicons name="information-circle-outline" size={18} color={COLORS.textSecondary} />
             <Text style={styles.pricingText}>
-              Quote uses £1.10/mile × estimated distance for your booked hours. Payment is taken when a driver accepts.
+              Quote uses £1.10/mile × estimated distance for your booked hours. You confirm payment after the service is finished.
             </Text>
           </View>
 

@@ -10,7 +10,7 @@ import { useRoute, RouteProp, useNavigation } from '@react-navigation/native';
 import { searchApi, bookingsApi } from '@/api';
 import { calculateBookingPrice, formatCurrency, getApiErrorMessage, openMapsNavigation } from '@/utils/helpers';
 import { useAuthStore } from '@/store/authStore';
-import MapView, { Marker } from 'react-native-maps';
+import { AmazonMap } from '@/components/AmazonMap';
 
 type ParkingDetailParams = {
   ParkingDetail: { spaceId: string; space?: any };
@@ -284,21 +284,10 @@ export function ParkingDetailScreen() {
             {/* Embedded Map */}
             {space.coordinates?.lat && space.coordinates?.lng ? (
               <View style={styles.mapContainer}>
-                <MapView
-                  style={styles.map}
-                  initialRegion={{
-                    latitude: space.coordinates.lat,
-                    longitude: space.coordinates.lng,
-                    latitudeDelta: 0.005,
-                    longitudeDelta: 0.005,
-                  }}
-                  scrollEnabled={false}
-                >
-                  <Marker
-                    coordinate={{ latitude: space.coordinates.lat, longitude: space.coordinates.lng }}
-                    title={space.name}
-                  />
-                </MapView>
+                <AmazonMap
+                  locationLat={space.coordinates.lat}
+                  locationLng={space.coordinates.lng}
+                />
               </View>
             ) : (
               <View style={styles.mapPlaceholder}>
@@ -557,10 +546,9 @@ const styles = StyleSheet.create({
   linkText: { color: COLORS.electricTeal, fontSize: FONT_SIZES.body, textDecorationLine: 'underline', fontWeight: FONT_WEIGHTS.medium },
 
   mapContainer: {
-    width: '100%', height: 200, borderRadius: BORDER_RADIUS.lg, overflow: 'hidden',
+    width: '100%', height: 220, borderRadius: BORDER_RADIUS.lg, overflow: 'hidden',
     marginTop: SPACING.md, borderWidth: 1, borderColor: COLORS.border,
   },
-  map: { width: '100%', height: '100%' },
   mapPlaceholder: {
     width: '100%', height: 200, borderRadius: BORDER_RADIUS.lg,
     backgroundColor: COLORS.surface, justifyContent: 'center', alignItems: 'center',

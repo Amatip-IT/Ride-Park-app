@@ -3,16 +3,17 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Dispute, DisputeDocument } from 'src/schemas/dispute.schema';
 import { User, UserDocument } from 'src/schemas/user.schema';
-import { Chauffeur, ChauffeurDocument } from 'src/schemas/chauffeur.schema';
-import { Taxi, TaxiDocument } from 'src/schemas/taxi.schema';
-import { ParkingVerification, ParkingVerificationDocument } from 'src/schemas/parking-verification.schema';
-import { Wallet, WalletDocument } from 'src/schemas/wallet.schema';
-import { Transaction, TransactionDocument } from 'src/schemas/transaction.schema';
+import { Ride, RideDocument } from 'src/schemas/ride.schema';
+import {
+  BookingRequest,
+  BookingRequestDocument,
+} from 'src/schemas/booking-request.schema';
 import { Response } from 'src/common/interfaces/response.interface';
 import { AdminService } from 'src/admin/admin.service';
 import { AdminAuditService } from 'src/admin/admin-audit.service';
 import { AdminAuditContext } from 'src/admin/admin-audit.types';
 import { NotificationsService } from 'src/notifications/notifications.service';
+import { PaymentsService } from 'src/payments/payments.service';
 
 @Injectable()
 export class DisputesService {
@@ -21,15 +22,13 @@ export class DisputesService {
   constructor(
     @InjectModel(Dispute.name) private disputeModel: Model<DisputeDocument>,
     @InjectModel(User.name) private userModel: Model<UserDocument>,
-    @InjectModel(Chauffeur.name) private chauffeurModel: Model<ChauffeurDocument>,
-    @InjectModel(Taxi.name) private taxiModel: Model<TaxiDocument>,
-    @InjectModel(ParkingVerification.name)
-    private parkingVerifModel: Model<ParkingVerificationDocument>,
-    @InjectModel(Wallet.name) private walletModel: Model<WalletDocument>,
-    @InjectModel(Transaction.name) private transactionModel: Model<TransactionDocument>,
+    @InjectModel(Ride.name) private rideModel: Model<RideDocument>,
+    @InjectModel(BookingRequest.name)
+    private bookingModel: Model<BookingRequestDocument>,
     private adminService: AdminService,
     private auditService: AdminAuditService,
     private notificationsService: NotificationsService,
+    private paymentsService: PaymentsService,
   ) {}
 
   async fileDispute(
@@ -50,9 +49,14 @@ export class DisputesService {
       }
 
       if (input.complaintAbout) {
-        const target = await this.userModel.findById(input.complaintAbout).exec();
+        const target = await this.userModel
+          .findById(input.complaintAbout)
+          .exec();
         if (!target) {
-          return { success: false, message: 'The user you are complaining about was not found' };
+          return {
+            success: false,
+            message: 'The user you are complaining about was not found',
+          };
         }
       }
 
@@ -71,7 +75,8 @@ export class DisputesService {
       return {
         success: true,
         data: dispute,
-        message: 'Your dispute has been submitted. Our team will review it shortly.',
+        message:
+          'Your dispute has been submitted. Our team will review it shortly.',
       };
     } catch (error) {
       return {
@@ -103,7 +108,11 @@ export class DisputesService {
     }
   }
 
-  async getDisputeById(disputeId: string, userId: string, isAdmin = false): Promise<Response> {
+  async getDisputeById(
+    disputeId: string,
+    userId: string,
+    isAdmin = false,
+  ): Promise<Response> {
     try {
       const dispute = await this.disputeModel
         .findById(disputeId)
@@ -118,7 +127,10 @@ export class DisputesService {
       }
 
       if (!isAdmin && dispute.filedBy?.toString() !== userId) {
-        return { success: false, message: 'You are not authorized to view this dispute' };
+        return {
+          success: false,
+          message: 'You are not authorized to view this dispute',
+        };
       }
 
       return { success: true, data: dispute, message: 'Dispute retrieved' };
@@ -142,8 +154,10 @@ export class DisputesService {
       const skip = (page - 1) * limit;
 
       const query: Record<string, unknown> = {};
-      if (filters.status && filters.status !== 'all') query.status = filters.status;
-      if (filters.category && filters.category !== 'all') query.category = filters.category;
+      if (filters.status && filters.status !== 'all')
+        query.status = filters.status;
+      if (filters.category && filters.category !== 'all')
+        query.category = filters.category;
 
       const [disputes, total] = await Promise.all([
         this.disputeModel
@@ -257,10 +271,17 @@ export class DisputesService {
 
       switch (input.resolution) {
         case 'override_driver_approval': {
-          const recordId = input.recordId || (dispute.metadata?.recordId as string);
-          const providerType = input.providerType || (dispute.metadata?.providerType as string) || 'driver';
+          const recordId =
+            input.recordId || (dispute.metadata?.recordId as string);
+          const providerType =
+            input.providerType ||
+            (dispute.metadata?.providerType as string) ||
+            'driver';
           if (!recordId) {
-            return { success: false, message: 'recordId is required for driver approval override' };
+            return {
+              success: false,
+              message: 'recordId is required for driver approval override',
+            };
           }
           const result = await this.adminService.approveDriverVerification(
             recordId,
@@ -275,36 +296,76 @@ export class DisputesService {
         case 'override_provider_approval': {
           const parkingId = input.recordId || dispute.relatedServiceId;
           if (!parkingId) {
-            return { success: false, message: 'Parking verification ID is required' };
+            return {
+              success: false,
+              message: 'Parking verification ID is required',
+            };
           }
-          const result = await this.adminService.approveParkingVerification(parkingId, 5, audit);
+          const result = await this.adminService.approveParkingVerification(
+            parkingId,
+            5,
+            audit,
+          );
           if (!result.success) return result;
           actionResults.push('Parking provider approved');
           break;
         }
         case 'issue_refund': {
-          const refundAmount = input.refundAmount || (dispute.metadata?.refundAmount as number);
-          if (!refundAmount || refundAmount <= 0) {
-            return { success: false, message: 'A valid refund amount is required' };
+          const refundAmount =
+            input.refundAmount || (dispute.metadata?.refundAmount as number);
+          if (!refundAmount || refundAmount <= 0 || refundAmount > 10_000) {
+            return {
+              success: false,
+              message: 'A valid refund amount is required',
+            };
           }
-          const refundTarget = dispute.filedBy.toString();
-          let wallet = await this.walletModel.findOne({ providerId: refundTarget }).exec();
-          if (!wallet) {
-            wallet = await this.walletModel.create({ providerId: refundTarget, balance: 0 });
+          if (!dispute.relatedServiceId) {
+            return {
+              success: false,
+              message: 'A related paid service is required for a refund',
+            };
           }
-          wallet.balance += refundAmount;
-          await wallet.save();
 
-          await this.transactionModel.create({
-            providerId: refundTarget,
-            type: 'earning',
-            amount: refundAmount,
-            platformFee: 0,
-            status: 'completed',
-            description: `Dispute refund #${disputeId}`,
-            referenceId: disputeId,
-          });
-          actionResults.push(`£${refundAmount.toFixed(2)} credited to wallet`);
+          const ownerId = dispute.filedBy.toString();
+          const [ride, booking] = await Promise.all([
+            this.rideModel
+              .findOne({ _id: dispute.relatedServiceId, passenger: ownerId })
+              .select('paymentIntentId totalCost')
+              .lean()
+              .exec(),
+            this.bookingModel
+              .findOne({ _id: dispute.relatedServiceId, requester: ownerId })
+              .select('paymentIntentId quotedPrice')
+              .lean()
+              .exec(),
+          ]);
+          const paymentIntentId =
+            ride?.paymentIntentId || booking?.paymentIntentId;
+          const paidAmount = ride?.totalCost || booking?.quotedPrice;
+          if (!paymentIntentId || !paidAmount) {
+            return {
+              success: false,
+              message:
+                'No refundable Stripe payment was found for this dispute',
+            };
+          }
+          if (refundAmount > paidAmount) {
+            return {
+              success: false,
+              message: 'Refund cannot exceed the original payment amount',
+            };
+          }
+
+          const refund = await this.paymentsService.refundCustomer(
+            paymentIntentId,
+            refundAmount,
+            `dispute:${disputeId}:refund`,
+          );
+          dispute.stripeRefundId = refund.id;
+          dispute.refundAmount = refundAmount;
+          actionResults.push(
+            `£${refundAmount.toFixed(2)} refunded through Stripe`,
+          );
           break;
         }
         case 'suspend_user': {
@@ -312,8 +373,17 @@ export class DisputesService {
           if (!targetId) {
             return { success: false, message: 'No user specified to suspend' };
           }
-          const reason = input.suspendReason || input.notes || 'Suspended following dispute resolution';
-          const result = await this.adminService.suspendUser(targetId, reason, 30, adminId, audit);
+          const reason =
+            input.suspendReason ||
+            input.notes ||
+            'Suspended following dispute resolution';
+          const result = await this.adminService.suspendUser(
+            targetId,
+            reason,
+            30,
+            adminId,
+            audit,
+          );
           if (!result.success) return result;
           actionResults.push('User suspended for 30 days');
           break;
@@ -322,7 +392,10 @@ export class DisputesService {
         case 'other':
           break;
         default:
-          return { success: false, message: `Unknown resolution type: ${input.resolution}` };
+          return {
+            success: false,
+            message: `Unknown resolution type: ${input.resolution}`,
+          };
       }
 
       dispute.status = 'resolved';
