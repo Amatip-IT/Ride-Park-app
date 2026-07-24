@@ -7,7 +7,6 @@
     "jsxImportSource": "react",
     "allowJs": true,
     "strict": true,
-    "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
       "@/api": ["./src/api"],

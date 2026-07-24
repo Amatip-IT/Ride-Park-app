@@ -1,22 +1,52 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
+import helmet from 'helmet';
+import { SanitizeInterceptor } from './common/sanitize.interceptor';
+import {
+  assertProductionSecurityConfig,
+  getAllowedCorsOrigins,
+} from './common/cors-config';
 
 const bootstrap = async (): Promise<void> => {
+  assertProductionSecurityConfig();
+
   const app = await NestFactory.create(AppModule, {
     rawBody: true, // Required for Stripe webhooks
   });
 
+  app.use(
+    helmet({
+      // API responses are JSON; CSP is mainly for HTML surfaces
+      contentSecurityPolicy: false,
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+    }),
+  );
+
   // CORS - Allow frontend to communicate with backend
   app.enableCors({
-    origin: true, // Allow all origins in development
+    origin: getAllowedCorsOrigins(),
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'DELETE', 'PUT', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'stripe-signature'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'stripe-signature',
+      'x-request-id',
+    ],
+    exposedHeaders: [
+      'x-request-id',
+      'RateLimit-Limit',
+      'RateLimit-Remaining',
+      'RateLimit-Reset',
+    ],
   });
 
   // Global API prefix — mobile client expects /api/...
   app.setGlobalPrefix('api');
+
+  // Global sanitization — strips HTML, scripts, null bytes from all inputs
+  app.useGlobalInterceptors(new SanitizeInterceptor());
 
   // Global validation pipe
   app.useGlobalPipes(

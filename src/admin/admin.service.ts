@@ -1,21 +1,34 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { ParkingVerification, ParkingVerificationDocument } from 'src/schemas/parking-verification.schema';
-import { ParkingSpace, ParkingSpaceDocument } from 'src/schemas/parking-space.schema';
+import {
+  ParkingVerification,
+  ParkingVerificationDocument,
+} from 'src/schemas/parking-verification.schema';
+import {
+  ParkingSpace,
+  ParkingSpaceDocument,
+} from 'src/schemas/parking-space.schema';
 import { User, UserDocument } from 'src/schemas/user.schema';
 import { Wallet, WalletDocument } from 'src/schemas/wallet.schema';
-import { Transaction, TransactionDocument } from 'src/schemas/transaction.schema';
-import { PlatformSettings, PlatformSettingsDocument } from 'src/schemas/platform-settings.schema';
+import {
+  Transaction,
+  TransactionDocument,
+} from 'src/schemas/transaction.schema';
+import {
+  PlatformSettings,
+  PlatformSettingsDocument,
+} from 'src/schemas/platform-settings.schema';
 import { Chauffeur, ChauffeurDocument } from 'src/schemas/chauffeur.schema';
 import { Taxi, TaxiDocument } from 'src/schemas/taxi.schema';
 import { Response } from 'src/common/interfaces/response.interface';
 import { What3WordsService } from 'src/utility/what3words.service';
+import { AmazonLocationService } from 'src/utility/amazon-location.service';
 import { NotificationsService } from 'src/notifications/notifications.service';
 import { EmailService } from 'src/verification/services/email/email.service';
 import { AdminAuditService } from './admin-audit.service';
 import { AdminAuditContext } from './admin-audit.types';
-import Stripe from 'stripe';
+import { WalletService } from '../wallet/wallet.service';
 
 // All valid document field names
 const VALID_DOC_FIELDS = [
@@ -50,24 +63,28 @@ const DOC_LABELS: Record<string, string> = {
 @Injectable()
 export class AdminService {
   private readonly logger = new Logger(AdminService.name);
-  private stripe: Stripe;
 
   constructor(
-    @InjectModel(ParkingVerification.name) private parkingVerifModel: Model<ParkingVerificationDocument>,
-    @InjectModel(ParkingSpace.name) private parkingSpaceModel: Model<ParkingSpaceDocument>,
+    @InjectModel(ParkingVerification.name)
+    private parkingVerifModel: Model<ParkingVerificationDocument>,
+    @InjectModel(ParkingSpace.name)
+    private parkingSpaceModel: Model<ParkingSpaceDocument>,
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     @InjectModel(Wallet.name) private walletModel: Model<WalletDocument>,
-    @InjectModel(Transaction.name) private transactionModel: Model<TransactionDocument>,
-    @InjectModel(PlatformSettings.name) private platformSettingsModel: Model<PlatformSettingsDocument>,
-    @InjectModel(Chauffeur.name) private chauffeurModel: Model<ChauffeurDocument>,
+    @InjectModel(Transaction.name)
+    private transactionModel: Model<TransactionDocument>,
+    @InjectModel(PlatformSettings.name)
+    private platformSettingsModel: Model<PlatformSettingsDocument>,
+    @InjectModel(Chauffeur.name)
+    private chauffeurModel: Model<ChauffeurDocument>,
     @InjectModel(Taxi.name) private taxiModel: Model<TaxiDocument>,
     private what3wordsService: What3WordsService,
+    private amazonLocationService: AmazonLocationService,
     private notificationsService: NotificationsService,
     private emailService: EmailService,
     private auditService: AdminAuditService,
-  ) {
-    this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_mock');
-  }
+    private walletService: WalletService,
+  ) {}
 
   // ══════════════════════════════════════════════
   // ── Parking Space Verifications ──
@@ -99,42 +116,83 @@ export class AdminService {
   /**
    * Approve a parking provider, creating their official Parking Space and fetching geo-location
    */
-  async approveParkingVerification(id: string, customHourlyRate = 5, audit?: AdminAuditContext): Promise<Response> {
+  async approveParkingVerification(
+    id: string,
+    customHourlyRate = 5,
+    audit?: AdminAuditContext,
+  ): Promise<Response> {
     try {
       const verification = await this.parkingVerifModel.findById(id).exec();
 
       if (!verification) {
-        return { success: false, message: 'Verification application not found' };
+        return {
+          success: false,
+          message: 'Verification application not found',
+        };
       }
 
       if (verification.status === 'approved') {
-        return { success: false, message: 'This application is already approved' };
+        return {
+          success: false,
+          message: 'This application is already approved',
+        };
       }
 
       const user = await this.userModel.findById(verification.user).exec();
       if (!user) {
-        return { success: false, message: 'Associated provider account not found' };
+        return {
+          success: false,
+          message: 'Associated provider account not found',
+        };
       }
 
       let lat = 0;
       let lng = 0;
       let w3wData: any = null;
+      let geocodeMeta: Awaited<
+        ReturnType<AmazonLocationService['geocodeAddressParts']>
+      > = null;
 
-      // 1. Convert Postcode to Lat/Lng using free postcodes.io API (UK)
-      if (verification.postcode) {
+      const docs = verification.documents || {};
+      const addressLine = verification.address || docs.parkAddress;
+      const postcodeLine = verification.postcode || docs.parkPostcode;
+
+      // 1. Use coordinates captured when the provider submitted their address
+      const submittedCoords = verification.location?.coordinates;
+      if (submittedCoords?.lat && submittedCoords?.lng) {
+        lat = submittedCoords.lat;
+        lng = submittedCoords.lng;
+        this.logger.log(`Using provider-submitted coordinates ${lat}, ${lng}`);
+      }
+
+      // 2. Geocode the full address via AWS Location Service (works worldwide)
+      if (!lat || !lng) {
+        geocodeMeta = await this.amazonLocationService.geocodeAddressParts(
+          addressLine,
+          postcodeLine,
+        );
+        if (geocodeMeta) {
+          lat = geocodeMeta.lat;
+          lng = geocodeMeta.lng;
+          this.logger.log(`AWS geocoded "${addressLine}" to ${lat}, ${lng}`);
+        }
+      }
+
+      // 3. UK postcode fallback via postcodes.io
+      if ((!lat || !lng) && postcodeLine) {
         try {
-          // Clean the postcode
-          const cleanPostcode = verification.postcode.replace(/\s+/g, '').trim();
-          const pCodeRes = await fetch(`https://api.postcodes.io/postcodes/${cleanPostcode}`);
+          const cleanPostcode = postcodeLine.replace(/\s+/g, '').trim();
+          const pCodeRes = await fetch(
+            `https://api.postcodes.io/postcodes/${cleanPostcode}`,
+          );
           if (pCodeRes.ok) {
             const pCodeData = await pCodeRes.json();
             if (pCodeData.status === 200 && pCodeData.result) {
               lat = pCodeData.result.latitude;
               lng = pCodeData.result.longitude;
-              this.logger.log(`Geocoded postcode ${verification.postcode} to ${lat}, ${lng}`);
-
-              // 2. Convert coordinates to what3words!
-              w3wData = await this.what3wordsService.convertToThreeWordAddress(lat, lng);
+              this.logger.log(
+                `Geocoded postcode ${postcodeLine} to ${lat}, ${lng}`,
+              );
             }
           }
         } catch (e) {
@@ -142,8 +200,14 @@ export class AdminService {
         }
       }
 
-      // If we don't have a name from the provider, construct one
-      const docs = verification.documents || {};
+      // 4. Convert coordinates to what3words when available
+      if (lat && lng) {
+        w3wData = await this.what3wordsService.convertToThreeWordAddress(
+          lat,
+          lng,
+        );
+      }
+
       const parkName = docs.parkName || `${user.firstName}'s Parking Space`;
 
       // Resolve photos: provider submits as 'parkPhotos' (array) or 'parkPhotoUrl' (legacy single)
@@ -162,17 +226,24 @@ export class AdminService {
       const newSpace = new this.parkingSpaceModel({
         owner: user._id,
         name: parkName,
-        description: docs.description || 'Secure parking space approved by Gleezip admins.',
-        postCode: verification.postcode || docs.parkPostcode || 'UNKNOWN',
+        description:
+          docs.description ||
+          'Secure parking space approved by Gleezip admins.',
+        addressLine1: addressLine || undefined,
+        postCode: postcodeLine || 'UNKNOWN',
         hourlyRate: parseFloat(docs.hourlyRate) || customHourlyRate,
         dailyRate: docs.dailyRate ? parseFloat(docs.dailyRate) : undefined,
         totalSpots: parseInt(docs.totalSpots) || 1,
         occupiedSpots: 0,
         parkingType: docs.parkingType || 'Short Stay',
-        bookingMethods: docs.bookingMethods ? docs.bookingMethods.split(',').map((s: string) => s.trim()) : ['Online / App'],
-        acceptedVehicles: docs.acceptedVehicles ? docs.acceptedVehicles.split(',').map((s: string) => s.trim()) : ['Car'],
+        bookingMethods: docs.bookingMethods
+          ? docs.bookingMethods.split(',').map((s: string) => s.trim())
+          : ['Online / App'],
+        acceptedVehicles: docs.acceptedVehicles
+          ? docs.acceptedVehicles.split(',').map((s: string) => s.trim())
+          : ['Car'],
         maxStayDetails: docs.maxStayDetails || undefined,
-        openingTimes: { "Everyday": docs.openingTimes || "24 Hours" },
+        openingTimes: { Everyday: docs.openingTimes || '24 Hours' },
         chargesDescription: docs.chargesDescription || undefined,
         isAvailable: true,
         isVerified: true,
@@ -184,13 +255,15 @@ export class AdminService {
       if (lat && lng) {
         newSpace.coordinates = { lat, lng };
       }
-      
+
       if (w3wData) {
         newSpace.what3words = w3wData.words;
         newSpace.nearestPlace = w3wData.nearestPlace;
         newSpace.country = w3wData.country;
-        // Optionally store town from nearestPlace
         newSpace.town = w3wData.nearestPlace.split(',')[0].trim();
+      } else if (geocodeMeta) {
+        if (geocodeMeta.municipality) newSpace.town = geocodeMeta.municipality;
+        if (geocodeMeta.country) newSpace.country = geocodeMeta.country;
       }
 
       await newSpace.save();
@@ -210,7 +283,10 @@ export class AdminService {
         action: 'approve_parking',
         targetType: 'parking_verification',
         targetId: id,
-        newValue: { status: 'approved', parkingSpaceId: newSpace._id.toString() },
+        newValue: {
+          status: 'approved',
+          parkingSpaceId: newSpace._id.toString(),
+        },
       });
 
       return {
@@ -219,9 +295,9 @@ export class AdminService {
           verificationId: verification._id,
           parkingSpace: newSpace,
         },
-        message: 'Parking verification approved! The parking space is now active and searchable.',
+        message:
+          'Parking verification approved! The parking space is now active and searchable.',
       };
-
     } catch (error) {
       this.logger.error(error);
       return {
@@ -234,11 +310,18 @@ export class AdminService {
   /**
    * Reject a parking verification request
    */
-  async rejectParkingVerification(id: string, reason: string, audit?: AdminAuditContext): Promise<Response> {
+  async rejectParkingVerification(
+    id: string,
+    reason: string,
+    audit?: AdminAuditContext,
+  ): Promise<Response> {
     try {
       const verification = await this.parkingVerifModel.findById(id).exec();
       if (!verification) {
-        return { success: false, message: 'Verification application not found' };
+        return {
+          success: false,
+          message: 'Verification application not found',
+        };
       }
 
       verification.status = 'rejected';
@@ -255,10 +338,12 @@ export class AdminService {
             '❌ Parking Verification Rejected',
             `Your parking space verification was not approved. Check your email for details.`,
             'system',
-            { verificationId: id, reason }
+            { verificationId: id, reason },
           );
         } catch (notifErr) {
-          this.logger.warn(`Failed to send push notification for parking rejection: ${notifErr}`);
+          this.logger.warn(
+            `Failed to send push notification for parking rejection: ${notifErr}`,
+          );
         }
 
         try {
@@ -285,7 +370,9 @@ export class AdminService {
             html: emailHtml,
           });
         } catch (emailErr) {
-          this.logger.warn(`Failed to send parking rejection email: ${emailErr}`);
+          this.logger.warn(
+            `Failed to send parking rejection email: ${emailErr}`,
+          );
         }
       }
 
@@ -336,11 +423,11 @@ export class AdminService {
 
       // Combine and annotate with provider type
       const combined = [
-        ...pendingChauffeurs.map(c => {
+        ...pendingChauffeurs.map((c) => {
           const obj = c.toObject();
           return { ...obj, providerType: 'driver' };
         }),
-        ...pendingTaxis.map(t => {
+        ...pendingTaxis.map((t) => {
           const obj = t.toObject();
           return { ...obj, providerType: 'taxi_driver' };
         }),
@@ -369,7 +456,10 @@ export class AdminService {
   /**
    * Get full detail of a single driver/taxi verification record
    */
-  async getDriverVerificationDetail(recordId: string, providerType: string): Promise<Response> {
+  async getDriverVerificationDetail(
+    recordId: string,
+    providerType: string,
+  ): Promise<Response> {
     try {
       let record: any = null;
 
@@ -390,11 +480,13 @@ export class AdminService {
       }
 
       // Build a structured document list for the admin UI
-      const documentsList = VALID_DOC_FIELDS.map(field => ({
+      const documentsList = VALID_DOC_FIELDS.map((field) => ({
         field,
         label: DOC_LABELS[field] || field,
         url: record[field] || null,
-        status: record.documentStatuses?.[field] || (record[field] ? 'uploaded' : 'not_submitted'),
+        status:
+          record.documentStatuses?.[field] ||
+          (record[field] ? 'uploaded' : 'not_submitted'),
       }));
 
       return {
@@ -535,15 +627,18 @@ export class AdminService {
             '❌ Verification Rejected',
             `Your ${providerType === 'taxi_driver' ? 'taxi driver' : 'driver'} verification was not approved. Check your email for details.`,
             'system',
-            { recordId, reason }
+            { recordId, reason },
           );
         } catch (notifErr) {
-          this.logger.warn(`Failed to send push notification for rejection: ${notifErr}`);
+          this.logger.warn(
+            `Failed to send push notification for rejection: ${notifErr}`,
+          );
         }
 
         try {
           // Send email with rejection reason and next steps
-          const roleLabel = providerType === 'taxi_driver' ? 'Taxi Driver' : 'Private Driver';
+          const roleLabel =
+            providerType === 'taxi_driver' ? 'Taxi Driver' : 'Private Driver';
           const emailHtml = `
             <h2>Verification Rejected</h2>
             <p>Hi ${user.firstName},</p>
@@ -610,7 +705,10 @@ export class AdminService {
   ): Promise<Response> {
     try {
       if (!VALID_DOC_FIELDS.includes(docField as any)) {
-        return { success: false, message: `Invalid document field: ${docField}` };
+        return {
+          success: false,
+          message: `Invalid document field: ${docField}`,
+        };
       }
 
       let record: any = null;
@@ -626,7 +724,10 @@ export class AdminService {
       }
 
       if (!record[docField]) {
-        return { success: false, message: `No document uploaded for ${docField}` };
+        return {
+          success: false,
+          message: `No document uploaded for ${docField}`,
+        };
       }
 
       // Update document status
@@ -644,8 +745,11 @@ export class AdminService {
       await record.save();
 
       // Check if ALL documents are now verified
-      const allVerified = VALID_DOC_FIELDS.every(field => {
-        return !record[field] || record.documentStatuses?.[field]?.status === 'verified';
+      const allVerified = VALID_DOC_FIELDS.every((field) => {
+        return (
+          !record[field] ||
+          record.documentStatuses?.[field]?.status === 'verified'
+        );
       });
 
       if (allVerified) {
@@ -661,7 +765,11 @@ export class AdminService {
         action: 'approve_document',
         targetType: providerType === 'driver' ? 'chauffeur' : 'taxi',
         targetId: recordId,
-        newValue: { docField, status: 'verified', allDocsVerified: allVerified },
+        newValue: {
+          docField,
+          status: 'verified',
+          allDocsVerified: allVerified,
+        },
       });
 
       return {
@@ -690,7 +798,10 @@ export class AdminService {
   ): Promise<Response> {
     try {
       if (!VALID_DOC_FIELDS.includes(docField as any)) {
-        return { success: false, message: `Invalid document field: ${docField}` };
+        return {
+          success: false,
+          message: `Invalid document field: ${docField}`,
+        };
       }
 
       if (!reason?.trim()) {
@@ -710,7 +821,10 @@ export class AdminService {
       }
 
       if (!record[docField]) {
-        return { success: false, message: `No document uploaded for ${docField}` };
+        return {
+          success: false,
+          message: `No document uploaded for ${docField}`,
+        };
       }
 
       // Update document status
@@ -732,20 +846,22 @@ export class AdminService {
       const user = await this.userModel.findById(record.user).exec();
       if (user) {
         try {
-          const docLabel = DOC_LABELS[docField as keyof typeof DOC_LABELS] || docField;
+          const docLabel = DOC_LABELS[docField] || docField;
           await this.notificationsService.sendNotification(
             user._id.toString(),
             '❌ Document Rejected',
             `Your ${docLabel} document was rejected. Please resubmit.`,
             'system',
-            { docField, reason }
+            { docField, reason },
           );
         } catch (notifErr) {
-          this.logger.warn(`Failed to send document rejection notification: ${notifErr}`);
+          this.logger.warn(
+            `Failed to send document rejection notification: ${notifErr}`,
+          );
         }
 
         try {
-          const docLabel = DOC_LABELS[docField as keyof typeof DOC_LABELS] || docField;
+          const docLabel = DOC_LABELS[docField] || docField;
           const emailHtml = `
             <h2>Document Rejected</h2>
             <p>Hi ${user.firstName},</p>
@@ -767,7 +883,9 @@ export class AdminService {
             html: emailHtml,
           });
         } catch (emailErr) {
-          this.logger.warn(`Failed to send document rejection email: ${emailErr}`);
+          this.logger.warn(
+            `Failed to send document rejection email: ${emailErr}`,
+          );
         }
       }
 
@@ -803,7 +921,9 @@ export class AdminService {
     try {
       const pending = await this.userModel
         .find({ identityStatus: 'pending' })
-        .select('firstName lastName email phoneNumber role idType identityDocumentUrl proofOfAddressUrl identityStatus createdAt')
+        .select(
+          'firstName lastName email phoneNumber role idType identityDocumentUrl proofOfAddressUrl identityStatus createdAt',
+        )
         .sort({ createdAt: -1 })
         .exec();
 
@@ -823,7 +943,10 @@ export class AdminService {
   /**
    * Approve a provider's identity verification
    */
-  async approveIdentityVerification(userId: string, audit?: AdminAuditContext): Promise<Response> {
+  async approveIdentityVerification(
+    userId: string,
+    audit?: AdminAuditContext,
+  ): Promise<Response> {
     try {
       const user = await this.userModel.findById(userId).exec();
 
@@ -864,7 +987,11 @@ export class AdminService {
   /**
    * Reject a provider's identity verification
    */
-  async rejectIdentityVerification(userId: string, reason: string, audit?: AdminAuditContext): Promise<Response> {
+  async rejectIdentityVerification(
+    userId: string,
+    reason: string,
+    audit?: AdminAuditContext,
+  ): Promise<Response> {
     try {
       const user = await this.userModel.findById(userId).exec();
 
@@ -882,10 +1009,12 @@ export class AdminService {
           '❌ Identity Verification Rejected',
           `Your identity verification was not approved. Check your email for details.`,
           'system',
-          { reason }
+          { reason },
         );
       } catch (notifErr) {
-        this.logger.warn(`Failed to send push notification for identity rejection: ${notifErr}`);
+        this.logger.warn(
+          `Failed to send push notification for identity rejection: ${notifErr}`,
+        );
       }
 
       try {
@@ -912,7 +1041,9 @@ export class AdminService {
           html: emailHtml,
         });
       } catch (emailErr) {
-        this.logger.warn(`Failed to send identity rejection email: ${emailErr}`);
+        this.logger.warn(
+          `Failed to send identity rejection email: ${emailErr}`,
+        );
       }
 
       await this.auditService.log(audit, {
@@ -943,16 +1074,23 @@ export class AdminService {
   async getPlatformSettings(): Promise<Response> {
     let settings = await this.platformSettingsModel.findOne();
     if (!settings) {
-      settings = await this.platformSettingsModel.create({ platformFeePercentage: 10 });
+      settings = await this.platformSettingsModel.create({
+        platformFeePercentage: 10,
+      });
     }
     return { success: true, data: settings, message: 'Settings retrieved' };
   }
 
-  async updatePlatformFee(percentage: number, audit?: AdminAuditContext): Promise<Response> {
+  async updatePlatformFee(
+    percentage: number,
+    audit?: AdminAuditContext,
+  ): Promise<Response> {
     let settings = await this.platformSettingsModel.findOne();
     const oldPercentage = settings?.platformFeePercentage;
     if (!settings) {
-      settings = new this.platformSettingsModel({ platformFeePercentage: percentage });
+      settings = new this.platformSettingsModel({
+        platformFeePercentage: percentage,
+      });
     } else {
       settings.platformFeePercentage = percentage;
     }
@@ -965,7 +1103,11 @@ export class AdminService {
       newValue: { platformFeePercentage: percentage },
     });
 
-    return { success: true, data: settings, message: `Platform fee updated to ${percentage}%` };
+    return {
+      success: true,
+      data: settings,
+      message: `Platform fee updated to ${percentage}%`,
+    };
   }
 
   // ══════════════════════════════════════════════
@@ -974,71 +1116,89 @@ export class AdminService {
 
   async getPendingWithdrawals(): Promise<Response> {
     const pending = await this.transactionModel
-      .find({ type: 'withdrawal', status: 'pending' })
+      .find({
+        type: 'withdrawal',
+        status: {
+          $in: [
+            'pending',
+            'approved',
+            'transferring',
+            'transfer_failed',
+            'transferred',
+            'payout_pending',
+            'payout_failed',
+          ],
+        },
+      })
       .populate('providerId', 'firstName lastName email phoneNumber')
       .sort({ createdAt: -1 })
       .exec();
-    return { success: true, data: pending, message: 'Pending withdrawals retrieved' };
+    return {
+      success: true,
+      data: pending,
+      message: 'Open withdrawals retrieved',
+    };
   }
 
-  async approveWithdrawal(transactionId: string, audit?: AdminAuditContext): Promise<Response> {
+  async approveWithdrawal(
+    transactionId: string,
+    audit?: AdminAuditContext,
+  ): Promise<Response> {
+    const result = await this.walletService.approveWithdrawal(transactionId);
+
+    await this.auditService.log(audit, {
+      action: 'approve_withdrawal',
+      targetType: 'transaction',
+      targetId: transactionId,
+      newValue: {
+        success: result.success,
+        status: result.data?.status,
+        stripeTransferId: result.data?.stripeTransferId,
+        stripePayoutId: result.data?.stripePayoutId,
+      },
+      reason: result.success ? undefined : result.message,
+    });
+
+    return result;
+  }
+
+  async rejectWithdrawal(
+    transactionId: string,
+    reason: string,
+    audit?: AdminAuditContext,
+  ): Promise<Response> {
     try {
-      const transaction = await this.transactionModel.findById(transactionId).exec();
+      const transaction = await this.transactionModel
+        .findById(transactionId)
+        .exec();
       if (!transaction || transaction.type !== 'withdrawal') {
         return { success: false, message: 'Withdrawal request not found' };
       }
-      if (transaction.status !== 'pending') {
-        return { success: false, message: 'Withdrawal is not pending' };
+      if (
+        !['pending', 'approved', 'transfer_failed'].includes(transaction.status)
+      ) {
+        return {
+          success: false,
+          message: 'Withdrawal can no longer be rejected',
+        };
       }
-
-      const wallet = await this.walletModel.findOne({ providerId: transaction.providerId }).exec();
-      if (!wallet || !wallet.stripeConnectId) {
-        return { success: false, message: 'Provider wallet or Stripe Connect account not found' };
-      }
-
-      // Transfer funds via Stripe
-      const amountInPence = Math.round(transaction.amount * 100);
-      const transfer = await this.stripe.transfers.create({
-        amount: amountInPence,
-        currency: 'gbp',
-        destination: wallet.stripeConnectId,
-        description: `Payout for ${transactionId}`,
-      });
-
-      transaction.status = 'completed';
-      transaction.referenceId = transfer.id;
-      await transaction.save();
-
-      await this.auditService.log(audit, {
-        action: 'approve_withdrawal',
-        targetType: 'transaction',
-        targetId: transactionId,
-        newValue: { status: 'completed', stripeTransferId: transfer.id },
-      });
-
-      return { success: true, data: transaction, message: 'Withdrawal approved and funds transferred' };
-    } catch (e: any) {
-      this.logger.error(`Stripe Transfer Failed: ${e.message}`);
-      return { success: false, message: `Stripe Transfer Failed: ${e.message}` };
-    }
-  }
-
-  async rejectWithdrawal(transactionId: string, reason: string, audit?: AdminAuditContext): Promise<Response> {
-    try {
-      const transaction = await this.transactionModel.findById(transactionId).exec();
-      if (!transaction || transaction.type !== 'withdrawal') {
-        return { success: false, message: 'Withdrawal request not found' };
-      }
-      if (transaction.status !== 'pending') {
-        return { success: false, message: 'Withdrawal is not pending' };
+      if (transaction.stripeTransferId) {
+        return {
+          success: false,
+          message:
+            'Funds have already moved to Stripe; use payout recovery instead of rejection',
+        };
       }
 
       transaction.status = 'rejected';
       transaction.adminNotes = reason;
+      transaction.walletRefundedAt = new Date();
       await transaction.save();
 
       // Refund the wallet
-      const wallet = await this.walletModel.findOne({ providerId: transaction.providerId }).exec();
+      const wallet = await this.walletModel
+        .findOne({ providerId: transaction.providerId })
+        .exec();
       if (wallet) {
         wallet.balance += transaction.amount;
         await wallet.save();
@@ -1052,9 +1212,16 @@ export class AdminService {
         reason,
       });
 
-      return { success: true, data: transaction, message: 'Withdrawal rejected and funds refunded to provider' };
+      return {
+        success: true,
+        data: transaction,
+        message: 'Withdrawal rejected and funds refunded to provider',
+      };
     } catch (error) {
-      return { success: false, message: `Failed to reject withdrawal: ${error instanceof Error ? error.message : 'Unknown error'}` };
+      return {
+        success: false,
+        message: `Failed to reject withdrawal: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      };
     }
   }
 
@@ -1074,7 +1241,10 @@ export class AdminService {
   ): Promise<Response> {
     try {
       if (adminUserId && userId === adminUserId) {
-        return { success: false, message: 'You cannot suspend your own account' };
+        return {
+          success: false,
+          message: 'You cannot suspend your own account',
+        };
       }
 
       const user = await this.userModel.findById(userId).exec();
@@ -1083,7 +1253,10 @@ export class AdminService {
       }
 
       if (user.role === 'admin') {
-        return { success: false, message: 'Admin accounts cannot be suspended through this endpoint' };
+        return {
+          success: false,
+          message: 'Admin accounts cannot be suspended through this endpoint',
+        };
       }
 
       const suspensionEndDate = durationDays
@@ -1107,7 +1280,7 @@ export class AdminService {
           userId,
           '⚠️ Account Suspended',
           `Your account has been suspended. Reason: ${reason}`,
-          'system'
+          'system',
         );
       } catch (notifErr) {
         this.logger.warn(`Failed to send suspension notification: ${notifErr}`);
@@ -1117,7 +1290,12 @@ export class AdminService {
         action: 'suspend_user',
         targetType: 'user',
         targetId: userId,
-        newValue: { accountStatus: 'suspended', reason, durationDays, suspensionEndDate },
+        newValue: {
+          accountStatus: 'suspended',
+          reason,
+          durationDays,
+          suspensionEndDate,
+        },
         reason,
       });
 
@@ -1137,7 +1315,10 @@ export class AdminService {
   /**
    * Unsuspend a user account
    */
-  async unsuspendUser(userId: string, audit?: AdminAuditContext): Promise<Response> {
+  async unsuspendUser(
+    userId: string,
+    audit?: AdminAuditContext,
+  ): Promise<Response> {
     try {
       const user = await this.userModel.findById(userId).exec();
       if (!user) {
@@ -1155,7 +1336,7 @@ export class AdminService {
           userId,
           '✅ Account Restored',
           'Your account suspension has been lifted. Welcome back!',
-          'system'
+          'system',
         );
       } catch (notifErr) {
         this.logger.warn(`Failed to send unsuspend notification: ${notifErr}`);
@@ -1200,7 +1381,10 @@ export class AdminService {
       }
 
       if (user.role === 'admin') {
-        return { success: false, message: 'Admin accounts cannot be banned through this endpoint' };
+        return {
+          success: false,
+          message: 'Admin accounts cannot be banned through this endpoint',
+        };
       }
 
       user.accountStatus = 'banned';
@@ -1215,7 +1399,7 @@ export class AdminService {
           userId,
           '🚫 Account Banned',
           `Your account has been permanently banned. Reason: ${reason}`,
-          'system'
+          'system',
         );
       } catch (notifErr) {
         this.logger.warn(`Failed to send ban notification: ${notifErr}`);
@@ -1249,11 +1433,17 @@ export class AdminService {
   /**
    * Get drivers with expiring or expired documents
    */
-  async getExpiringDocuments(alertLevel?: 'all' | '30_day' | '7_day' | 'expired'): Promise<Response> {
+  async getExpiringDocuments(
+    alertLevel?: 'all' | '30_day' | '7_day' | 'expired',
+  ): Promise<Response> {
     try {
       const now = new Date();
-      const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-      const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+      const thirtyDaysFromNow = new Date(
+        now.getTime() + 30 * 24 * 60 * 60 * 1000,
+      );
+      const sevenDaysFromNow = new Date(
+        now.getTime() + 7 * 24 * 60 * 60 * 1000,
+      );
 
       const expiringChauffeurs: any[] = [];
       const expiringTaxis: any[] = [];
@@ -1270,7 +1460,7 @@ export class AdminService {
           now,
           thirtyDaysFromNow,
           sevenDaysFromNow,
-          alertLevel
+          alertLevel,
         );
 
         if (expiringDocs.length > 0) {
@@ -1296,7 +1486,7 @@ export class AdminService {
           now,
           thirtyDaysFromNow,
           sevenDaysFromNow,
-          alertLevel
+          alertLevel,
         );
 
         if (expiringDocs.length > 0) {
@@ -1338,8 +1528,13 @@ export class AdminService {
     now: Date,
     thirtyDaysFromNow: Date,
     sevenDaysFromNow: Date,
-    alertLevel?: string
-  ): Array<{ docField: string; expiryDate: Date; daysRemaining: number; alertLevel: string }> {
+    alertLevel?: string,
+  ): Array<{
+    docField: string;
+    expiryDate: Date;
+    daysRemaining: number;
+    alertLevel: string;
+  }> {
     const expiring: Array<{
       docField: string;
       expiryDate: Date;
@@ -1351,7 +1546,9 @@ export class AdminService {
       if (!expiry || !expiry.expiryDate) continue;
 
       const expiryDate = new Date(expiry.expiryDate);
-      const daysRemaining = Math.floor((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      const daysRemaining = Math.floor(
+        (expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
+      );
 
       let level = '';
       if (daysRemaining < 0) {
@@ -1416,7 +1613,7 @@ export class AdminService {
 
       // Re-enable rides if all docs are now valid
       const allDocsValid = Object.values(record.documentExpiries).every(
-        (doc: any) => !doc.expiryDate || new Date(doc.expiryDate) > new Date()
+        (doc: any) => !doc.expiryDate || new Date(doc.expiryDate) > new Date(),
       );
       if (allDocsValid) {
         record.canAcceptRides = true;
@@ -1433,7 +1630,7 @@ export class AdminService {
             user._id.toString(),
             '✅ Document Renewed',
             `Your ${docField} has been approved for renewal. New expiry date: ${newExpiryDate.toLocaleDateString()}`,
-            'system'
+            'system',
           );
         } catch (notifErr) {
           this.logger.warn(`Failed to send renewal notification: ${notifErr}`);
@@ -1463,7 +1660,10 @@ export class AdminService {
   /**
    * Unban a user account
    */
-  async unbanUser(userId: string, audit?: AdminAuditContext): Promise<Response> {
+  async unbanUser(
+    userId: string,
+    audit?: AdminAuditContext,
+  ): Promise<Response> {
     try {
       const user = await this.userModel.findById(userId).exec();
       if (!user) {
@@ -1486,7 +1686,7 @@ export class AdminService {
           userId,
           '✅ Ban Lifted',
           'Your account ban has been lifted. You may now use the platform again.',
-          'system'
+          'system',
         );
       } catch (notifErr) {
         this.logger.warn(`Failed to send unban notification: ${notifErr}`);
@@ -1526,14 +1726,22 @@ export class AdminService {
       const statusFilter = filters.status || 'pending_admin_review';
       const statuses =
         statusFilter === 'all'
-          ? ['pending_admin_review', 'approved', 'rejected', 'pending_auto_check']
+          ? [
+              'pending_admin_review',
+              'approved',
+              'rejected',
+              'pending_auto_check',
+            ]
           : [statusFilter];
 
       const dateCutoff = filters.days
         ? new Date(Date.now() - filters.days * 24 * 60 * 60 * 1000)
         : null;
 
-      const fetchCollection = async (model: Model<any>, providerType: string) => {
+      const fetchCollection = async (
+        model: Model<any>,
+        providerType: string,
+      ) => {
         if (filters.providerType && filters.providerType !== providerType) {
           return [];
         }
@@ -1579,22 +1787,31 @@ export class AdminService {
 
       const sort = filters.sort || 'newest';
       const docCompleteness = (item: any) =>
-        VALID_DOC_FIELDS.filter((field) => item[field]).length / VALID_DOC_FIELDS.length;
+        VALID_DOC_FIELDS.filter((field) => item[field]).length /
+        VALID_DOC_FIELDS.length;
 
       combined.sort((a, b) => {
         if (sort === 'name') {
-          const nameA = `${a.user?.firstName || ''} ${a.user?.lastName || ''}`.trim().toLowerCase();
-          const nameB = `${b.user?.firstName || ''} ${b.user?.lastName || ''}`.trim().toLowerCase();
+          const nameA = `${a.user?.firstName || ''} ${a.user?.lastName || ''}`
+            .trim()
+            .toLowerCase();
+          const nameB = `${b.user?.firstName || ''} ${b.user?.lastName || ''}`
+            .trim()
+            .toLowerCase();
           return nameA.localeCompare(nameB);
         }
         if (sort === 'oldest') {
-          return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+          return (
+            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+          );
         }
         if (sort === 'completeness') {
           return docCompleteness(b) - docCompleteness(a);
         }
         if (sort === 'waiting') {
-          return new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime();
+          return (
+            new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()
+          );
         }
         return (
           new Date(b.updatedAt || b.createdAt).getTime() -
@@ -1619,7 +1836,11 @@ export class AdminService {
     items: Array<{ recordId: string; providerType: string }>,
     audit?: AdminAuditContext,
   ): Promise<Response> {
-    const results: Array<{ recordId: string; success: boolean; message?: string }> = [];
+    const results: Array<{
+      recordId: string;
+      success: boolean;
+      message?: string;
+    }> = [];
 
     for (const item of items) {
       const result = await this.approveDriverVerification(
@@ -1658,7 +1879,11 @@ export class AdminService {
     reason: string,
     audit?: AdminAuditContext,
   ): Promise<Response> {
-    const results: Array<{ recordId: string; success: boolean; message?: string }> = [];
+    const results: Array<{
+      recordId: string;
+      success: boolean;
+      message?: string;
+    }> = [];
 
     for (const item of items) {
       const result = await this.rejectDriverVerification(
@@ -1699,7 +1924,11 @@ export class AdminService {
     message: string,
     audit?: AdminAuditContext,
   ): Promise<Response> {
-    const results: Array<{ recordId: string; success: boolean; message?: string }> = [];
+    const results: Array<{
+      recordId: string;
+      success: boolean;
+      message?: string;
+    }> = [];
 
     for (const item of items) {
       try {
@@ -1710,13 +1939,21 @@ export class AdminService {
           record = await this.taxiModel.findById(item.recordId).exec();
         }
         if (!record) {
-          results.push({ recordId: item.recordId, success: false, message: 'Record not found' });
+          results.push({
+            recordId: item.recordId,
+            success: false,
+            message: 'Record not found',
+          });
           continue;
         }
 
         const user = await this.userModel.findById(record.user).exec();
         if (!user) {
-          results.push({ recordId: item.recordId, success: false, message: 'User not found' });
+          results.push({
+            recordId: item.recordId,
+            success: false,
+            message: 'User not found',
+          });
           continue;
         }
 
@@ -1767,4 +2004,3 @@ export class AdminService {
     };
   }
 }
-

@@ -29,7 +29,9 @@ export class DvlaService {
     this.apiKey = this.configService.get<string>('DVLA_API_KEY') || '';
 
     if (!this.apiKey) {
-      console.warn('⚠️ DVLA API key not configured. DVLA features will fail if called.');
+      console.warn(
+        '⚠️ DVLA API key not configured. DVLA features will fail if called.',
+      );
       return;
     }
 

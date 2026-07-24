@@ -78,10 +78,16 @@ export class AdminMessagingController {
     @Req() req: any,
   ) {
     if (!userId) {
-      throw new HttpException({ success: false, message: 'userId is required' }, HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        { success: false, message: 'userId is required' },
+        HttpStatus.BAD_REQUEST,
+      );
     }
     if (!message?.trim()) {
-      throw new HttpException({ success: false, message: 'message is required' }, HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        { success: false, message: 'message is required' },
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     const audit = this.auditContext(req);

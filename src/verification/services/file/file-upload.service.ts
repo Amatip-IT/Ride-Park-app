@@ -36,7 +36,9 @@ export class FileUploadService {
     this.bucketName = this.configService.get<string>('AWS_S3_BUCKET') || '';
 
     if (!accessKeyId || !secretAccessKey || !region || !this.bucketName) {
-      console.warn('⚠️ AWS S3 credentials not configured. File uploads will fail if called.');
+      console.warn(
+        '⚠️ AWS S3 credentials not configured. File uploads will fail if called.',
+      );
       return;
     }
 
@@ -65,7 +67,9 @@ export class FileUploadService {
       const fileName = `${folder}/${uniqueId}.${fileExtension}`;
 
       if (!this.s3Client) {
-        console.warn('⚠️ AWS S3 not configured. Returning mock URL for development.');
+        console.warn(
+          '⚠️ AWS S3 not configured. Returning mock URL for development.',
+        );
         return `https://mock-s3-bucket.s3.amazonaws.com/${fileName}`;
       }
 

@@ -83,7 +83,7 @@ export function AdminPlatformSettingsScreen() {
           <Text style={styles.feeLabel}>Current Service Fee</Text>
           <Text style={styles.feeValue}>{currentFee}%</Text>
           <Text style={styles.feeDesc}>
-            This percentage is automatically deducted from every provider earning before it's added to their available balance.
+            This percentage is automatically deducted from every provider earning before it is added to their available balance.
           </Text>
         </View>
 

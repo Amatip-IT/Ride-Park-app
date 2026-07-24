@@ -7,14 +7,19 @@ import {
 } from 'src/schemas/user-settings-schema';
 import { Taxi, TaxiSchema } from 'src/schemas/taxi.schema';
 import { Wallet, WalletSchema } from 'src/schemas/wallet.schema';
-import { BookingRequest, BookingRequestSchema } from 'src/schemas/booking-request.schema';
-import { ParkingVerification, ParkingVerificationSchema } from 'src/schemas/parking-verification.schema';
+import {
+  BookingRequest,
+  BookingRequestSchema,
+} from 'src/schemas/booking-request.schema';
+import {
+  ParkingVerification,
+  ParkingVerificationSchema,
+} from 'src/schemas/parking-verification.schema';
 import { Chauffeur, ChauffeurSchema } from 'src/schemas/chauffeur.schema';
 import { UsersService } from './users.service';
 import { UsersController } from './users.controller';
 import { VerificationModule } from 'src/verification/verification.module';
 import { AdminGuard } from 'src/guards/admin.guard';
-import { AuthGuard } from 'src/guards/auth.guard';
 
 @Module({
   imports: [
@@ -30,6 +35,6 @@ import { AuthGuard } from 'src/guards/auth.guard';
     VerificationModule,
   ],
   controllers: [UsersController],
-  providers: [UsersService, AuthGuard, AdminGuard],
+  providers: [UsersService, AdminGuard],
 })
 export class UsersModule {}

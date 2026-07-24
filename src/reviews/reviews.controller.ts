@@ -25,7 +25,8 @@ export class ReviewsController {
   @UseGuards(AuthGuard)
   async createReview(
     @Req() req: any,
-    @Body() body: {
+    @Body()
+    body: {
       serviceType: string;
       serviceId: string;
       bookingId?: string;
@@ -37,7 +38,10 @@ export class ReviewsController {
 
     if (!body.serviceType || !body.serviceId || !body.rating) {
       throw new HttpException(
-        { success: false, message: 'serviceType, serviceId, and rating are required' },
+        {
+          success: false,
+          message: 'serviceType, serviceId, and rating are required',
+        },
         HttpStatus.BAD_REQUEST,
       );
     }

@@ -9,4 +9,5 @@ export class PlatformSettings {
   platformFeePercentage: number;
 }
 
-export const PlatformSettingsSchema = SchemaFactory.createForClass(PlatformSettings);
+export const PlatformSettingsSchema =
+  SchemaFactory.createForClass(PlatformSettings);

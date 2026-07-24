@@ -9,13 +9,17 @@ import {
 import { AdminAnalyticsService } from './admin-analytics.service';
 import { AuthGuard } from 'src/guards/auth.guard';
 import { AdminGuard } from 'src/guards/admin.guard';
+import { OperationalMetricsService } from 'src/observability/operational-metrics.service';
 
 type Period = 'week' | 'month' | 'year' | 'all';
 
 @Controller('admin/analytics')
 @UseGuards(AuthGuard, AdminGuard)
 export class AdminAnalyticsController {
-  constructor(private readonly analyticsService: AdminAnalyticsService) {}
+  constructor(
+    private readonly analyticsService: AdminAnalyticsService,
+    private readonly operationalMetrics: OperationalMetricsService,
+  ) {}
 
   private parsePeriod(period?: string): Period {
     if (period && ['week', 'month', 'year', 'all'].includes(period)) {
@@ -26,7 +30,9 @@ export class AdminAnalyticsController {
 
   @Get('dashboard')
   async getDashboard(@Query('period') period?: string) {
-    const result = await this.analyticsService.getDashboardSummary(this.parsePeriod(period));
+    const result = await this.analyticsService.getDashboardSummary(
+      this.parsePeriod(period),
+    );
     if (!result.success) {
       throw new HttpException(result, HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -35,7 +41,9 @@ export class AdminAnalyticsController {
 
   @Get('revenue')
   async getRevenue(@Query('period') period?: string) {
-    const result = await this.analyticsService.getRevenueAnalytics(this.parsePeriod(period));
+    const result = await this.analyticsService.getRevenueAnalytics(
+      this.parsePeriod(period),
+    );
     if (!result.success) {
       throw new HttpException(result, HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -44,7 +52,9 @@ export class AdminAnalyticsController {
 
   @Get('verifications')
   async getVerifications(@Query('period') period?: string) {
-    const result = await this.analyticsService.getVerificationAnalytics(this.parsePeriod(period));
+    const result = await this.analyticsService.getVerificationAnalytics(
+      this.parsePeriod(period),
+    );
     if (!result.success) {
       throw new HttpException(result, HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -53,7 +63,9 @@ export class AdminAnalyticsController {
 
   @Get('users')
   async getUsers(@Query('period') period?: string) {
-    const result = await this.analyticsService.getUserAnalytics(this.parsePeriod(period));
+    const result = await this.analyticsService.getUserAnalytics(
+      this.parsePeriod(period),
+    );
     if (!result.success) {
       throw new HttpException(result, HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -67,5 +79,10 @@ export class AdminAnalyticsController {
       throw new HttpException(result, HttpStatus.INTERNAL_SERVER_ERROR);
     }
     return result;
+  }
+
+  @Get('operations')
+  getOperationalMetrics() {
+    return { success: true, data: this.operationalMetrics.snapshot() };
   }
 }

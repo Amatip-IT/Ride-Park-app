@@ -92,7 +92,11 @@ export class AdminController {
 
   @Post('parking/:id/approve')
   async approveParkingVerification(@Param('id') id: string, @Req() req: any) {
-    const result = await this.adminService.approveParkingVerification(id, 5, this.auditContext(req));
+    const result = await this.adminService.approveParkingVerification(
+      id,
+      5,
+      this.auditContext(req),
+    );
     if (!result.success) {
       throw new HttpException(result, HttpStatus.BAD_REQUEST);
     }
@@ -106,10 +110,17 @@ export class AdminController {
     @Req() req: any,
   ) {
     if (!reason) {
-      throw new HttpException({ success: false, message: 'Rejection reason is required' }, HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        { success: false, message: 'Rejection reason is required' },
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
-    const result = await this.adminService.rejectParkingVerification(id, reason, this.auditContext(req));
+    const result = await this.adminService.rejectParkingVerification(
+      id,
+      reason,
+      this.auditContext(req),
+    );
     if (!result.success) {
       throw new HttpException(result, HttpStatus.BAD_REQUEST);
     }
@@ -154,9 +165,18 @@ export class AdminController {
     @Query('type') providerType: string,
   ) {
     if (!providerType || !['driver', 'taxi_driver'].includes(providerType)) {
-      throw new HttpException({ success: false, message: 'Query param "type" must be "driver" or "taxi_driver"' }, HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        {
+          success: false,
+          message: 'Query param "type" must be "driver" or "taxi_driver"',
+        },
+        HttpStatus.BAD_REQUEST,
+      );
     }
-    const result = await this.adminService.getDriverVerificationDetail(id, providerType);
+    const result = await this.adminService.getDriverVerificationDetail(
+      id,
+      providerType,
+    );
     if (!result.success) {
       throw new HttpException(result, HttpStatus.BAD_REQUEST);
     }
@@ -169,9 +189,15 @@ export class AdminController {
     @Req() req: any,
   ) {
     if (!items?.length) {
-      throw new HttpException({ success: false, message: 'items array is required' }, HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        { success: false, message: 'items array is required' },
+        HttpStatus.BAD_REQUEST,
+      );
     }
-    const result = await this.adminService.bulkApproveDrivers(items, this.auditContext(req));
+    const result = await this.adminService.bulkApproveDrivers(
+      items,
+      this.auditContext(req),
+    );
     if (!result.success) {
       throw new HttpException(result, HttpStatus.BAD_REQUEST);
     }
@@ -185,12 +211,22 @@ export class AdminController {
     @Req() req: any,
   ) {
     if (!items?.length) {
-      throw new HttpException({ success: false, message: 'items array is required' }, HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        { success: false, message: 'items array is required' },
+        HttpStatus.BAD_REQUEST,
+      );
     }
     if (!reason) {
-      throw new HttpException({ success: false, message: 'Rejection reason is required' }, HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        { success: false, message: 'Rejection reason is required' },
+        HttpStatus.BAD_REQUEST,
+      );
     }
-    const result = await this.adminService.bulkRejectDrivers(items, reason, this.auditContext(req));
+    const result = await this.adminService.bulkRejectDrivers(
+      items,
+      reason,
+      this.auditContext(req),
+    );
     if (!result.success) {
       throw new HttpException(result, HttpStatus.BAD_REQUEST);
     }
@@ -204,12 +240,22 @@ export class AdminController {
     @Req() req: any,
   ) {
     if (!items?.length) {
-      throw new HttpException({ success: false, message: 'items array is required' }, HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        { success: false, message: 'items array is required' },
+        HttpStatus.BAD_REQUEST,
+      );
     }
     if (!message?.trim()) {
-      throw new HttpException({ success: false, message: 'message is required' }, HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        { success: false, message: 'message is required' },
+        HttpStatus.BAD_REQUEST,
+      );
     }
-    const result = await this.adminService.bulkMessageDrivers(items, message.trim(), this.auditContext(req));
+    const result = await this.adminService.bulkMessageDrivers(
+      items,
+      message.trim(),
+      this.auditContext(req),
+    );
     if (!result.success) {
       throw new HttpException(result, HttpStatus.BAD_REQUEST);
     }
@@ -223,7 +269,13 @@ export class AdminController {
     @Req() req: any,
   ) {
     if (!providerType || !['driver', 'taxi_driver'].includes(providerType)) {
-      throw new HttpException({ success: false, message: 'providerType must be "driver" or "taxi_driver"' }, HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        {
+          success: false,
+          message: 'providerType must be "driver" or "taxi_driver"',
+        },
+        HttpStatus.BAD_REQUEST,
+      );
     }
     const audit = this.auditContext(req);
     const result = await this.adminService.approveDriverVerification(
@@ -246,10 +298,19 @@ export class AdminController {
     @Req() req: any,
   ) {
     if (!providerType || !['driver', 'taxi_driver'].includes(providerType)) {
-      throw new HttpException({ success: false, message: 'providerType must be "driver" or "taxi_driver"' }, HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        {
+          success: false,
+          message: 'providerType must be "driver" or "taxi_driver"',
+        },
+        HttpStatus.BAD_REQUEST,
+      );
     }
     if (!reason) {
-      throw new HttpException({ success: false, message: 'Rejection reason is required' }, HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        { success: false, message: 'Rejection reason is required' },
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     const result = await this.adminService.rejectDriverVerification(
@@ -272,10 +333,19 @@ export class AdminController {
     @Req() req: any,
   ) {
     if (!providerType || !['driver', 'taxi_driver'].includes(providerType)) {
-      throw new HttpException({ success: false, message: 'providerType must be "driver" or "taxi_driver"' }, HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        {
+          success: false,
+          message: 'providerType must be "driver" or "taxi_driver"',
+        },
+        HttpStatus.BAD_REQUEST,
+      );
     }
     if (!docField) {
-      throw new HttpException({ success: false, message: 'docField is required' }, HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        { success: false, message: 'docField is required' },
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     const audit = this.auditContext(req);
@@ -301,13 +371,25 @@ export class AdminController {
     @Req() req: any,
   ) {
     if (!providerType || !['driver', 'taxi_driver'].includes(providerType)) {
-      throw new HttpException({ success: false, message: 'providerType must be "driver" or "taxi_driver"' }, HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        {
+          success: false,
+          message: 'providerType must be "driver" or "taxi_driver"',
+        },
+        HttpStatus.BAD_REQUEST,
+      );
     }
     if (!docField) {
-      throw new HttpException({ success: false, message: 'docField is required' }, HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        { success: false, message: 'docField is required' },
+        HttpStatus.BAD_REQUEST,
+      );
     }
     if (!reason) {
-      throw new HttpException({ success: false, message: 'Rejection reason is required' }, HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        { success: false, message: 'Rejection reason is required' },
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     const audit = this.auditContext(req);
@@ -338,7 +420,10 @@ export class AdminController {
 
   @Post('identity/:id/approve')
   async approveIdentityVerification(@Param('id') id: string, @Req() req: any) {
-    const result = await this.adminService.approveIdentityVerification(id, this.auditContext(req));
+    const result = await this.adminService.approveIdentityVerification(
+      id,
+      this.auditContext(req),
+    );
     if (!result.success) {
       throw new HttpException(result, HttpStatus.BAD_REQUEST);
     }
@@ -352,10 +437,17 @@ export class AdminController {
     @Req() req: any,
   ) {
     if (!reason) {
-      throw new HttpException({ success: false, message: 'Rejection reason is required' }, HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        { success: false, message: 'Rejection reason is required' },
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
-    const result = await this.adminService.rejectIdentityVerification(id, reason, this.auditContext(req));
+    const result = await this.adminService.rejectIdentityVerification(
+      id,
+      reason,
+      this.auditContext(req),
+    );
     if (!result.success) {
       throw new HttpException(result, HttpStatus.BAD_REQUEST);
     }
@@ -367,17 +459,25 @@ export class AdminController {
   @Get('settings')
   async getPlatformSettings() {
     const result = await this.adminService.getPlatformSettings();
-    if (!result.success) throw new HttpException(result, HttpStatus.INTERNAL_SERVER_ERROR);
+    if (!result.success)
+      throw new HttpException(result, HttpStatus.INTERNAL_SERVER_ERROR);
     return result;
   }
 
   @Post('settings/fee')
-  async updatePlatformFee(@Body('percentage') percentage: number, @Req() req: any) {
+  async updatePlatformFee(
+    @Body('percentage') percentage: number,
+    @Req() req: any,
+  ) {
     if (percentage === undefined || percentage < 0 || percentage > 100) {
       throw new HttpException('Invalid percentage', HttpStatus.BAD_REQUEST);
     }
-    const result = await this.adminService.updatePlatformFee(percentage, this.auditContext(req));
-    if (!result.success) throw new HttpException(result, HttpStatus.INTERNAL_SERVER_ERROR);
+    const result = await this.adminService.updatePlatformFee(
+      percentage,
+      this.auditContext(req),
+    );
+    if (!result.success)
+      throw new HttpException(result, HttpStatus.INTERNAL_SERVER_ERROR);
     return result;
   }
 
@@ -386,22 +486,40 @@ export class AdminController {
   @Get('withdrawals')
   async getPendingWithdrawals() {
     const result = await this.adminService.getPendingWithdrawals();
-    if (!result.success) throw new HttpException(result, HttpStatus.INTERNAL_SERVER_ERROR);
+    if (!result.success)
+      throw new HttpException(result, HttpStatus.INTERNAL_SERVER_ERROR);
     return result;
   }
 
   @Post('withdrawals/:id/approve')
   async approveWithdrawal(@Param('id') id: string, @Req() req: any) {
-    const result = await this.adminService.approveWithdrawal(id, this.auditContext(req));
-    if (!result.success) throw new HttpException(result, HttpStatus.BAD_REQUEST);
+    const result = await this.adminService.approveWithdrawal(
+      id,
+      this.auditContext(req),
+    );
+    if (!result.success)
+      throw new HttpException(result, HttpStatus.BAD_REQUEST);
     return result;
   }
 
   @Post('withdrawals/:id/reject')
-  async rejectWithdrawal(@Param('id') id: string, @Body('reason') reason: string, @Req() req: any) {
-    if (!reason) throw new HttpException('Rejection reason required', HttpStatus.BAD_REQUEST);
-    const result = await this.adminService.rejectWithdrawal(id, reason, this.auditContext(req));
-    if (!result.success) throw new HttpException(result, HttpStatus.BAD_REQUEST);
+  async rejectWithdrawal(
+    @Param('id') id: string,
+    @Body('reason') reason: string,
+    @Req() req: any,
+  ) {
+    if (!reason)
+      throw new HttpException(
+        'Rejection reason required',
+        HttpStatus.BAD_REQUEST,
+      );
+    const result = await this.adminService.rejectWithdrawal(
+      id,
+      reason,
+      this.auditContext(req),
+    );
+    if (!result.success)
+      throw new HttpException(result, HttpStatus.BAD_REQUEST);
     return result;
   }
 
@@ -415,10 +533,19 @@ export class AdminController {
     @Req() req?: any,
   ) {
     if (!reason) {
-      throw new HttpException('Suspension reason is required', HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        'Suspension reason is required',
+        HttpStatus.BAD_REQUEST,
+      );
     }
     const audit = this.auditContext(req);
-    const result = await this.adminService.suspendUser(userId, reason, durationDays, audit.adminId, audit);
+    const result = await this.adminService.suspendUser(
+      userId,
+      reason,
+      durationDays,
+      audit.adminId,
+      audit,
+    );
     if (!result.success) {
       throw new HttpException(result, HttpStatus.BAD_REQUEST);
     }
@@ -427,7 +554,10 @@ export class AdminController {
 
   @Post('users/:id/unsuspend')
   async unsuspendUser(@Param('id') userId: string, @Req() req: any) {
-    const result = await this.adminService.unsuspendUser(userId, this.auditContext(req));
+    const result = await this.adminService.unsuspendUser(
+      userId,
+      this.auditContext(req),
+    );
     if (!result.success) {
       throw new HttpException(result, HttpStatus.BAD_REQUEST);
     }
@@ -444,7 +574,12 @@ export class AdminController {
       throw new HttpException('Ban reason is required', HttpStatus.BAD_REQUEST);
     }
     const audit = this.auditContext(req);
-    const result = await this.adminService.banUser(userId, reason, audit.adminId, audit);
+    const result = await this.adminService.banUser(
+      userId,
+      reason,
+      audit.adminId,
+      audit,
+    );
     if (!result.success) {
       throw new HttpException(result, HttpStatus.BAD_REQUEST);
     }
@@ -453,7 +588,10 @@ export class AdminController {
 
   @Post('users/:id/unban')
   async unbanUser(@Param('id') userId: string, @Req() req: any) {
-    const result = await this.adminService.unbanUser(userId, this.auditContext(req));
+    const result = await this.adminService.unbanUser(
+      userId,
+      this.auditContext(req),
+    );
     if (!result.success) {
       throw new HttpException(result, HttpStatus.BAD_REQUEST);
     }
@@ -464,13 +602,21 @@ export class AdminController {
 
   @Get('documents/expiring')
   async getExpiringDocuments(@Query('alertLevel') alertLevel?: string) {
-    if (alertLevel && !['all', '30_day', '7_day', 'expired'].includes(alertLevel)) {
+    if (
+      alertLevel &&
+      !['all', '30_day', '7_day', 'expired'].includes(alertLevel)
+    ) {
       throw new HttpException(
-        { success: false, message: 'alertLevel must be one of: all, 30_day, 7_day, expired' },
-        HttpStatus.BAD_REQUEST
+        {
+          success: false,
+          message: 'alertLevel must be one of: all, 30_day, 7_day, expired',
+        },
+        HttpStatus.BAD_REQUEST,
       );
     }
-    const result = await this.adminService.getExpiringDocuments(alertLevel as any);
+    const result = await this.adminService.getExpiringDocuments(
+      alertLevel as any,
+    );
     if (!result.success) {
       throw new HttpException(result, HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -486,18 +632,30 @@ export class AdminController {
     @Req() req: any,
   ) {
     if (!providerType || !['driver', 'taxi_driver'].includes(providerType)) {
-      throw new HttpException({ success: false, message: 'providerType is required' }, HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        { success: false, message: 'providerType is required' },
+        HttpStatus.BAD_REQUEST,
+      );
     }
     if (!docField) {
-      throw new HttpException({ success: false, message: 'docField is required' }, HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        { success: false, message: 'docField is required' },
+        HttpStatus.BAD_REQUEST,
+      );
     }
     if (!newExpiryDate) {
-      throw new HttpException({ success: false, message: 'newExpiryDate is required' }, HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        { success: false, message: 'newExpiryDate is required' },
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     const expiryDate = new Date(newExpiryDate);
     if (isNaN(expiryDate.getTime())) {
-      throw new HttpException({ success: false, message: 'Invalid date format' }, HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        { success: false, message: 'Invalid date format' },
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     const result = await this.adminService.renewDocument(

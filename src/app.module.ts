@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { MongooseModule } from '@nestjs/mongoose';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { DatabaseModule } from './database/database.module';
@@ -22,10 +22,14 @@ import { WalletModule } from './wallet/wallet.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { DisputesModule } from './disputes/disputes.module';
 import { AccountStatusGuard } from './guards/account-status.guard';
+import { AuthModule } from './guards/auth.module';
 import { DocumentExpiryTask } from './tasks/document-expiry.task';
 import { User, UserSchema } from './schemas/user.schema';
 import { Chauffeur, ChauffeurSchema } from './schemas/chauffeur.schema';
 import { Taxi, TaxiSchema } from './schemas/taxi.schema';
+import { RateLimitGuard } from './common/rate-limit.guard';
+import { ObservabilityModule } from './observability/observability.module';
+import { RequestObservabilityInterceptor } from './observability/request-observability.interceptor';
 
 @Module({
   imports: [
@@ -38,6 +42,8 @@ import { Taxi, TaxiSchema } from './schemas/taxi.schema';
       { name: Chauffeur.name, schema: ChauffeurSchema },
       { name: Taxi.name, schema: TaxiSchema },
     ]),
+    AuthModule,
+    ObservabilityModule,
     DatabaseModule,
     UsersModule,
     VerificationModule,
@@ -59,6 +65,14 @@ import { Taxi, TaxiSchema } from './schemas/taxi.schema';
   providers: [
     AppService,
     DocumentExpiryTask,
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: RequestObservabilityInterceptor,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: RateLimitGuard,
+    },
     {
       provide: APP_GUARD,
       useClass: AccountStatusGuard,

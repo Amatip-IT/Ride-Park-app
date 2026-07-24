@@ -65,13 +65,14 @@ export class TaxiRideRequest {
   @Prop({
     default: 'searching',
     enum: [
-      'searching',     // Actively looking for a driver
-      'accepted',      // A driver accepted
-      'arrived',       // Driver has arrived at pickup
-      'in_progress',   // Ride is underway
-      'completed',     // Ride finished
-      'cancelled',     // Passenger cancelled
-      'expired',       // No driver accepted in time
+      'searching', // Actively looking for a driver
+      'accepted', // A driver accepted
+      'arrived', // Driver has arrived at pickup
+      'in_progress', // Ride is underway
+      'awaiting_payment', // Trip ended — passenger must confirm location and pay
+      'completed', // Ride finished and paid
+      'cancelled', // Passenger cancelled
+      'expired', // No driver accepted in time
     ],
   })
   status: string;
@@ -112,6 +113,10 @@ export class TaxiRideRequest {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Ride' })
   ride?: string;
 
+  // Passenger confirmed they are at the destination before paying
+  @Prop({ type: Date })
+  passengerConfirmedAt?: Date;
+
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -123,4 +128,4 @@ export const TaxiRideRequestSchema: MongooseSchema<TaxiRideRequest> =
 TaxiRideRequestSchema.index({ passenger: 1, status: 1 });
 TaxiRideRequestSchema.index({ status: 1, createdAt: -1 });
 TaxiRideRequestSchema.index({ acceptedDriver: 1 });
-TaxiRideRequestSchema.index({ pickupPostcode: 1 });
+TaxiRideRequestSchema.index({ targetDriver: 1, status: 1 });

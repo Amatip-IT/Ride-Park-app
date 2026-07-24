@@ -67,7 +67,9 @@ export class MotService {
       !this.scopeURL ||
       !this.tenantId
     ) {
-      console.warn('⚠️ MOT API credentials not configured. MOT features will fail if called.');
+      console.warn(
+        '⚠️ MOT API credentials not configured. MOT features will fail if called.',
+      );
       return;
     }
 

@@ -5,10 +5,20 @@ export type AdminMessageDocument = HydratedDocument<AdminMessage>;
 
 @Schema({ timestamps: true })
 export class AdminMessage {
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true, index: true })
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'User',
+    required: true,
+    index: true,
+  })
   admin: string;
 
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true, index: true })
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'User',
+    required: true,
+    index: true,
+  })
   userId: string;
 
   @Prop({ required: true })

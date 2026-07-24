@@ -18,6 +18,7 @@ import { ProviderService } from './provider.service';
 import { FileUploadService } from '../verification/services/file/file-upload.service';
 import { AuthGuard } from 'src/guards/auth.guard';
 import { AdminGuard } from 'src/guards/admin.guard';
+import { ProviderGuard } from 'src/guards/provider.guard';
 
 @Controller('provider')
 @UseGuards(AuthGuard)
@@ -42,9 +43,10 @@ export class ProviderController {
 
   /**
    * GET /provider/earnings
-   * Get earnings history and stats for the provider
+   * Wallet-backed earnings for providers (net of platform fees)
    */
   @Get('earnings')
+  @UseGuards(ProviderGuard)
   async getEarnings(@Req() req: any) {
     const user = req.user;
     return this.providerService.getEarnings(user._id || user.id);
@@ -91,7 +93,10 @@ export class ProviderController {
     );
 
     if (!result.success) {
-      throw new HttpException({ message: result.message }, HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        { message: result.message },
+        HttpStatus.BAD_REQUEST,
+      );
     }
     return result;
   }
@@ -101,10 +106,7 @@ export class ProviderController {
    * Toggle a parking space on/off (manually pause/resume listings)
    */
   @Patch('spaces/:id/toggle-availability')
-  async toggleSpaceAvailability(
-    @Req() req: any,
-    @Param('id') spaceId: string,
-  ) {
+  async toggleSpaceAvailability(@Req() req: any, @Param('id') spaceId: string) {
     const user = req.user;
     if (user.role !== 'parking_provider') {
       throw new HttpException(
@@ -119,7 +121,10 @@ export class ProviderController {
     );
 
     if (!result.success) {
-      throw new HttpException({ message: result.message }, HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        { message: result.message },
+        HttpStatus.BAD_REQUEST,
+      );
     }
     return result;
   }
@@ -147,7 +152,10 @@ export class ProviderController {
     );
 
     if (!result.success) {
-      throw new HttpException({ message: result.message }, HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        { message: result.message },
+        HttpStatus.BAD_REQUEST,
+      );
     }
     return result;
   }
@@ -159,7 +167,8 @@ export class ProviderController {
   @Post('submit-driver-verification')
   async submitDriverVerification(
     @Req() req: any,
-    @Body() body: {
+    @Body()
+    body: {
       docField: string;
       docUrl: string;
     },
@@ -185,7 +194,10 @@ export class ProviderController {
     );
 
     if (!result.success) {
-      throw new HttpException({ message: result.message }, HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        { message: result.message },
+        HttpStatus.BAD_REQUEST,
+      );
     }
     return result;
   }
@@ -197,7 +209,8 @@ export class ProviderController {
   @Post('submit-taxi-verification')
   async submitTaxiVerification(
     @Req() req: any,
-    @Body() body: {
+    @Body()
+    body: {
       docField: string;
       docUrl: string;
       plateNumber?: string;
@@ -227,7 +240,10 @@ export class ProviderController {
     );
 
     if (!result.success) {
-      throw new HttpException({ message: result.message }, HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        { message: result.message },
+        HttpStatus.BAD_REQUEST,
+      );
     }
     return result;
   }
@@ -239,7 +255,7 @@ export class ProviderController {
   @Post('toggle-status')
   async toggleStatus(
     @Req() req: any,
-    @Body() body: { status: 'online' | 'offline' },
+    @Body() body: { status: 'online' | 'offline'; lat?: number; lng?: number },
   ) {
     const user = req.user;
     const userId = user._id || user.id;
@@ -251,7 +267,54 @@ export class ProviderController {
       );
     }
 
-    const result = await this.providerService.toggleAvailability(userId, user.role, body.status);
+    const location =
+      body.lat != null && body.lng != null
+        ? { lat: Number(body.lat), lng: Number(body.lng) }
+        : undefined;
+
+    const result = await this.providerService.toggleAvailability(
+      userId,
+      user.role,
+      body.status,
+      location,
+    );
+    if (!result.success) {
+      throw new HttpException(result, HttpStatus.BAD_REQUEST);
+    }
+    return result;
+  }
+
+  /**
+   * POST /provider/location
+   * Update live GPS coordinates for nearby matching
+   */
+  @Post('location')
+  async updateLocation(
+    @Req() req: any,
+    @Body() body: { lat: number; lng: number },
+  ) {
+    const user = req.user;
+    const userId = user._id || user.id;
+
+    if (!['driver', 'taxi_driver'].includes(user.role)) {
+      throw new HttpException(
+        { message: 'Only drivers and taxi drivers can update location' },
+        HttpStatus.FORBIDDEN,
+      );
+    }
+
+    if (body.lat == null || body.lng == null) {
+      throw new HttpException(
+        { message: 'lat and lng are required' },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const result = await this.providerService.updateDriverLocation(
+      userId,
+      user.role,
+      { lat: Number(body.lat), lng: Number(body.lng) },
+    );
     if (!result.success) {
       throw new HttpException(result, HttpStatus.BAD_REQUEST);
     }
@@ -274,27 +337,43 @@ export class ProviderController {
    * Upload a document to S3
    */
   @Post('upload-document')
-  @UseInterceptors(FileInterceptor('file'))
-  async uploadDocument(
-    @Req() req: any,
-    @UploadedFile() file: any,
-  ) {
+  @UseInterceptors(
+    FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }),
+  )
+  async uploadDocument(@Req() req: any, @UploadedFile() file: any) {
     if (!file) {
-      throw new HttpException({ message: 'No file provided' }, HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        { message: 'No file provided' },
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     const user = req.user;
     const userId = user._id || user.id;
-    
+
     // Validate file type (allow images and pdfs)
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+    const allowedTypes = [
+      'image/jpeg',
+      'image/png',
+      'image/webp',
+      'application/pdf',
+    ];
     if (!this.fileUploadService.validateFileType(file, allowedTypes)) {
-      throw new HttpException({ message: 'Invalid file type. Only JPEG, PNG, WEBP and PDF are allowed.' }, HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        {
+          message:
+            'Invalid file type. Only JPEG, PNG, WEBP and PDF are allowed.',
+        },
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     // Validate size (e.g. 10MB)
     if (!this.fileUploadService.validateFileSize(file, 10)) {
-      throw new HttpException({ message: 'File too large. Maximum size is 10MB.' }, HttpStatus.BAD_REQUEST);
+      throw new HttpException(
+        { message: 'File too large. Maximum size is 10MB.' },
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     try {
@@ -302,7 +381,10 @@ export class ProviderController {
       const url = await this.fileUploadService.uploadFile(file, folder);
       return { success: true, url, message: 'Document uploaded successfully' };
     } catch (error: any) {
-      throw new HttpException({ message: `S3 Error: ${error.message}` }, HttpStatus.INTERNAL_SERVER_ERROR);
+      throw new HttpException(
+        { message: `S3 Error: ${error.message}` },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 

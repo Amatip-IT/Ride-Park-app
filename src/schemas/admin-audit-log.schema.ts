@@ -5,7 +5,12 @@ export type AdminAuditLogDocument = HydratedDocument<AdminAuditLog>;
 
 @Schema({ timestamps: true })
 export class AdminAuditLog {
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true, index: true })
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'User',
+    required: true,
+    index: true,
+  })
   admin: string;
 
   @Prop({ required: true, index: true })

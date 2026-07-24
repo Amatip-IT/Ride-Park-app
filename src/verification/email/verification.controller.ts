@@ -2,6 +2,7 @@ import { Controller, Post, Get, Body, Query } from '@nestjs/common';
 import { EmailVerificationService } from './verification.service';
 import { SendEmailOtpDto } from '../dto/send-email-otp.dto';
 import { VerifyEmailOtpDto } from '../dto/verify-email-otp.dto';
+import { RateLimit } from 'src/common/rate-limit.decorator';
 
 @Controller('verification')
 export class EmailVerificationController {
@@ -14,6 +15,7 @@ export class EmailVerificationController {
    * POST /verification/send-email-otp-verification
    */
   @Post('send-email-otp-verification')
+  @RateLimit({ limit: 3, windowMs: 10 * 60_000 })
   async sendEmailOtp(@Body() sendEmailOtpDto: SendEmailOtpDto) {
     return this.emailVerificationService.sendEmailOtp(
       sendEmailOtpDto.email,
@@ -26,6 +28,7 @@ export class EmailVerificationController {
    * POST /verification/resend-email-otp-login
    */
   @Post('resend-email-otp-login')
+  @RateLimit({ limit: 3, windowMs: 10 * 60_000 })
   async sendEmailOtpForLogin(@Body() sendEmailOtpDto: SendEmailOtpDto) {
     return this.emailVerificationService.sendEmailOtp(
       sendEmailOtpDto.email,
@@ -38,6 +41,7 @@ export class EmailVerificationController {
    * POST /verification/verify-email-otp-verification
    */
   @Post('verify-email-otp-verification')
+  @RateLimit({ limit: 10, windowMs: 10 * 60_000 })
   async verifyEmailOtp(@Body() verifyEmailOtpDto: VerifyEmailOtpDto) {
     return this.emailVerificationService.verifyEmailOtp(
       verifyEmailOtpDto.email,
@@ -51,6 +55,7 @@ export class EmailVerificationController {
    * POST /verification/verify-email-otp-login
    */
   @Post('verify-email-otp-login')
+  @RateLimit({ limit: 10, windowMs: 10 * 60_000 })
   async verifyEmailOtpForLogin(@Body() verifyEmailOtpDto: VerifyEmailOtpDto) {
     return this.emailVerificationService.verifyEmailOtp(
       verifyEmailOtpDto.email,

@@ -29,11 +29,13 @@ import { PassengerTrackingScreen } from '@/screens/PassengerTrackingScreen';
 import { TripReceiptScreen } from '@/screens/TripReceiptScreen';
 import { ServiceReviewsScreen } from '@/screens/ServiceReviewsScreen';
 import { MapPreviewScreen } from '@/screens/MapPreviewScreen';
+import { QuickRideScreen } from '@/screens/QuickRideScreen';
 import { ChatListScreen } from '@/screens/ChatListScreen';
 import { ChatScreen } from '@/screens/ChatScreen';
 import { ProviderHomeScreen } from '@/screens/ProviderHomeScreen';
 import { ProviderRequestsScreen } from '@/screens/ProviderRequestsScreen';
 import { ProviderEarningsScreen } from '@/screens/ProviderEarningsScreen';
+import { ProviderPastRidesScreen } from '@/screens/ProviderPastRidesScreen';
 import { ProviderSpaceManagementScreen } from '@/screens/ProviderSpaceManagementScreen';
 import { DriverVerificationScreen } from '@/screens/DriverVerificationScreen';
 import { DriverRideRequestsScreen } from '@/screens/DriverRideRequestsScreen';
@@ -153,6 +155,7 @@ const ConsumerNavigator = () => (
     <ConsumerStack.Screen name="ServiceChoice" component={ServiceChoiceScreen} />
     <ConsumerStack.Screen name="DriverRequest" component={DriverRequestScreen} />
     <ConsumerStack.Screen name="TaxiBooking" component={TaxiBookingScreen} />
+    <ConsumerStack.Screen name="QuickRide" component={QuickRideScreen} />
     {/* Search result details */}
     <ConsumerStack.Screen name="ParkingDetail" component={ParkingDetailScreen} />
     <ConsumerStack.Screen name="ServiceReviews" component={ServiceReviewsScreen} />
@@ -232,6 +235,7 @@ const ProviderNavigator = () => (
     {/* Driver/Taxi specific screens */}
     <ProviderStack.Screen name="DriverRideRequests" component={DriverRideRequestsScreen} />
     <ProviderStack.Screen name="ProviderActiveJourney" component={ProviderActiveJourneyScreen} />
+    <ProviderStack.Screen name="ProviderPastRides" component={ProviderPastRidesScreen} />
     <ProviderStack.Screen name="TripReceipt" component={TripReceiptScreen} />
     <ProviderStack.Screen name="DriverVerification" component={DriverVerificationScreen} />
     <ProviderStack.Screen name="DocumentUpload" component={DocumentUploadScreen} />
@@ -433,6 +437,7 @@ export type RootStackParamList = {
   ProviderVerification: undefined;
   DriverRideRequests: undefined;
   ProviderActiveJourney: { requestId: string; serviceType?: 'driver' | 'taxi' };
+  ProviderPastRides: undefined;
   DriverVerification: undefined;
   DocumentUpload: undefined;
   // Admin Stack (nested)

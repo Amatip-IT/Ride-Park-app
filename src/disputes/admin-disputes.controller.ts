@@ -14,6 +14,8 @@ import { DisputesService } from './disputes.service';
 import { AuthGuard } from 'src/guards/auth.guard';
 import { AdminGuard } from 'src/guards/admin.guard';
 import { AdminAuditContext } from 'src/admin/admin-audit.types';
+import { InvestigateDisputeDto, ResolveDisputeDto } from './dto/dispute.dto';
+import { RateLimit } from 'src/common/rate-limit.decorator';
 
 @Controller('admin/disputes')
 @UseGuards(AuthGuard, AdminGuard)
@@ -57,16 +59,17 @@ export class AdminDisputesController {
   }
 
   @Post(':id/investigate')
+  @RateLimit({ limit: 30, windowMs: 60_000 })
   async investigateDispute(
     @Param('id') id: string,
-    @Body('adminNotes') adminNotes: string,
+    @Body() body: InvestigateDisputeDto,
     @Req() req: any,
   ) {
     const audit = this.auditContext(req);
     const result = await this.disputesService.investigateDispute(
       id,
       audit.adminId,
-      adminNotes,
+      body.adminNotes,
       audit,
     );
     if (!result.success) {
@@ -76,33 +79,24 @@ export class AdminDisputesController {
   }
 
   @Post(':id/resolve')
+  @RateLimit({ limit: 20, windowMs: 60_000 })
   async resolveDispute(
     @Param('id') id: string,
-    @Body('resolution') resolution: string,
-    @Body('notes') notes: string,
-    @Body('adminNotes') adminNotes: string,
-    @Body('refundAmount') refundAmount: number,
-    @Body('suspendReason') suspendReason: string,
-    @Body('providerType') providerType: string,
-    @Body('recordId') recordId: string,
+    @Body() body: ResolveDisputeDto,
     @Req() req: any,
   ) {
-    if (!resolution) {
-      throw new HttpException({ success: false, message: 'resolution is required' }, HttpStatus.BAD_REQUEST);
-    }
-
     const audit = this.auditContext(req);
     const result = await this.disputesService.resolveDispute(
       id,
       audit.adminId,
       {
-        resolution,
-        notes,
-        adminNotes,
-        refundAmount,
-        suspendReason,
-        providerType,
-        recordId,
+        resolution: body.resolution,
+        notes: body.notes,
+        adminNotes: body.adminNotes,
+        refundAmount: body.refundAmount,
+        suspendReason: body.suspendReason,
+        providerType: body.providerType,
+        recordId: body.recordId,
       },
       audit,
     );

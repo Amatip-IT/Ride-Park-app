@@ -13,6 +13,9 @@ import {
 } from '@nestjs/common';
 import { BookingsService } from './bookings.service';
 import { AuthGuard } from 'src/guards/auth.guard';
+import { AdminGuard } from 'src/guards/admin.guard';
+import { RateLimit } from 'src/common/rate-limit.decorator';
+import { getRequestUserId } from 'src/common/request.util';
 
 @Controller('bookings')
 @UseGuards(AuthGuard)
@@ -26,7 +29,8 @@ export class BookingsController {
   @Post()
   async createBooking(
     @Req() req: any,
-    @Body() body: {
+    @Body()
+    body: {
       serviceType: 'parking' | 'driver' | 'taxi';
       serviceId: string;
       message?: string;
@@ -40,7 +44,7 @@ export class BookingsController {
         HttpStatus.BAD_REQUEST,
       );
     }
-    
+
     // Broadcast requests might omit serviceId
     if (body.serviceType === 'parking' && !body.serviceId) {
       throw new HttpException(
@@ -50,13 +54,13 @@ export class BookingsController {
     }
 
     const result = await this.bookingsService.createBookingRequest({
-      requesterId: req.user._id || req.user.id,
+      requesterId: getRequestUserId(req),
       ...body,
     });
 
     if (!result.success) {
       throw new HttpException(
-        { message: result.message },
+        { success: false, message: result.message },
         HttpStatus.BAD_REQUEST,
       );
     }
@@ -68,14 +72,8 @@ export class BookingsController {
    * Get current user's bookings (consumer view)
    */
   @Get('my')
-  async getMyBookings(
-    @Req() req: any,
-    @Query('status') status?: string,
-  ) {
-    return this.bookingsService.getMyBookings(
-      req.user._id || req.user.id,
-      status,
-    );
+  async getMyBookings(@Req() req: any, @Query('status') status?: string) {
+    return this.bookingsService.getMyBookings(getRequestUserId(req), status);
   }
 
   /**
@@ -83,12 +81,9 @@ export class BookingsController {
    * Get incoming requests for a provider (provider dashboard)
    */
   @Get('provider')
-  async getProviderRequests(
-    @Req() req: any,
-    @Query('status') status?: string,
-  ) {
+  async getProviderRequests(@Req() req: any, @Query('status') status?: string) {
     return this.bookingsService.getProviderRequests(
-      req.user._id || req.user.id,
+      getRequestUserId(req),
       status,
     );
   }
@@ -112,14 +107,14 @@ export class BookingsController {
 
     const result = await this.bookingsService.respondToRequest(
       id,
-      req.user._id || req.user.id,
+      getRequestUserId(req),
       body.action,
       body.responseMessage,
     );
 
     if (!result.success) {
       throw new HttpException(
-        { message: result.message },
+        { success: false, message: result.message },
         HttpStatus.BAD_REQUEST,
       );
     }
@@ -131,18 +126,56 @@ export class BookingsController {
    * Provider marks a booking as completed — frees the parking spot
    */
   @Patch(':id/complete')
-  async completeBooking(
-    @Req() req: any,
-    @Param('id') id: string,
-  ) {
+  async completeBooking(@Req() req: any, @Param('id') id: string) {
     const result = await this.bookingsService.completeBooking(
       id,
-      req.user._id || req.user.id,
+      getRequestUserId(req),
     );
 
     if (!result.success) {
       throw new HttpException(
-        { message: result.message },
+        { success: false, message: result.message },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    return result;
+  }
+
+  /**
+   * POST /bookings/:id/confirm-arrival
+   * Consumer confirms they are at the service location
+   */
+  @Post(':id/confirm-arrival')
+  async confirmArrival(@Req() req: any, @Param('id') id: string) {
+    const result = await this.bookingsService.confirmBookingArrival(
+      id,
+      getRequestUserId(req),
+    );
+
+    if (!result.success) {
+      throw new HttpException(
+        { success: false, message: result.message },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    return result;
+  }
+
+  /**
+   * POST /bookings/:id/pay
+   * Consumer confirms payment for a booking awaiting payment
+   */
+  @Post(':id/pay')
+  @RateLimit({ limit: 5, windowMs: 10 * 60_000 })
+  async payBooking(@Req() req: any, @Param('id') id: string) {
+    const result = await this.bookingsService.payBooking(
+      id,
+      getRequestUserId(req),
+    );
+
+    if (!result.success) {
+      throw new HttpException(
+        { success: false, message: result.message },
         HttpStatus.BAD_REQUEST,
       );
     }
@@ -157,12 +190,12 @@ export class BookingsController {
   async getBookingReceipt(@Req() req: any, @Param('id') id: string) {
     const result = await this.bookingsService.getBookingReceipt(
       id,
-      req.user._id || req.user.id,
+      getRequestUserId(req),
     );
 
     if (!result.success) {
       throw new HttpException(
-        { message: result.message },
+        { success: false, message: result.message },
         HttpStatus.BAD_REQUEST,
       );
     }
@@ -174,18 +207,15 @@ export class BookingsController {
    * Consumer cancels their own booking
    */
   @Patch(':id/cancel')
-  async cancelBooking(
-    @Req() req: any,
-    @Param('id') id: string,
-  ) {
+  async cancelBooking(@Req() req: any, @Param('id') id: string) {
     const result = await this.bookingsService.cancelBooking(
       id,
-      req.user._id || req.user.id,
+      getRequestUserId(req),
     );
 
     if (!result.success) {
       throw new HttpException(
-        { message: result.message },
+        { success: false, message: result.message },
         HttpStatus.BAD_REQUEST,
       );
     }
@@ -197,6 +227,7 @@ export class BookingsController {
    * Admin/system endpoint to auto-complete all expired bookings
    */
   @Post('auto-complete')
+  @UseGuards(AdminGuard)
   async autoCompleteExpired() {
     const result = await this.bookingsService.autoCompleteExpiredBookings();
     if (!result.success) {

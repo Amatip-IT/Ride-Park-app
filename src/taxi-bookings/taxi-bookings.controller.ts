@@ -14,6 +14,9 @@ import {
 import { TaxiBookingsService } from './taxi-bookings.service';
 import { RidesService } from 'src/rides/rides.service';
 import { AuthGuard } from 'src/guards/auth.guard';
+import { AdminGuard } from 'src/guards/admin.guard';
+import { RateLimit } from 'src/common/rate-limit.decorator';
+import { getRequestUserId } from 'src/common/request.util';
 
 @Controller('taxi-bookings')
 @UseGuards(AuthGuard)
@@ -25,9 +28,12 @@ export class TaxiBookingsController {
 
   /**
    * POST /taxi-bookings/request
-   * Passenger creates a ride request (broadcast to all drivers)
+   * Passenger creates a ride request.
+   * With targetDriverId: direct request to one driver only.
+   * Without: broadcast to all online available taxi drivers.
    */
   @Post('request')
+  @RateLimit({ limit: 20, windowMs: 10 * 60_000 })
   async createRequest(
     @Req() req: any,
     @Body()
@@ -50,7 +56,7 @@ export class TaxiBookingsController {
       estimatedCost?: number;
     },
   ) {
-    const passengerId = req.user._id || req.user.id;
+    const passengerId = getRequestUserId(req);
 
     if (!body.destinationAddress) {
       throw new HttpException(
@@ -63,7 +69,8 @@ export class TaxiBookingsController {
       throw new HttpException(
         {
           success: false,
-          message: 'Please provide a pickup location (address, postcode, or GPS)',
+          message:
+            'Please provide a pickup location (address, postcode, or GPS)',
         },
         HttpStatus.BAD_REQUEST,
       );
@@ -82,14 +89,14 @@ export class TaxiBookingsController {
 
   /**
    * GET /taxi-bookings/available
-   * Drivers see all active ride requests (broadcast list)
+   * Drivers see broadcast requests plus any requests targeted at them.
    */
   @Get('available')
   async getAvailableRequests(
     @Req() req: any,
     @Query('postcode') postcode?: string,
   ) {
-    const driverId = req.user._id || req.user.id;
+    const driverId = getRequestUserId(req);
     return this.taxiBookingsService.getAvailableRequests(driverId, postcode);
   }
 
@@ -99,7 +106,7 @@ export class TaxiBookingsController {
    */
   @Get('driver/active')
   async getDriverActiveRequests(@Req() req: any) {
-    const driverId = req.user._id || req.user.id;
+    const driverId = getRequestUserId(req);
     return this.taxiBookingsService.getDriverActiveRequests(driverId);
   }
 
@@ -120,11 +127,14 @@ export class TaxiBookingsController {
       etaMinutes: number;
     },
   ) {
-    const driverId = req.user._id || req.user.id;
+    const driverId = getRequestUserId(req);
 
     if (!body.etaMinutes) {
       throw new HttpException(
-        { success: false, message: 'Please provide your estimated arrival time' },
+        {
+          success: false,
+          message: 'Please provide your estimated arrival time',
+        },
         HttpStatus.BAD_REQUEST,
       );
     }
@@ -165,12 +175,16 @@ export class TaxiBookingsController {
       throw new HttpException(booking, HttpStatus.NOT_FOUND);
     }
 
-    const acceptedDriverId = (booking.data as any)?.acceptedDriver?._id?.toString()
-      || (booking.data as any)?.acceptedDriver?.toString();
+    const acceptedDriverId =
+      booking.data?.acceptedDriver?._id?.toString() ||
+      booking.data?.acceptedDriver?.toString();
 
     if (callerId !== acceptedDriverId && req.user.role !== 'admin') {
       throw new HttpException(
-        { success: false, message: 'Only the accepted driver can update ride status' },
+        {
+          success: false,
+          message: 'Only the accepted driver can update ride status',
+        },
         HttpStatus.FORBIDDEN,
       );
     }
@@ -192,12 +206,12 @@ export class TaxiBookingsController {
    * Passenger cancels their ride request
    */
   @Patch(':id/cancel')
-  async cancelRequest(
-    @Req() req: any,
-    @Param('id') id: string,
-  ) {
-    const passengerId = req.user._id || req.user.id;
-    const result = await this.taxiBookingsService.cancelRideRequest(id, passengerId);
+  async cancelRequest(@Req() req: any, @Param('id') id: string) {
+    const passengerId = getRequestUserId(req);
+    const result = await this.taxiBookingsService.cancelRideRequest(
+      id,
+      passengerId,
+    );
 
     if (!result.success) {
       throw new HttpException(result, HttpStatus.BAD_REQUEST);
@@ -211,8 +225,7 @@ export class TaxiBookingsController {
    */
   @Get('my-requests')
   async getMyRequests(@Req() req: any) {
-    const passengerId = req.user._id || req.user.id;
-    return this.taxiBookingsService.getMyRideRequests(passengerId);
+    return this.taxiBookingsService.getMyRideRequests(getRequestUserId(req));
   }
 
   /**
@@ -220,6 +233,7 @@ export class TaxiBookingsController {
    * Admin: get all active ride requests for the dashboard
    */
   @Get('admin/active')
+  @UseGuards(AdminGuard)
   async getAdminActiveRequests() {
     return this.taxiBookingsService.getAllActiveRequests();
   }
@@ -250,11 +264,18 @@ export class TaxiBookingsController {
     }
 
     const callerId = (req.user._id || req.user.id)?.toString();
-    const booking = result.data as any;
-    const passengerId = booking.passenger?._id?.toString() || booking.passenger?.toString();
-    const acceptedDriverId = booking.acceptedDriver?._id?.toString() || booking.acceptedDriver?.toString();
+    const booking = result.data;
+    const passengerId =
+      booking.passenger?._id?.toString() || booking.passenger?.toString();
+    const acceptedDriverId =
+      booking.acceptedDriver?._id?.toString() ||
+      booking.acceptedDriver?.toString();
 
-    if (callerId !== passengerId && callerId !== acceptedDriverId && req.user.role !== 'admin') {
+    if (
+      callerId !== passengerId &&
+      callerId !== acceptedDriverId &&
+      req.user.role !== 'admin'
+    ) {
       throw new HttpException(
         { success: false, message: 'You do not have access to this booking' },
         HttpStatus.FORBIDDEN,

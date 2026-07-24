@@ -49,13 +49,16 @@ export class Chauffeur {
   // Per-document status tracking with detailed info
   // Structure: { fieldName: { status, rejectionReason, uploadedAt, reviewedAt, reviewedBy } }
   @Prop({ type: Object, default: {} })
-  documentStatuses?: Record<string, {
-    status?: 'not_submitted' | 'uploaded' | 'verified' | 'rejected';
-    rejectionReason?: string;
-    uploadedAt?: Date;
-    reviewedAt?: Date;
-    reviewedBy?: string; // Admin user ID
-  }>;
+  documentStatuses?: Record<
+    string,
+    {
+      status?: 'not_submitted' | 'uploaded' | 'verified' | 'rejected';
+      rejectionReason?: string;
+      uploadedAt?: Date;
+      reviewedAt?: Date;
+      reviewedBy?: string; // Admin user ID
+    }
+  >;
 
   // Legacy generic documents (kept for backward compatibility)
   @Prop({ type: Object })
@@ -81,11 +84,14 @@ export class Chauffeur {
 
   // Document expiry tracking
   @Prop({ type: Object, default: {} })
-  documentExpiries?: Record<string, {
-    expiryDate: Date;
-    renewalNotificationSent?: Date;
-    renewalReminderLevel?: '30_day' | '7_day' | 'expired';
-  }>;
+  documentExpiries?: Record<
+    string,
+    {
+      expiryDate: Date;
+      renewalNotificationSent?: Date;
+      renewalReminderLevel?: '30_day' | '7_day' | 'expired';
+    }
+  >;
 
   @Prop({ default: true })
   canAcceptRides: boolean;
@@ -101,5 +107,4 @@ export const ChauffeurSchema: MongooseSchema<Chauffeur> =
 ChauffeurSchema.index({ user: 1 });
 ChauffeurSchema.index({ isActive: 1 });
 ChauffeurSchema.index({ availability: 1 });
-ChauffeurSchema.index({ driverNumber: 1 });
 ChauffeurSchema.index({ status: 1 });

@@ -8,8 +8,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/store/authStore';
 import { useNavigation, NavigationProp, useFocusEffect } from '@react-navigation/native';
 import { bookingsApi, providerApi, taxiBookingsApi } from '@/api';
-import { getApiErrorMessage } from '@/utils/helpers';
+import { getApiErrorMessage, getCurrentCoords } from '@/utils/helpers';
 import { useProviderRideAlerts } from '@/hooks/useProviderRideAlerts';
+import { useDriverLocationSync } from '@/hooks/useDriverLocationSync';
 
 export function ProviderHomeScreen() {
   const { user } = useAuthStore();
@@ -33,6 +34,7 @@ export function ProviderHomeScreen() {
   const { availableCount: liveRideCount } = useProviderRideAlerts(
     isDriverOrTaxi && isOnline && verificationStatus === 'approved',
   );
+  useDriverLocationSync(isDriverOrTaxi && isOnline && verificationStatus === 'approved');
 
   const fetchStats = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -124,7 +126,19 @@ export function ProviderHomeScreen() {
     setTogglingStatus(true);
 
     try {
-      const res = await providerApi.toggleStatus(newStatus);
+      let coords: { lat: number; lng: number } | null = null;
+      if (newStatus === 'online') {
+        coords = await getCurrentCoords();
+        if (!coords) {
+          Alert.alert(
+            'Location Required',
+            'Turn on location access so passengers can find you nearby and accept rides.',
+          );
+          return;
+        }
+      }
+
+      const res = await providerApi.toggleStatus(newStatus, coords ?? undefined);
       if (res.data?.success) {
         const avail = res.data.data?.availability;
         setDriverStatus(
@@ -475,6 +489,23 @@ export function ProviderHomeScreen() {
               ) : (
                 <Ionicons name="chevron-forward" size={20} color={COLORS.textTertiary} />
               )}
+            </TouchableOpacity>
+          )}
+
+          {(user?.role === 'driver' || user?.role === 'taxi_driver') && (
+            <TouchableOpacity
+              style={styles.actionCard}
+              onPress={() => navigation.navigate('ProviderPastRides')}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.actionIcon, { backgroundColor: `${COLORS.info}12` }]}>
+                <Ionicons name="time" size={24} color={COLORS.info} />
+              </View>
+              <View style={styles.actionContent}>
+                <Text style={styles.actionTitle}>Past Rides</Text>
+                <Text style={styles.actionSubtext}>Trip history, miles, and ride analytics</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={COLORS.textTertiary} />
             </TouchableOpacity>
           )}
 

@@ -1,45 +1,7 @@
 import { apiClient } from './client';
-import { ApiResponse, AuthResponse, LoginRequest, RegisterRequest, OtpVerificationRequest, IdentitySessionResponse } from '@/types';
+import { ApiResponse, BookingRequest, RideRecord, TaxiRideRequest } from '@/types';
 
 const api = apiClient.getInstance();
-
-export const authApi = {
-  // Register new user
-  register: (data: RegisterRequest) =>
-    api.post<ApiResponse<AuthResponse>>('/users/register', data),
-
-  // Login with email and password
-  login: (data: LoginRequest) =>
-    api.post<ApiResponse<AuthResponse>>('/users/login', data),
-
-  // Send email OTP for verification
-  sendEmailOtp: (email: string) =>
-    api.post<ApiResponse>('/verification/send-email-otp-verification', { email }),
-
-  // Verify email OTP
-  verifyEmailOtp: (data: OtpVerificationRequest) =>
-    api.post<ApiResponse>('/verification/verify-email-otp', data),
-
-  // Send phone OTP (Twilio SMS)
-  sendPhoneOtp: (phoneNumber: string) =>
-    api.post<ApiResponse>('/verification/send-phone-otp', { phoneNumber }),
-
-  // Verify phone OTP
-  verifyPhoneOtp: (data: OtpVerificationRequest) =>
-    api.post<ApiResponse>('/verification/verify-phone-otp', data),
-
-  // Create Stripe Identity session
-  createIdentitySession: (returnUrl: string) =>
-    api.post<ApiResponse<IdentitySessionResponse>>('/verification/identity/create-session', { returnUrl }),
-
-  // Get current user profile
-  getProfile: () =>
-    api.get<ApiResponse>('/users/profile'),
-
-  // Logout (optional backend call)
-  logout: () =>
-    api.post<ApiResponse>('/users/logout'),
-};
 
 export const usersApi = {
   updatePushToken: (pushToken: string) =>
@@ -104,19 +66,26 @@ export const bookingsApi = {
 
   // Get current user's bookings (consumer view)
   getMyBookings: (status?: string) =>
-    api.get<ApiResponse>(`/bookings/my${status ? `?status=${status}` : ''}`),
+    api.get<ApiResponse<BookingRequest[]>>(`/bookings/my${status ? `?status=${status}` : ''}`),
 
   // Get incoming requests (provider view)
   getProviderRequests: (status?: string) =>
-    api.get<ApiResponse>(`/bookings/provider${status ? `?status=${status}` : ''}`),
+    api.get<ApiResponse<BookingRequest[]>>(`/bookings/provider${status ? `?status=${status}` : ''}`),
 
   // Provider responds to a request (accept or reject)
   respondToRequest: (id: string, action: 'accept' | 'reject', responseMessage?: string) =>
-    api.patch<ApiResponse>(`/bookings/${id}/respond`, { action, responseMessage }),
+    api.patch<ApiResponse<BookingRequest>>(`/bookings/${id}/respond`, { action, responseMessage }),
 
   // Provider marks a booking as completed (frees the parking spot)
   completeBooking: (id: string) =>
-    api.patch<ApiResponse>(`/bookings/${id}/complete`),
+    api.patch<ApiResponse<BookingRequest>>(`/bookings/${id}/complete`),
+
+  // Consumer confirms payment for a parking booking
+  payBooking: (id: string) =>
+    api.post<ApiResponse<BookingRequest>>(`/bookings/${id}/pay`),
+
+  confirmBookingArrival: (id: string) =>
+    api.post<ApiResponse<BookingRequest>>(`/bookings/${id}/confirm-arrival`),
 
   // Consumer cancels a booking
   cancelBooking: (id: string) =>
@@ -125,26 +94,6 @@ export const bookingsApi = {
   // Receipt for completed parking or chauffeur booking
   getReceipt: (bookingId: string) =>
     api.get<ApiResponse>(`/bookings/${bookingId}/receipt`),
-};
-
-export const driverApi = {
-  // Get driver details
-  getDriver: (driverId: string) =>
-    api.get<ApiResponse>(`/drivers/${driverId}`),
-};
-
-export const taxiApi = {
-  // Request a taxi
-  requestTaxi: (pickupLocation: string, dropoffLocation: string) =>
-    api.post<ApiResponse>('/taxis/request', { pickupLocation, dropoffLocation }),
-
-  // Get active taxi ride
-  getActiveRide: () =>
-    api.get<ApiResponse>('/taxis/active-ride'),
-
-  // Complete ride
-  completeRide: (rideId: string, rating: number) =>
-    api.post<ApiResponse>(`/taxis/rides/${rideId}/complete`, { rating }),
 };
 
 export const providerApi = {
@@ -180,9 +129,19 @@ export const providerApi = {
   submitTaxiVerification: (data: { docField: string; docUrl: string }) =>
     api.post<ApiResponse>('/provider/submit-taxi-verification', data),
 
-  // Toggle online/offline status
-  toggleStatus: (status: 'online' | 'offline') =>
-    api.post<ApiResponse>('/provider/toggle-status', { status }),
+  // Toggle online/offline status (optionally include live GPS when going online)
+  toggleStatus: (
+    status: 'online' | 'offline',
+    location?: { lat: number; lng: number },
+  ) =>
+    api.post<ApiResponse>('/provider/toggle-status', {
+      status,
+      ...(location ? { lat: location.lat, lng: location.lng } : {}),
+    }),
+
+  // Refresh live GPS while online
+  updateLocation: (lat: number, lng: number) =>
+    api.post<ApiResponse>('/provider/location', { lat, lng }),
 
   // Get my driver number
   getMyDriverNumber: () =>
@@ -512,13 +471,25 @@ export const ridesApi = {
     api.post<ApiResponse>('/rides/start', data),
 
   completeRide: (rideId: string, distanceMiles: number, durationMinutes: number) =>
-    api.post<ApiResponse>(`/rides/${rideId}/complete`, { distanceMiles, durationMinutes }),
+    api.post<ApiResponse<RideRecord>>(`/rides/${rideId}/complete`, { distanceMiles, durationMinutes }),
+
+  confirmArrival: (rideId: string) =>
+    api.post<ApiResponse<RideRecord>>(`/rides/${rideId}/confirm-arrival`),
+
+  payRide: (rideId: string) =>
+    api.post<ApiResponse<RideRecord>>(`/rides/${rideId}/pay`),
+
+  retryPayment: (rideId: string) =>
+    api.post<ApiResponse>(`/rides/${rideId}/pay`),
 
   getRide: (rideId: string) =>
-    api.get<ApiResponse>(`/rides/${rideId}`),
+    api.get<ApiResponse<RideRecord>>(`/rides/${rideId}`),
 
   getReceipt: (rideId: string) =>
     api.get<ApiResponse>(`/rides/${rideId}/receipt`),
+
+  getDriverHistory: (period?: 'day' | 'week' | 'month') =>
+    api.get<ApiResponse>(`/rides/driver/history${period ? `?period=${period}` : ''}`),
 };
 
 // ── Taxi Bookings API (ride requests) ──
@@ -555,11 +526,11 @@ export const taxiBookingsApi = {
 
   // Passenger: my ride history
   getMyRequests: () =>
-    api.get<ApiResponse>('/taxi-bookings/my-requests'),
+    api.get<ApiResponse<TaxiRideRequest[]>>('/taxi-bookings/my-requests'),
 
   // Get ride request details
   getRequest: (requestId: string) =>
-    api.get<ApiResponse>(`/taxi-bookings/${requestId}`),
+    api.get<ApiResponse<TaxiRideRequest>>(`/taxi-bookings/${requestId}`),
 
   getReceipt: (requestId: string) =>
     api.get<ApiResponse>(`/taxi-bookings/${requestId}/receipt`),
@@ -586,8 +557,16 @@ export const walletApi = {
   topUp: (amount: number) =>
     api.post<ApiResponse>('/wallet/top-up', { amount }),
 
-  updateBankDetails: (data: { accountName: string; accountNumber: string; sortCode: string }) =>
+  updateBankDetails: (data: {
+    accountName: string;
+    accountNumber: string;
+    sortCode: string;
+    acceptedStripeTerms?: boolean;
+  }) =>
     api.post<ApiResponse>('/wallet/bank-details', data),
+
+  getConnectStatus: () =>
+    api.get<ApiResponse>('/wallet/connect-status'),
     
   requestWithdrawal: (amount: number) =>
     api.post<ApiResponse>('/wallet/withdraw', { amount }),

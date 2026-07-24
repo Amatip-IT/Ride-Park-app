@@ -7,12 +7,15 @@ import {
   SafeAreaView,
   ActivityIndicator,
   ScrollView,
+  Alert,
 } from 'react-native';
 import { COLORS, SPACING, BORDER_RADIUS, FONT_WEIGHTS } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { ridesApi, taxiBookingsApi, bookingsApi } from '@/api';
 import { formatCurrency, formatDate, getApiErrorMessage } from '@/utils/helpers';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 
 type ParamList = {
   TripReceipt: { requestId?: string; rideId?: string; bookingId?: string };
@@ -64,6 +67,93 @@ function ReceiptRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function buildReceiptHtml(receipt: ReceiptData, isBookingReceipt: boolean): string {
+  const total = formatCurrency(receipt.totalCost ?? receipt.quotedPrice ?? receipt.estimatedCost ?? 0);
+  const receiptRef = (receipt.bookingId || receipt.rideId || receipt.requestId || '').slice(-8).toUpperCase();
+  const title = isBookingReceipt ? 'Booking Receipt' : 'Trip Receipt';
+
+  const vehicleLine = receipt.vehicle
+    ? [receipt.vehicle.color, receipt.vehicle.make, receipt.vehicle.model, receipt.vehicle.plateNumber ? `(${receipt.vehicle.plateNumber})` : '']
+        .filter(Boolean)
+        .join(' ')
+    : null;
+
+  const rows: string[] = [];
+
+  const addRow = (label: string, value?: string | number | null) => {
+    if (value == null || value === '') return;
+    rows.push(`<tr><td>${escapeHtml(label)}</td><td>${escapeHtml(String(value))}</td></tr>`);
+  };
+
+  if (receipt.completedAt) addRow('Completed', formatDate(receipt.completedAt));
+  if (receipt.startedAt) addRow('Started', formatDate(receipt.startedAt));
+  if (receipt.startDate) addRow('Start', formatDate(receipt.startDate));
+  if (receipt.endDate) addRow('End', formatDate(receipt.endDate));
+  if (receipt.serviceName) addRow('Service', receipt.serviceName);
+
+  if (!isBookingReceipt) {
+    addRow('Pickup', receipt.pickup?.address || 'Pickup location');
+    addRow('Drop-off', receipt.dropoff?.address || 'Destination');
+  }
+
+  if (vehicleLine) addRow('Vehicle', vehicleLine);
+
+  if (!isBookingReceipt && receipt.distanceMiles != null) {
+    addRow('Distance', `${receipt.distanceMiles.toFixed(2)} mi`);
+  }
+  if (!isBookingReceipt && receipt.durationMinutes != null) {
+    addRow('Duration', `${Math.round(receipt.durationMinutes)} min`);
+  }
+  if (!isBookingReceipt && receipt.distanceCost != null) {
+    addRow('Distance charge', formatCurrency(receipt.distanceCost));
+  }
+  if (!isBookingReceipt && receipt.timeCost != null) {
+    addRow('Time charge', formatCurrency(receipt.timeCost));
+  }
+  if (isBookingReceipt && receipt.quotedPrice != null) {
+    const unit = receipt.pricingUnit === 'per_hour' ? ' / hour' : receipt.pricingUnit === 'per_day' ? ' / day' : '';
+    addRow('Rate', `${formatCurrency(receipt.quotedPrice)}${unit}`);
+  }
+  addRow('Total', total);
+
+  if (isBookingReceipt) {
+    addRow('Customer', receipt.requester?.name || '—');
+    addRow('Provider', receipt.provider?.name || '—');
+  } else {
+    addRow('Passenger', (receipt as any).passenger?.name || '—');
+    addRow('Driver', (receipt as any).driver?.name || '—');
+  }
+
+  if (receipt.paymentNote) addRow('Payment', receipt.paymentNote);
+
+  return `<html><head><style>
+    body{font-family:Arial,sans-serif;padding:24px;color:#1a1a1a}
+    h1{color:#00B4A0;margin-bottom:4px}
+    .subtitle{color:#666;margin-bottom:20px}
+    .total{font-size:28px;font-weight:bold;color:#00B4A0;margin:16px 0}
+    table{width:100%;border-collapse:collapse;margin-top:12px}
+    th,td{border:1px solid #ddd;padding:10px;text-align:left;font-size:14px}
+    th{background:#00B4A0;color:#fff}
+    .footer{margin-top:32px;color:#999;font-size:12px}
+  </style></head><body>
+    <h1>Gleezip</h1>
+    <p class="subtitle">${escapeHtml(title)}</p>
+    <p><strong>Receipt #${escapeHtml(receiptRef)}</strong></p>
+    <p class="total">${escapeHtml(total)}</p>
+    <table><thead><tr><th>Detail</th><th>Value</th></tr></thead>
+    <tbody>${rows.join('')}</tbody></table>
+    <p class="footer">Generated on ${escapeHtml(new Date().toLocaleString('en-GB'))}</p>
+  </body></html>`;
+}
+
 export function TripReceiptScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<RouteProp<ParamList, 'TripReceipt'>>();
@@ -72,6 +162,7 @@ export function TripReceiptScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [receipt, setReceipt] = useState<ReceiptData | null>(null);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -115,6 +206,20 @@ export function TripReceiptScreen() {
 
   const isBookingReceipt = !!receipt?.bookingId || receipt?.serviceType === 'parking' || receipt?.serviceType === 'driver';
 
+  const handleDownloadPdf = async () => {
+    if (!receipt) return;
+    setDownloading(true);
+    try {
+      const html = buildReceiptHtml(receipt, isBookingReceipt);
+      const { uri } = await Print.printToFileAsync({ html });
+      await Sharing.shareAsync(uri, { UTI: '.pdf', mimeType: 'application/pdf' });
+    } catch {
+      Alert.alert('Error', 'Failed to generate receipt PDF');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   const vehicleLine = receipt?.vehicle
     ? [
         receipt.vehicle.color,
@@ -133,7 +238,21 @@ export function TripReceiptScreen() {
           <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{isBookingReceipt ? 'Booking receipt' : 'Trip receipt'}</Text>
-        <View style={{ width: 40 }} />
+        {receipt ? (
+          <TouchableOpacity
+            onPress={handleDownloadPdf}
+            style={styles.downloadBtn}
+            disabled={downloading}
+          >
+            {downloading ? (
+              <ActivityIndicator size="small" color={COLORS.electricTeal} />
+            ) : (
+              <Ionicons name="download-outline" size={24} color={COLORS.textPrimary} />
+            )}
+          </TouchableOpacity>
+        ) : (
+          <View style={{ width: 40 }} />
+        )}
       </View>
 
       {loading ? (
@@ -230,8 +349,24 @@ export function TripReceiptScreen() {
           </View>
 
           <Text style={styles.receiptId}>
-            Receipt #{(receipt.bookingId || receipt.rideId || '').slice(-8).toUpperCase()}
+            Receipt #{(receipt.bookingId || receipt.rideId || receipt.requestId || '').slice(-8).toUpperCase()}
           </Text>
+
+          <TouchableOpacity
+            style={styles.downloadFooterBtn}
+            onPress={handleDownloadPdf}
+            disabled={downloading}
+            activeOpacity={0.8}
+          >
+            {downloading ? (
+              <ActivityIndicator size="small" color="#FFF" />
+            ) : (
+              <>
+                <Ionicons name="download-outline" size={20} color="#FFF" />
+                <Text style={styles.downloadFooterText}>Download PDF</Text>
+              </>
+            )}
+          </TouchableOpacity>
         </ScrollView>
       ) : null}
     </SafeAreaView>
@@ -248,6 +383,7 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.md,
   },
   backBtn: { padding: SPACING.sm },
+  downloadBtn: { padding: SPACING.sm, width: 40, alignItems: 'center' },
   headerTitle: {
     fontSize: 18,
     fontWeight: FONT_WEIGHTS.bold,
@@ -321,5 +457,20 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: 'center',
     marginTop: SPACING.lg,
+  },
+  downloadFooterBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.sm,
+    backgroundColor: COLORS.electricTeal,
+    borderRadius: BORDER_RADIUS.lg,
+    paddingVertical: SPACING.md,
+    marginTop: SPACING.lg,
+  },
+  downloadFooterText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: FONT_WEIGHTS.bold,
   },
 });

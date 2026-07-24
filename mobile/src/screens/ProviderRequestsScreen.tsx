@@ -137,9 +137,10 @@ export function ProviderRequestsScreen() {
   };
 
   const handleComplete = async (requestId: string) => {
+    if (respondingId) return;
     Alert.alert(
-      'Complete Booking',
-      'Mark this booking as completed? The parking spot will be freed up for new bookings.',
+      'Request Customer Payment',
+      'Mark the service as finished and ask the customer to confirm their location and pay?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -149,7 +150,10 @@ export function ProviderRequestsScreen() {
             try {
               const res = await bookingsApi.completeBooking(requestId);
               if (res.data?.success) {
-                Alert.alert('Completed! ✅', 'The booking has been completed and the parking spot is now available again.');
+                Alert.alert(
+                  'Payment Requested',
+                  res.data.message || 'The customer has been asked to confirm their location and pay.',
+                );
                 fetchRequests();
               } else {
                 Alert.alert('Error', res.data?.message || 'Failed to complete booking');
@@ -166,8 +170,9 @@ export function ProviderRequestsScreen() {
   };
 
   const pendingRequests = requests.filter(r => r.status === 'pending');
-  const acceptedRequests = requests.filter(r => r.status === 'accepted');
-  const respondedRequests = requests.filter(r => ['accepted', 'rejected', 'completed'].includes(r.status));
+  const respondedRequests = requests.filter(r =>
+    ['accepted', 'rejected', 'awaiting_payment', 'completed'].includes(r.status),
+  );
   const displayRequests = activeTab === 'pending' ? pendingRequests : respondedRequests;
 
   const renderRequestCard = (request: any) => {
@@ -199,16 +204,21 @@ export function ProviderRequestsScreen() {
             <View style={[
               styles.statusBadge,
               { backgroundColor: request.status === 'accepted' ? `${COLORS.success}20`
+                : request.status === 'awaiting_payment' ? `${COLORS.amber}20`
                 : request.status === 'completed' ? `${COLORS.info}20`
                 : `${COLORS.coralRed}20` },
             ]}>
               <Text style={[
                 styles.statusText,
                 { color: request.status === 'accepted' ? COLORS.success
+                  : request.status === 'awaiting_payment' ? COLORS.amber
                   : request.status === 'completed' ? COLORS.info
                   : COLORS.coralRed },
               ]}>
-                {request.status === 'accepted' ? 'Active' : request.status === 'completed' ? 'Completed' : 'Rejected'}
+                {request.status === 'accepted' ? 'Active'
+                  : request.status === 'awaiting_payment' ? 'Awaiting Payment'
+                  : request.status === 'completed' ? 'Paid'
+                  : 'Rejected'}
               </Text>
             </View>
           )}
@@ -327,8 +337,8 @@ export function ProviderRequestsScreen() {
           </View>
         )}
 
-        {/* Complete button for accepted parking bookings */}
-        {request.status === 'accepted' && request.serviceType === 'parking' && (
+        {/* Parking and chauffeur services both use explicit customer confirmation/payment. */}
+        {request.status === 'accepted' && ['parking', 'driver'].includes(request.serviceType) && (
           <View style={styles.actionsContainer}>
             <TouchableOpacity
               style={[styles.completeBtn, isResponding && styles.btnDisabled]}
@@ -340,7 +350,7 @@ export function ProviderRequestsScreen() {
               ) : (
                 <>
                   <Ionicons name="checkmark-done" size={18} color="#FFF" />
-                  <Text style={styles.completeBtnText}>Complete Booking</Text>
+                  <Text style={styles.completeBtnText}>Finish & Request Payment</Text>
                 </>
               )}
             </TouchableOpacity>

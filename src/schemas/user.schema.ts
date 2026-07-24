@@ -14,7 +14,13 @@ export class User {
   @Prop({ required: true })
   lastName: string;
 
-  @Prop({ required: true, unique: true })
+  @Prop({
+    required: true,
+    unique: true,
+    lowercase: true,
+    trim: true,
+    match: /^[a-z0-9_]{3,30}$/,
+  })
   username: string;
 
   @Prop({
@@ -59,7 +65,10 @@ export class User {
   termsAcceptedAt?: Date;
 
   // Identity Verification fields for providers/drivers
-  @Prop({ type: String, enum: ['driver_license', 'national_identity_card', 'passport'] })
+  @Prop({
+    type: String,
+    enum: ['driver_license', 'national_identity_card', 'passport'],
+  })
   idType?: string;
 
   @Prop({ type: String })
@@ -68,7 +77,11 @@ export class User {
   @Prop({ type: String })
   proofOfAddressUrl?: string;
 
-  @Prop({ type: String, enum: ['none', 'pending', 'verified', 'rejected'], default: 'none' })
+  @Prop({
+    type: String,
+    enum: ['none', 'pending', 'verified', 'rejected'],
+    default: 'none',
+  })
   identityStatus?: string;
 
   @Prop({ required: true, select: false })
@@ -96,6 +109,16 @@ export class User {
 
   @Prop({ type: String, select: false, default: null })
   refreshToken?: string;
+
+  /** Bumped on password reset / refresh-token reuse to invalidate outstanding access JWTs */
+  @Prop({ type: Number, default: 0 })
+  tokenVersion: number;
+
+  @Prop({ type: Number, default: 0 })
+  failedLoginAttempts: number;
+
+  @Prop({ type: Date, default: null })
+  lockUntil?: Date | null;
 
   @Prop({ type: String, default: null })
   pushToken?: string;
@@ -125,6 +148,14 @@ export class User {
 
 export const UserSchema: MongooseSchema<User> =
   SchemaFactory.createForClass(User);
+
+// Normalize username before validation (fixes legacy accounts registered with uppercase)
+UserSchema.pre('save', function (next) {
+  if (typeof this.username === 'string') {
+    this.username = this.username.toLowerCase().trim();
+  }
+  next();
+});
 
 // Pre-save hook to hash password
 UserSchema.pre('save', async function (next) {

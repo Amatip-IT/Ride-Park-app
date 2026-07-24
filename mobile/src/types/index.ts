@@ -4,6 +4,7 @@ export interface ApiResponse<T = any> {
   message: string;
   data?: T;
   expiresIn?: string;
+  url?: string;
 }
 
 // User Types
@@ -99,14 +100,81 @@ export interface ParkingSpace {
   updatedAt: string;
 }
 
+export type PaymentStatus = 'pending' | 'processing' | 'charged' | 'payment_failed';
+export type BookingStatus =
+  | 'pending'
+  | 'accepted'
+  | 'rejected'
+  | 'cancelled'
+  | 'awaiting_payment'
+  | 'completed';
+export type TaxiRequestStatus =
+  | 'searching'
+  | 'accepted'
+  | 'arrived'
+  | 'in_progress'
+  | 'awaiting_payment'
+  | 'completed'
+  | 'cancelled'
+  | 'expired';
+
+export interface UserSummary {
+  _id: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phoneNumber?: string;
+}
+
+export interface RideRecord {
+  _id: string;
+  status: 'pending' | 'in_progress' | 'awaiting_payment' | 'completed' | 'cancelled';
+  paymentStatus: PaymentStatus;
+  paymentIntentId?: string;
+  passengerConfirmedAt?: string;
+  totalCost?: number;
+  passenger?: string | UserSummary;
+  driver?: string | UserSummary;
+}
+
 export interface BookingRequest {
   _id: string;
-  userId: string;
+  requester?: string | UserSummary;
+  provider?: string | UserSummary;
   serviceType: 'parking' | 'driver' | 'taxi';
-  serviceId: string;
-  startDate: string;
-  endDate: string;
-  status: 'pending' | 'accepted' | 'declined' | 'completed' | 'cancelled';
+  serviceId?: string;
+  serviceName?: string;
+  startDate?: string;
+  endDate?: string;
+  quotedPrice?: number;
+  pricingUnit?: string;
+  responseMessage?: string;
+  passengerConfirmedAt?: string;
+  paymentStatus: PaymentStatus;
+  paymentIntentId?: string;
+  status: BookingStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TaxiRideRequest {
+  _id: string;
+  status: TaxiRequestStatus;
+  passenger?: string | UserSummary;
+  acceptedDriver?: string | UserSummary;
+  ride?: string | RideRecord;
+  passengerConfirmedAt?: string;
+  estimatedCost?: number;
+  pickupAddress?: string;
+  pickupPostcode?: string;
+  destinationAddress?: string;
+  destinationPostcode?: string;
+  driverVehicle?: {
+    make?: string;
+    model?: string;
+    color?: string;
+    plateNumber?: string;
+  };
   createdAt: string;
   updatedAt: string;
 }

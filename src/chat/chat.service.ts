@@ -28,9 +28,10 @@ export class ChatService {
       content: data.content,
       isRead: false,
     });
-    
+
     await msg.save();
-    return this.messageModel.findById(msg._id)
+    return this.messageModel
+      .findById(msg._id)
       .populate('sender', 'firstName lastName')
       .populate('recipient', 'firstName lastName')
       .exec();
@@ -42,7 +43,7 @@ export class ChatService {
   async getRecentChats(userId: string): Promise<Response> {
     try {
       const uId = new Types.ObjectId(userId);
-      
+
       // Get all messages where user is sender or recipient
       const messages = await this.messageModel.aggregate([
         {
@@ -56,17 +57,18 @@ export class ChatService {
         {
           $group: {
             _id: {
-              $cond: [
-                { $eq: ['$sender', uId] },
-                '$recipient',
-                '$sender',
-              ],
+              $cond: [{ $eq: ['$sender', uId] }, '$recipient', '$sender'],
             },
             latestMessage: { $first: '$$ROOT' },
             unreadCount: {
               $sum: {
                 $cond: [
-                  { $and: [{ $eq: ['$recipient', uId] }, { $eq: ['$isRead', false] }] },
+                  {
+                    $and: [
+                      { $eq: ['$recipient', uId] },
+                      { $eq: ['$isRead', false] },
+                    ],
+                  },
                   1,
                   0,
                 ],
@@ -75,18 +77,23 @@ export class ChatService {
           },
         },
       ]);
-      
+
       // Populate the other user's info
       const populatedChats = await this.userModel.populate(messages, {
         path: '_id',
         select: 'firstName lastName email role',
       });
-      
-      const formattedChats = populatedChats.map((chat: any) => ({
-        user: chat._id,
-        latestMessage: chat.latestMessage,
-        unreadCount: chat.unreadCount,
-      })).sort((a: any, b: any) => b.latestMessage.createdAt - a.latestMessage.createdAt);
+
+      const formattedChats = populatedChats
+        .map((chat: any) => ({
+          user: chat._id,
+          latestMessage: chat.latestMessage,
+          unreadCount: chat.unreadCount,
+        }))
+        .sort(
+          (a: any, b: any) =>
+            b.latestMessage.createdAt - a.latestMessage.createdAt,
+        );
 
       return {
         success: true,
@@ -104,7 +111,11 @@ export class ChatService {
   /**
    * Get conversation history between current user and another user
    */
-  async getConversation(userId: string, otherUserId: string, bookingId?: string): Promise<Response> {
+  async getConversation(
+    userId: string,
+    otherUserId: string,
+    bookingId?: string,
+  ): Promise<Response> {
     try {
       const matchCriteria: any = {
         $or: [
@@ -112,7 +123,7 @@ export class ChatService {
           { sender: otherUserId, recipient: userId },
         ],
       };
-      
+
       if (bookingId) {
         matchCriteria.bookingId = bookingId;
       }
@@ -127,7 +138,7 @@ export class ChatService {
       // Mark unread messages as read
       await this.messageModel.updateMany(
         { recipient: userId, sender: otherUserId, isRead: false },
-        { $set: { isRead: true } }
+        { $set: { isRead: true } },
       );
 
       return {
@@ -150,9 +161,9 @@ export class ChatService {
     try {
       await this.messageModel.updateMany(
         { recipient: userId, sender: senderId, isRead: false },
-        { $set: { isRead: true } }
+        { $set: { isRead: true } },
       );
-      
+
       return {
         success: true,
         message: 'Messages marked as read',

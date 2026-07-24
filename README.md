@@ -69,22 +69,32 @@ MONGODB_URI=mongodb://localhost:27017/ride_and_park
 # Server Configuration
 PORT=5000
 
-# JWT Configuration
+# JWT Configuration (use two different secrets in production)
 JWT_SECRET=your_super_secret_jwt_key_change_this_in_production
+JWT_REFRESH_SECRET=your_different_refresh_secret_change_this_in_production
 
 # Email (Gmail SMTP) - required for email OTP and welcome emails
-GMAIL_USER=your-email@gmail.com
-GMAIL_APP_PASSWORD=your-16-char-app-password
+# SMTP (email OTP, notifications)
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USER=your-email@yourdomain.com
+SMTP_PASSWORD=your-smtp-password
+# or SMTP_PASS=your-smtp-password
+# Optional — defaults to SMTP_USER
+# SMTP_FROM=your-email@yourdomain.com
 
 # Twilio SMS (optional but required for phone OTP)
 TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 TWILIO_AUTH_TOKEN=your_auth_token_here
 TWILIO_PHONE_NUMBER=+1234567890
 
-# Stripe Identity (ID Verification)
-STRIPE_SECRET_KEY=sk_test_your_stripe_secret_key_here
-STRIPE_PUBLISHABLE_KEY=pk_test_stripe_publishable_key
-STRIPE_WEBHOOK_SECRET=whsec_your_webhook_secret_here
+# Stripe (payments, Connect payouts, and Identity)
+# Use rk_test_ locally. Production accepts rk_live_ only.
+STRIPE_RESTRICTED_KEY=rk_test_replace_me
+STRIPE_PUBLISHABLE_KEY=pk_test_replace_me
+STRIPE_PAYMENTS_WEBHOOK_SECRET=whsec_replace_me
+STRIPE_CONNECT_WEBHOOK_SECRET=whsec_replace_me
+STRIPE_IDENTITY_WEBHOOK_SECRET=whsec_replace_me
 
 # DVLA + MOT (UK Vehicle Verification)
 DVLA_API_KEY=dvla_api_key
@@ -109,10 +119,10 @@ AWS_S3_BUCKET=aws_s3_bucket_name
   2. Get your connection string from the Atlas dashboard
   3. Replace `<username>` and `<password>` with your database credentials
   4. Whitelist your IP address in Atlas Network Access settings
-- For **JWT_SECRET**: Use a strong, random string in production. Generate one with: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
-- **Email verification/login OTP** requires valid Gmail app credentials (`GMAIL_USER`, `GMAIL_APP_PASSWORD`).
+- For **JWT_SECRET** / **JWT_REFRESH_SECRET**: Use two different strong random strings in production. Generate with: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
+- **Email verification/login OTP** requires SMTP credentials (`SMTP_HOST`, `SMTP_USER`, `SMTP_PASSWORD`).
 - **Phone verification OTP** requires Twilio credentials (`TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE_NUMBER`). Without them, SMS features will be disabled.
-- **Identity verification** requires Stripe Identity credentials (`STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET`). Without them, ID verification features will be disabled.
+- **Stripe live mode** requires restricted server credentials. See [Stripe restricted live setup](STRIPE_LIVE_SETUP.md) for the exact permissions, scoped-key options, webhooks, and deployment checks.
 - **Taxi verification** requires DVLA/MOT credentials (`DVLA_API_KEY, MOT_API_KEY, MOT_CLIENT_ID, MOT_CLIENT_SECRET, MOT_SCOPE_URL, MOT_TENANT_ID`). Without them, driver onboarding features will be disabled.
 - **File upload** requires AWS credentials (`AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION, AWS_S3_BUCKET`). Without them, File upload features will be disabled.
 

@@ -12,6 +12,9 @@ interface AmazonMapProps {
   driverLat?: number;
   driverLng?: number;
   driverRotation?: number;
+  /** Single-location pin (e.g. parking space) */
+  locationLat?: number;
+  locationLng?: number;
   /** Driving route polyline (ordered lat/lng points) */
   routeCoordinates?: MapCoordinate[];
 }
@@ -24,12 +27,14 @@ export function AmazonMap({
   driverLat,
   driverLng,
   driverRotation = 0,
+  locationLat,
+  locationLng,
   routeCoordinates = [],
 }: AmazonMapProps) {
   const webViewRef = useRef<WebView>(null);
 
-  const centerLng = driverLng || pickupLng || -0.1276;
-  const centerLat = driverLat || pickupLat || 51.5072;
+  const centerLng = driverLng || locationLng || pickupLng || -0.1276;
+  const centerLat = driverLat || locationLat || pickupLat || 51.5072;
 
   const routeJson = useMemo(
     () => JSON.stringify(routeCoordinates.filter((p) => p.lat && p.lng)),
@@ -38,12 +43,14 @@ export function AmazonMap({
 
   const mapKey = useMemo(
     () =>
-      `map-${pickupLat}-${pickupLng}-${destinationLat}-${destinationLng}-${routeCoordinates.length}`,
+      `map-${pickupLat}-${pickupLng}-${destinationLat}-${destinationLng}-${locationLat}-${locationLng}-${routeCoordinates.length}`,
     [
       pickupLat,
       pickupLng,
       destinationLat,
       destinationLng,
+      locationLat,
+      locationLng,
       routeCoordinates.length,
     ],
   );
@@ -53,6 +60,9 @@ export function AmazonMap({
       const js = `
         if (window.updateDriverLocation) {
           window.updateDriverLocation(${driverLng}, ${driverLat}, ${driverRotation});
+        }
+        if (window.panToDriver) {
+          window.panToDriver(${driverLng}, ${driverLat});
         }
         true;
       `;
@@ -85,14 +95,39 @@ export function AmazonMap({
             border: 3px solid white;
             box-shadow: 0 0 10px rgba(0,0,0,0.5);
           }
+          .marker-location {
+            background-color: #3B82F6;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            border: 3px solid white;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 700;
+            font-size: 14px;
+            font-family: system-ui, sans-serif;
+          }
           .marker-car {
             display: flex;
             justify-content: center;
             align-items: center;
+            transition: transform 0.8s ease;
           }
-          .marker-car span {
-            font-size: 26px;
-            filter: drop-shadow(0px 3px 6px rgba(0,0,0,0.4));
+          .marker-car svg {
+            width: 36px;
+            height: 36px;
+            filter: drop-shadow(0px 4px 8px rgba(0,0,0,0.4));
+          }
+          .marker-pickup {
+            animation: pulse-pickup 2s infinite;
+          }
+          @keyframes pulse-pickup {
+            0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5); }
+            70% { box-shadow: 0 0 0 12px rgba(16, 185, 129, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
           }
         </style>
       </head>
@@ -114,21 +149,66 @@ export function AmazonMap({
             map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
 
             let carMarker = null;
+            let animFrame = null;
+            let currentLng = null;
+            let currentLat = null;
+
+            function animateMarker(targetLng, targetLat, duration) {
+              if (currentLng === null) {
+                currentLng = targetLng;
+                currentLat = targetLat;
+                carMarker.setLngLat([targetLng, targetLat]);
+                return;
+              }
+              const startLng = currentLng;
+              const startLat = currentLat;
+              const startTime = performance.now();
+
+              function step(now) {
+                const t = Math.min((now - startTime) / duration, 1);
+                const ease = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+                const lng = startLng + (targetLng - startLng) * ease;
+                const lat = startLat + (targetLat - startLat) * ease;
+                carMarker.setLngLat([lng, lat]);
+                if (t < 1) {
+                  animFrame = requestAnimationFrame(step);
+                } else {
+                  currentLng = targetLng;
+                  currentLat = targetLat;
+                }
+              }
+              if (animFrame) cancelAnimationFrame(animFrame);
+              animFrame = requestAnimationFrame(step);
+            }
+
+            const carSvg = '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5 11l1.5-4.5A2 2 0 0 1 8.4 5h7.2a2 2 0 0 1 1.9 1.5L19 11" stroke="#1a1a1a" stroke-width="1.5" stroke-linecap="round"/><rect x="3" y="11" width="18" height="7" rx="2" fill="#1a1a1a"/><circle cx="7.5" cy="18" r="1.5" fill="#1a1a1a" stroke="#fff" stroke-width="1"/><circle cx="16.5" cy="18" r="1.5" fill="#1a1a1a" stroke="#fff" stroke-width="1"/><path d="M6 14h3M15 14h3" stroke="#fff" stroke-width="1" stroke-linecap="round"/><path d="M8 8h8" stroke="#1a1a1a" stroke-width="1" stroke-linecap="round"/><rect x="7" y="11" width="10" height="4" rx="1" fill="#333" opacity="0.3"/></svg>';
+
             window.updateDriverLocation = (lng, lat, rotation) => {
               if (!carMarker) {
                 const carEl = document.createElement('div');
                 carEl.className = 'marker-car';
-                carEl.innerHTML = '<span>🚗</span>';
+                carEl.innerHTML = carSvg;
                 carMarker = new maplibregl.Marker({ element: carEl })
                   .setLngLat([lng, lat])
                   .addTo(map);
+                currentLng = lng;
+                currentLat = lat;
               } else {
-                carMarker.setLngLat([lng, lat]);
+                animateMarker(lng, lat, 1500);
               }
-              const carSpan = carMarker.getElement().querySelector('span');
-              if (carSpan) {
-                carSpan.style.display = 'inline-block';
-                carSpan.style.transform = 'rotate(' + (rotation || 0) + 'deg)';
+              const svgEl = carMarker.getElement().querySelector('svg');
+              if (svgEl) {
+                svgEl.style.transform = 'rotate(' + (rotation || 0) + 'deg)';
+                svgEl.style.transition = 'transform 0.8s ease';
+              }
+            };
+
+            let lastPanTime = 0;
+            window.panToDriver = (lng, lat) => {
+              const now = Date.now();
+              if (now - lastPanTime > 5000) {
+                map.easeTo({ center: [lng, lat], duration: 1200 });
+                lastPanTime = now;
               }
             };
 
@@ -189,6 +269,17 @@ export function AmazonMap({
                   .setLngLat([${destinationLng ?? 0}, ${destinationLat ?? 0}])
                   .addTo(map);
                 bounds.extend([${destinationLng ?? 0}, ${destinationLat ?? 0}]);
+                hasBounds = true;
+              }
+
+              if (${locationLng ? 'true' : 'false'}) {
+                const locEl = document.createElement('div');
+                locEl.className = 'marker-location';
+                locEl.textContent = 'P';
+                new maplibregl.Marker({ element: locEl })
+                  .setLngLat([${locationLng ?? 0}, ${locationLat ?? 0}])
+                  .addTo(map);
+                bounds.extend([${locationLng ?? 0}, ${locationLat ?? 0}]);
                 hasBounds = true;
               }
 

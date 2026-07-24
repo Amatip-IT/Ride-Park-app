@@ -11,6 +11,8 @@ import {
 } from '@nestjs/common';
 import { DisputesService } from './disputes.service';
 import { AuthGuard } from 'src/guards/auth.guard';
+import { FileDisputeDto } from './dto/dispute.dto';
+import { RateLimit } from 'src/common/rate-limit.decorator';
 
 @Controller('disputes')
 @UseGuards(AuthGuard)
@@ -18,25 +20,17 @@ export class DisputesController {
   constructor(private readonly disputesService: DisputesService) {}
 
   @Post()
-  async fileDispute(
-    @Req() req: any,
-    @Body('category') category: string,
-    @Body('description') description: string,
-    @Body('complaintAbout') complaintAbout?: string,
-    @Body('evidenceUrls') evidenceUrls?: string[],
-    @Body('relatedServiceType') relatedServiceType?: string,
-    @Body('relatedServiceId') relatedServiceId?: string,
-    @Body('metadata') metadata?: Record<string, unknown>,
-  ) {
+  @RateLimit({ limit: 5, windowMs: 60 * 60_000 })
+  async fileDispute(@Req() req: any, @Body() body: FileDisputeDto) {
     const userId = (req.user?._id || req.user?.id)?.toString();
     const result = await this.disputesService.fileDispute(userId, {
-      category: category || 'other',
-      description,
-      complaintAbout,
-      evidenceUrls,
-      relatedServiceType,
-      relatedServiceId,
-      metadata,
+      category: body.category || 'other',
+      description: body.description,
+      complaintAbout: body.complaintAbout,
+      evidenceUrls: body.evidenceUrls,
+      relatedServiceType: body.relatedServiceType,
+      relatedServiceId: body.relatedServiceId,
+      metadata: body.metadata,
     });
     if (!result.success) {
       throw new HttpException(result, HttpStatus.BAD_REQUEST);

@@ -6,10 +6,7 @@ import {
   AdminAuditLogDocument,
 } from 'src/schemas/admin-audit-log.schema';
 import { Response } from 'src/common/interfaces/response.interface';
-import {
-  AdminAuditContext,
-  CreateAuditLogInput,
-} from './admin-audit.types';
+import { AdminAuditContext, CreateAuditLogInput } from './admin-audit.types';
 
 @Injectable()
 export class AdminAuditService {
@@ -63,7 +60,9 @@ export class AdminAuditService {
       if (filters.from || filters.to) {
         query.createdAt = {};
         if (filters.from) {
-          (query.createdAt as Record<string, Date>).$gte = new Date(filters.from);
+          (query.createdAt as Record<string, Date>).$gte = new Date(
+            filters.from,
+          );
         }
         if (filters.to) {
           (query.createdAt as Record<string, Date>).$lte = new Date(filters.to);
@@ -102,13 +101,18 @@ export class AdminAuditService {
     from?: string;
     to?: string;
   }): Promise<Response> {
-    const result = await this.getAuditLogs({ ...filters, page: 1, limit: 1000 });
+    const result = await this.getAuditLogs({
+      ...filters,
+      page: 1,
+      limit: 1000,
+    });
     if (!result.success || !result.data) {
       return result;
     }
 
     const logs = result.data as AdminAuditLogDocument[];
-    const header = 'timestamp,action,admin_email,target_type,target_id,reason,notes,ip_address';
+    const header =
+      'timestamp,action,admin_email,target_type,target_id,reason,notes,ip_address';
     const rows = logs.map((log: any) => {
       const admin = log.admin || {};
       const adminEmail = admin.email || log.admin || '';

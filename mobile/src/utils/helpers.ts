@@ -33,6 +33,19 @@ export const isValidUKPostcode = (postcode: string): boolean => {
   return postcodeRegex.test(postcode.trim());
 };
 
+export const PASSWORD_STRENGTH_MESSAGE =
+  'Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character';
+
+/** Accepts any non-alphanumeric special character (e.g. / # _ ! @). */
+export const isStrongPassword = (password: string): boolean => {
+  if (!password || password.length < 8) return false;
+  if (!/[a-z]/.test(password)) return false;
+  if (!/[A-Z]/.test(password)) return false;
+  if (!/\d/.test(password)) return false;
+  if (!/[^A-Za-z0-9]/.test(password)) return false;
+  return true;
+};
+
 // Format postcode to standard format
 export const formatPostcode = (postcode: string): string => {
   const cleaned = postcode.toUpperCase().replace(/\s/g, '');
@@ -212,3 +225,21 @@ export const haversineDistanceMiles = (
 /** Rough trip duration from distance (urban driving ~25 mph average) */
 export const estimateDurationMinutes = (distanceMiles: number): number =>
   Math.max(5, Math.round((distanceMiles / 25) * 60));
+
+/** Best-effort current device coordinates for nearby matching */
+export const getCurrentCoords = async (): Promise<{ lat: number; lng: number } | null> => {
+  const Location = await import('expo-location');
+  const { status } = await Location.requestForegroundPermissionsAsync();
+  if (status !== 'granted') {
+    return null;
+  }
+
+  const location = await Location.getCurrentPositionAsync({
+    accuracy: Location.Accuracy.Balanced,
+  });
+
+  return {
+    lat: location.coords.latitude,
+    lng: location.coords.longitude,
+  };
+};

@@ -1,4 +1,13 @@
-import { Controller, Get, Param, Query, Req, UseGuards, HttpException, HttpStatus } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Param,
+  Query,
+  Req,
+  UseGuards,
+  HttpException,
+  HttpStatus,
+} from '@nestjs/common';
 import { ChatService } from './chat.service';
 import { AuthGuard } from 'src/guards/auth.guard';
 
@@ -27,9 +36,13 @@ export class ChatController {
   async getConversation(
     @Req() req: any,
     @Param('otherUserId') otherUserId: string,
-    @Query('bookingId') bookingId?: string
+    @Query('bookingId') bookingId?: string,
   ) {
     const user = req.user;
-    return this.chatService.getConversation(user._id || user.id, otherUserId, bookingId);
+    return this.chatService.getConversation(
+      user._id || user.id,
+      otherUserId,
+      bookingId,
+    );
   }
 }

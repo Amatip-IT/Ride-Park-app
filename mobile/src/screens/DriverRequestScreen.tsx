@@ -1,13 +1,16 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Platform, SafeAreaView, ActivityIndicator, Alert, TextInput, FlatList,
+  Platform, SafeAreaView, ActivityIndicator, Alert, TextInput,
 } from 'react-native';
 import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
+import { LocationAutocompleteInput } from '@/components/LocationAutocompleteInput';
+import { useLocationBias } from '@/hooks/useLocationBias';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, NavigationProp, useRoute, RouteProp } from '@react-navigation/native';
 import { bookingsApi } from '@/api';
-import { searchLocationByText } from '@/api/amazonLocation';
+import { calculateChauffeurQuotedPrice } from '@/constants/pricing';
+import { formatCurrency } from '@/utils/helpers';
 import * as Location from 'expo-location';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
@@ -20,6 +23,7 @@ export function DriverRequestScreen() {
   const route = useRoute<RouteProp<RouteParams, 'DriverRequest'>>();
   const targetServiceId = route.params?.serviceId;
   const targetName = route.params?.prefilledName;
+  const biasPosition = useLocationBias();
 
   // Location
   const [pickupAddress, setPickupAddress] = useState('');
@@ -27,11 +31,6 @@ export function DriverRequestScreen() {
   const [fetchingLocation, setFetchingLocation] = useState(false);
   const [usingGps, setUsingGps] = useState(false);
   const [pickupCoords, setPickupCoords] = useState<{ lat: number; lng: number } | null>(null);
-
-  // Pickup autocomplete
-  const [pickupSuggestions, setPickupSuggestions] = useState<any[]>([]);
-  const [showPickupSuggestions, setShowPickupSuggestions] = useState(false);
-  const pickupSearchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Duration
   const [startTime, setStartTime] = useState(new Date());
@@ -111,10 +110,13 @@ export function DriverRequestScreen() {
       if (res.data?.success) {
         Alert.alert(
           '✅ Request Submitted!',
-          targetServiceId 
-            ? `Your request to ${targetName || 'the driver'} has been sent. It will appear in Bookings as "Pending".` 
-            : 'Your broadcast request has been sent to nearby drivers. It will appear in Bookings as "Pending" until a driver accepts.',
-          [{ text: 'View Bookings', onPress: () => navigation.navigate('ConsumerTabs', { screen: 'Bookings' }) }],
+          targetServiceId
+            ? `Your request to ${targetName || 'the driver'} has been sent. You can cancel anytime from My Bookings while it is pending or accepted.`
+            : 'Your broadcast request has been sent to nearby drivers. You can cancel anytime from My Bookings while it is pending or accepted.',
+          [
+            { text: 'My Bookings', onPress: () => navigation.navigate('ConsumerTabs', { screen: 'Bookings' }) },
+            { text: 'OK' },
+          ],
         );
       } else {
         Alert.alert('Error', res.data?.message || 'Failed to submit request');
@@ -127,6 +129,7 @@ export function DriverRequestScreen() {
   }, [pickupAddress, pickupPostcode, pickupCoords, startTime, endTime, notes, navigation, targetServiceId]);
 
   const durationHours = Math.max(0, (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60));
+  const chauffeurQuote = calculateChauffeurQuotedPrice(startTime, endTime);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -183,65 +186,34 @@ export function DriverRequestScreen() {
 
           <Text style={styles.orText}>— or enter manually —</Text>
 
-          <View style={{ zIndex: 10 }}>
-            <TextInput
-              style={styles.input}
-              placeholder="Address"
-              placeholderTextColor={COLORS.textTertiary}
-              value={pickupAddress}
-              onChangeText={(text) => {
-                setPickupAddress(text);
-                setUsingGps(false);
-                setPickupCoords(null);
-                if (pickupSearchTimeout.current) clearTimeout(pickupSearchTimeout.current);
-                if (text.length >= 3) {
-                  pickupSearchTimeout.current = setTimeout(async () => {
-                    const results = await searchLocationByText(text);
-                    setPickupSuggestions(results);
-                    setShowPickupSuggestions(results.length > 0);
-                  }, 300);
-                } else {
-                  setPickupSuggestions([]);
-                  setShowPickupSuggestions(false);
-                }
-              }}
-            />
-            {showPickupSuggestions && pickupSuggestions.length > 0 && (
-              <View style={styles.suggestionsContainer}>
-                <FlatList
-                  data={pickupSuggestions}
-                  keyExtractor={(_, i) => `pickup-${i}`}
-                  keyboardShouldPersistTaps="handled"
-                  scrollEnabled={false}
-                  renderItem={({ item }) => (
-                    <TouchableOpacity
-                      style={styles.suggestionItem}
-                      onPress={() => {
-                        setPickupAddress(item.label);
-                        if (item.point?.lat && item.point?.lng) {
-                          setPickupCoords({ lat: item.point.lat, lng: item.point.lng });
-                        }
-                        if (item.postalCode) setPickupPostcode(item.postalCode);
-                        setShowPickupSuggestions(false);
-                        setPickupSuggestions([]);
-                      }}
-                      activeOpacity={0.7}
-                    >
-                      <Ionicons name="location-outline" size={16} color={COLORS.electricTeal} style={{ marginTop: 2 }} />
-                      <Text style={styles.suggestionText} numberOfLines={2}>{item.label}</Text>
-                    </TouchableOpacity>
-                  )}
-                />
-              </View>
-            )}
-          </View>
+          <LocationAutocompleteInput
+            style={styles.input}
+            placeholder="Address"
+            placeholderTextColor={COLORS.textTertiary}
+            value={pickupAddress}
+            onChangeText={(text) => {
+              setPickupAddress(text);
+              setUsingGps(false);
+              setPickupCoords(null);
+            }}
+            onSelectPlace={(place) => {
+              setPickupAddress(place.label);
+              setUsingGps(false);
+              if (place.point?.lat && place.point?.lng) {
+                setPickupCoords({ lat: place.point.lat, lng: place.point.lng });
+              }
+              if (place.postalCode) setPickupPostcode(place.postalCode);
+            }}
+            searchOptions={{
+              biasPosition: pickupCoords ?? biasPosition ?? undefined,
+            }}
+          />
           <TextInput
             style={styles.input}
-            placeholder="Postcode (e.g. SW1A 1AA)"
+            placeholder="Postcode or house number"
             placeholderTextColor={COLORS.textTertiary}
             value={pickupPostcode}
-            onChangeText={(t) => { setPickupPostcode(t.toUpperCase()); setUsingGps(false); }}
-            autoCapitalize="characters"
+            onChangeText={(t) => { setPickupPostcode(t); setUsingGps(false); }}
           />
 
           {/* ── Duration ── */}
@@ -306,9 +278,15 @@ export function DriverRequestScreen() {
           {/* Duration Summary */}
           <View style={styles.durationSummary}>
             <Ionicons name="hourglass-outline" size={18} color={COLORS.electricTeal} />
-            <Text style={styles.durationText}>
-              Duration: {durationHours.toFixed(1)} hour{durationHours !== 1 ? 's' : ''}
-            </Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.durationText}>
+                Duration: {durationHours.toFixed(1)} hour{durationHours !== 1 ? 's' : ''}
+                {' '}({chauffeurQuote.billableHours} billable hr{chauffeurQuote.billableHours !== 1 ? 's' : ''})
+              </Text>
+              <Text style={styles.quoteText}>
+                Estimated total: {formatCurrency(chauffeurQuote.quotedPrice)} (paid after the service)
+              </Text>
+            </View>
           </View>
 
           {/* ── Notes ── */}
@@ -326,7 +304,7 @@ export function DriverRequestScreen() {
           <View style={styles.pricingInfo}>
             <Ionicons name="information-circle-outline" size={18} color={COLORS.textSecondary} />
             <Text style={styles.pricingText}>
-              Rate: £1.10/mile. Your request will appear in Bookings as "Pending" until a driver accepts.
+              Quote uses £1.10/mile × estimated distance for your booked hours. You confirm payment after the service is finished.
             </Text>
           </View>
 
@@ -403,12 +381,15 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary, fontSize: FONT_SIZES.body, fontWeight: FONT_WEIGHTS.semibold,
   },
   durationSummary: {
-    flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
+    flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm,
     backgroundColor: `${COLORS.electricTeal}10`, borderRadius: BORDER_RADIUS.md,
     padding: SPACING.md, marginTop: SPACING.xs,
   },
   durationText: {
     color: COLORS.electricTeal, fontSize: FONT_SIZES.label, fontWeight: FONT_WEIGHTS.semibold,
+  },
+  quoteText: {
+    color: COLORS.textPrimary, fontSize: FONT_SIZES.small, marginTop: 4,
   },
   pricingInfo: {
     flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,

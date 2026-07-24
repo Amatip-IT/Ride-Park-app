@@ -86,6 +86,9 @@ describe('IdentityVerificationService', () => {
       const user = createMockUser();
 
       mockUserModel.findById.mockResolvedValue(user);
+      mockIdentityVerificationModel.findOne.mockReturnValue({
+        sort: jest.fn().mockResolvedValue(null),
+      });
       mockIdentityVerificationModel.findOneAndUpdate.mockResolvedValue({});
 
       const result = await service.createVerificationSession(userId, returnUrl);
@@ -112,10 +115,13 @@ describe('IdentityVerificationService', () => {
         isVerified: { email: false, phone: false, identity: true },
       });
       mockUserModel.findById.mockResolvedValue(user);
+      mockIdentityVerificationModel.findOne.mockReturnValue({
+        sort: jest.fn().mockResolvedValue(null),
+      });
 
       await expect(
         service.createVerificationSession('user_id', 'https://example.com'),
-      ).rejects.toThrow('Identity is already verified');
+      ).rejects.toThrow('Identity already verified');
     });
   });
 
@@ -214,6 +220,11 @@ describe('IdentityVerificationService', () => {
 
   describe('hasVerifiedWithDrivingLicense', () => {
     it('should return true if verified with driving license', async () => {
+      mockUserModel.findById.mockResolvedValue(
+        createMockUser({
+          isVerified: { email: false, phone: false, identity: true },
+        }),
+      );
       mockIdentityVerificationModel.findOne.mockReturnValue({
         sort: jest.fn().mockResolvedValue({
           idType: 'driving_license',
@@ -226,6 +237,11 @@ describe('IdentityVerificationService', () => {
     });
 
     it('should return false if verified with passport', async () => {
+      mockUserModel.findById.mockResolvedValue(
+        createMockUser({
+          isVerified: { email: false, phone: false, identity: true },
+        }),
+      );
       mockIdentityVerificationModel.findOne.mockReturnValue({
         sort: jest.fn().mockResolvedValue({
           idType: 'passport',
@@ -238,6 +254,11 @@ describe('IdentityVerificationService', () => {
     });
 
     it('should return false if not verified', async () => {
+      mockUserModel.findById.mockResolvedValue(
+        createMockUser({
+          isVerified: { email: false, phone: false, identity: true },
+        }),
+      );
       mockIdentityVerificationModel.findOne.mockReturnValue({
         sort: jest.fn().mockResolvedValue(null),
       });

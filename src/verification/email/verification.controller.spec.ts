@@ -56,6 +56,7 @@ describe('EmailVerificationController', () => {
       // Always reference the mock object, not the service instance
       expect(mockEmailVerificationService.sendEmailOtp).toHaveBeenCalledWith(
         dto.email,
+        'verification',
       );
       expect(mockEmailVerificationService.sendEmailOtp).toHaveBeenCalledTimes(
         1,
@@ -71,6 +72,7 @@ describe('EmailVerificationController', () => {
       await expect(controller.sendEmailOtp(dto)).rejects.toThrow(error);
       expect(mockEmailVerificationService.sendEmailOtp).toHaveBeenCalledWith(
         dto.email,
+        'verification',
       );
     });
   });
@@ -97,6 +99,7 @@ describe('EmailVerificationController', () => {
       expect(mockEmailVerificationService.verifyEmailOtp).toHaveBeenCalledWith(
         dto.email,
         dto.otp,
+        'verification',
       );
       expect(mockEmailVerificationService.verifyEmailOtp).toHaveBeenCalledTimes(
         1,
@@ -116,6 +119,7 @@ describe('EmailVerificationController', () => {
       expect(mockEmailVerificationService.verifyEmailOtp).toHaveBeenCalledWith(
         dto.email,
         dto.otp,
+        'verification',
       );
     });
   });

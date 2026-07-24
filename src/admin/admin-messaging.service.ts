@@ -27,120 +27,103 @@ const DEFAULT_TEMPLATES: Array<{
     name: 'Documents Submitted — Under Review',
     category: 'verification',
     subject: 'Your documents are under review',
-    body:
-      'Thank you for submitting your documents to Gleezip. Our team has received them and your application is now under review. You will receive another message once we have made a decision. No further action is needed right now.',
+    body: 'Thank you for submitting your documents to Gleezip. Our team has received them and your application is now under review. You will receive another message once we have made a decision. No further action is needed right now.',
   },
   {
     name: 'Driver / Taxi Documents Under Review',
     category: 'verification',
     subject: 'Driver verification under review',
-    body:
-      'We have received your driver documents and they are now under admin review. You cannot accept rides until your verification is approved. We will notify you as soon as your account is cleared to go online.',
+    body: 'We have received your driver documents and they are now under admin review. You cannot accept rides until your verification is approved. We will notify you as soon as your account is cleared to go online.',
   },
   {
     name: 'Parking Application Under Review',
     category: 'verification',
     subject: 'Parking listing under review',
-    body:
-      'Thank you for submitting your parking space details. Your application is now under review by our team. Your listing will not appear to customers until it has been approved. We will contact you when the review is complete.',
+    body: 'Thank you for submitting your parking space details. Your application is now under review by our team. Your listing will not appear to customers until it has been approved. We will contact you when the review is complete.',
   },
   {
     name: 'Identity Documents Under Review',
     category: 'verification',
     subject: 'Identity verification under review',
-    body:
-      'Your identity documents have been submitted successfully and are now under review. You will be notified once verification is complete. Please keep the app installed so you do not miss updates.',
+    body: 'Your identity documents have been submitted successfully and are now under review. You will be notified once verification is complete. Please keep the app installed so you do not miss updates.',
   },
   {
     name: 'Verification Approved — Driver / Taxi',
     category: 'approval',
     subject: 'You are approved to accept rides',
-    body:
-      'Good news! Your driver verification has been approved. You can now go online in the app and accept ride requests. Thank you for completing the process with Gleezip.',
+    body: 'Good news! Your driver verification has been approved. You can now go online in the app and accept ride requests. Thank you for completing the process with Gleezip.',
   },
   {
     name: 'Parking Space Approved',
     category: 'approval',
     subject: 'Your parking space is now live',
-    body:
-      'Congratulations! Your parking space has been approved and is now visible to customers on Gleezip. You can manage your listing and bookings from your provider dashboard.',
+    body: 'Congratulations! Your parking space has been approved and is now visible to customers on Gleezip. You can manage your listing and bookings from your provider dashboard.',
   },
   {
     name: 'Identity Verification Approved',
     category: 'approval',
     subject: 'Identity verification complete',
-    body:
-      'Your identity has been verified successfully. You now have full access to the provider features linked to your account. Thank you for helping us keep Gleezip safe.',
+    body: 'Your identity has been verified successfully. You now have full access to the provider features linked to your account. Thank you for helping us keep Gleezip safe.',
   },
   {
     name: 'Documents Rejected — Please Resubmit',
     category: 'rejection',
     subject: 'Action required: resubmit your documents',
-    body:
-      'Unfortunately, one or more of your submitted documents could not be approved. Please open the app, review the feedback, and upload corrected documents so we can continue your verification.',
+    body: 'Unfortunately, one or more of your submitted documents could not be approved. Please open the app, review the feedback, and upload corrected documents so we can continue your verification.',
   },
   {
     name: 'Parking Application Rejected',
     category: 'rejection',
     subject: 'Parking application not approved',
-    body:
-      'Your parking space application was not approved at this time. Please check the app for details, update your information or photos if needed, and resubmit when you are ready.',
+    body: 'Your parking space application was not approved at this time. Please check the app for details, update your information or photos if needed, and resubmit when you are ready.',
   },
   {
     name: 'Documents Expiring Soon',
     category: 'expiry',
     subject: 'Action required: renew your documents',
-    body:
-      'One or more of your documents are expiring soon. Please upload renewed copies in the app as soon as possible so you can continue using Gleezip without interruption.',
+    body: 'One or more of your documents are expiring soon. Please upload renewed copies in the app as soon as possible so you can continue using Gleezip without interruption.',
   },
   {
     name: 'New Parking Booking Request',
     category: 'booking',
     subject: 'New booking request for your space',
-    body:
-      'A customer has sent a booking request for your parking space. Please open the app and accept or decline the request promptly so they know whether their spot is confirmed.',
+    body: 'A customer has sent a booking request for your parking space. Please open the app and accept or decline the request promptly so they know whether their spot is confirmed.',
   },
   {
     name: 'Booking Accepted — Customer',
     category: 'booking',
     subject: 'Your parking booking was accepted',
-    body:
-      'Your parking booking request has been accepted by the space owner. Open the app to view the details and plan your arrival.',
+    body: 'Your parking booking request has been accepted by the space owner. Open the app to view the details and plan your arrival.',
   },
   {
     name: 'Booking Declined — Customer',
     category: 'booking',
     subject: 'Your parking booking was not accepted',
-    body:
-      'Unfortunately, your parking booking request was not accepted. You can search for another available space in the app.',
+    body: 'Unfortunately, your parking booking request was not accepted. You can search for another available space in the app.',
   },
   {
     name: 'Earnings Ready to Withdraw',
     category: 'earnings',
     subject: 'Your earnings are ready',
-    body:
-      'You have earnings available in your Gleezip wallet. Open the app, go to Earnings, and request a withdrawal when you are ready.',
+    body: 'You have earnings available in your Gleezip wallet. Open the app, go to Earnings, and request a withdrawal when you are ready.',
   },
   {
     name: 'Withdrawal Approved',
     category: 'earnings',
     subject: 'Your withdrawal has been processed',
-    body:
-      'Your withdrawal request has been approved and funds are being sent to your linked bank account. Processing times may vary depending on your bank.',
+    body: 'Your withdrawal request has been approved and funds are being sent to your linked bank account. Processing times may vary depending on your bank.',
   },
   {
     name: 'Account Suspended',
     category: 'suspension',
     subject: 'Your account has been suspended',
-    body:
-      'Your Gleezip account has been temporarily suspended. If you believe this was a mistake, please contact support through the app.',
+    body: 'Your Gleezip account has been temporarily suspended. If you believe this was a mistake, please contact support through the app.',
   },
   {
     name: 'Account Ban Notice',
     category: 'suspension',
     subject: 'Your account access has been restricted',
-    body:
-      'Your Gleezip account has been restricted due to a policy violation. Please contact support if you have questions about this decision.',
+    body: 'Your Gleezip account has been restricted due to a policy violation. Please contact support if you have questions about this decision.',
   },
 ];
 
@@ -256,7 +239,9 @@ export class AdminMessagingService {
       let templateName: string | undefined;
 
       if (input.templateId) {
-        const template = await this.templateModel.findById(input.templateId).exec();
+        const template = await this.templateModel
+          .findById(input.templateId)
+          .exec();
         if (template) {
           templateName = template.name;
         }
@@ -266,7 +251,8 @@ export class AdminMessagingService {
       let emailSent = false;
       let failureReason: string | undefined;
 
-      const shouldPush = channel === 'system' || channel === 'push' || channel === 'all';
+      const shouldPush =
+        channel === 'system' || channel === 'push' || channel === 'all';
       const shouldEmail = channel === 'email' || channel === 'all';
 
       if (shouldPush) {
@@ -295,7 +281,9 @@ export class AdminMessagingService {
           emailSent = true;
         } catch (err) {
           const emailErr = `Email failed: ${err instanceof Error ? err.message : 'Unknown error'}`;
-          failureReason = failureReason ? `${failureReason}; ${emailErr}` : emailErr;
+          failureReason = failureReason
+            ? `${failureReason}; ${emailErr}`
+            : emailErr;
           this.logger.warn(emailErr);
         }
       }
@@ -303,7 +291,7 @@ export class AdminMessagingService {
       const deliveryStatus =
         (shouldPush && !pushSent && !shouldEmail) ||
         (shouldEmail && !emailSent && !shouldPush) ||
-        ((shouldPush && !pushSent) && (shouldEmail && !emailSent))
+        (shouldPush && !pushSent && shouldEmail && !emailSent)
           ? 'failed'
           : pushSent || emailSent || channel === 'system'
             ? 'sent'

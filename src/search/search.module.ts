@@ -2,7 +2,10 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { SearchService } from './search.service';
 import { SearchController } from './search.controller';
-import { ParkingSpace, ParkingSpaceSchema } from 'src/schemas/parking-space.schema';
+import {
+  ParkingSpace,
+  ParkingSpaceSchema,
+} from 'src/schemas/parking-space.schema';
 import { Chauffeur, ChauffeurSchema } from 'src/schemas/chauffeur.schema';
 import { Taxi, TaxiSchema } from 'src/schemas/taxi.schema';
 import { User, UserSchema } from 'src/schemas/user.schema';

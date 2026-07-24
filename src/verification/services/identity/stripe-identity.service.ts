@@ -1,6 +1,10 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Stripe from 'stripe';
+import {
+  getStripeServerKey,
+  getStripeWebhookSecret,
+} from '../../../payments/stripe-config';
 
 @Injectable()
 export class StripeIdentityService {
@@ -14,10 +18,15 @@ export class StripeIdentityService {
    * Initialize Stripe client
    */
   private initializeStripe(): void {
-    const secretKey = this.configService.get<string>('STRIPE_SECRET_KEY');
+    const secretKey = getStripeServerKey('identity', {
+      required: false,
+      read: (name) => this.configService.get<string>(name),
+    });
 
     if (!secretKey) {
-      console.warn('⚠️ Stripe credentials not configured. Stripe features will fail if called.');
+      console.warn(
+        '⚠️ Stripe credentials not configured. Stripe features will fail if called.',
+      );
       return;
     }
 
@@ -151,15 +160,9 @@ export class StripeIdentityService {
     payload: string | Buffer,
     signature: string,
   ): Stripe.Event {
-    const webhookSecret = this.configService.get<string>(
-      'STRIPE_WEBHOOK_SECRET',
-    );
-
-    if (!webhookSecret) {
-      throw new InternalServerErrorException(
-        'Stripe webhook secret not configured',
-      );
-    }
+    const webhookSecret = getStripeWebhookSecret('identity', {
+      read: (name) => this.configService.get<string>(name),
+    })!;
 
     try {
       return this.stripe.webhooks.constructEvent(
