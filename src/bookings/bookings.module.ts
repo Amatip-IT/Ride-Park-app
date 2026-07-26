@@ -25,7 +25,8 @@ import { PaymentsModule } from 'src/payments/payments.module';
       { name: Chauffeur.name, schema: ChauffeurSchema },
     ]),
     NotificationsModule,
-    WalletModule,
+    // forwardRef: WalletModule ↔ PaymentsModule ↔ BookingsModule cycle
+    forwardRef(() => WalletModule),
     forwardRef(() => PaymentsModule),
   ],
   controllers: [BookingsController],
