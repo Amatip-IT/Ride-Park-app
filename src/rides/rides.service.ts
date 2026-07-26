@@ -31,6 +31,7 @@ export class RidesService {
     private chauffeurModel: Model<ChauffeurDocument>,
     @InjectModel(Taxi.name) private taxiModel: Model<TaxiDocument>,
     private readonly notificationsService: NotificationsService,
+    @Inject(forwardRef(() => WalletService))
     private readonly walletService: WalletService,
     @Inject(forwardRef(() => PaymentsService))
     private readonly paymentsService: PaymentsService,

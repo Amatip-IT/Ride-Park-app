@@ -4,6 +4,8 @@ import {
   HttpStatus,
   InternalServerErrorException,
   Logger,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -39,6 +41,7 @@ export class WalletService {
     @InjectModel(PlatformSettings.name)
     private platformSettingsModel: Model<PlatformSettingsDocument>,
     @InjectModel(User.name) private userModel: Model<UserDocument>,
+    @Inject(forwardRef(() => PaymentsService))
     private readonly paymentsService: PaymentsService,
     private readonly webhookEventsService: WebhookEventsService,
   ) {
