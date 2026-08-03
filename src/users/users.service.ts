@@ -161,6 +161,10 @@ export class UsersService {
         userData.identityStatus = 'pending';
       }
 
+      if (role === 'taxi_driver') {
+        userData.taxiType = createUserDTO.taxiType;
+      }
+
       const newUser = new this.userModel(userData);
 
       if (!newUser) {
@@ -179,6 +183,7 @@ export class UsersService {
           user: newUser._id,
           status: 'not_applied', // Admin will review later upon doc upload
           vehicleInfo: {
+            type: createUserDTO.taxiType,
             make: createUserDTO.vehicleMake,
             model: createUserDTO.vehicleModel,
             color: createUserDTO.vehicleColor,

@@ -8,7 +8,12 @@ export interface ApiResponse<T = any> {
 }
 
 // User Types
-export type UserRole = 'user' | 'admin' | 'driver' | 'taxi_driver' | 'parking_provider';
+export type UserRole =
+  | 'user'
+  | 'admin'
+  | 'driver'
+  | 'taxi_driver'
+  | 'parking_provider';
 
 export interface User {
   _id: string;
@@ -57,10 +62,17 @@ export interface RegisterRequest {
   role: UserRole;
   postCode?: string;
   address?: {
+    street?: string;
     county?: string;
     town?: string;
     country?: string;
   };
+  idType?: 'driver_license' | 'national_identity_card' | 'passport';
+  taxiType?: 'Normal car' | 'Mini Bus' | 'Bus';
+  vehicleMake?: string;
+  vehicleModel?: string;
+  vehicleColor?: string;
+  plateNumber?: string;
   termsAccepted: boolean;
 }
 
@@ -100,7 +112,11 @@ export interface ParkingSpace {
   updatedAt: string;
 }
 
-export type PaymentStatus = 'pending' | 'processing' | 'charged' | 'payment_failed';
+export type PaymentStatus =
+  | 'pending'
+  | 'processing'
+  | 'charged'
+  | 'payment_failed';
 export type BookingStatus =
   | 'pending'
   | 'accepted'
@@ -128,7 +144,12 @@ export interface UserSummary {
 
 export interface RideRecord {
   _id: string;
-  status: 'pending' | 'in_progress' | 'awaiting_payment' | 'completed' | 'cancelled';
+  status:
+    | 'pending'
+    | 'in_progress'
+    | 'awaiting_payment'
+    | 'completed'
+    | 'cancelled';
   paymentStatus: PaymentStatus;
   paymentIntentId?: string;
   passengerConfirmedAt?: string;
