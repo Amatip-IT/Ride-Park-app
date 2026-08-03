@@ -113,6 +113,10 @@ export class CreateUserDto {
 
   // Taxi driver vehicle fields
   @IsOptional()
+  @IsIn(['Normal car', 'Mini Bus', 'Bus'])
+  taxiType?: string;
+
+  @IsOptional()
   @IsString()
   vehicleMake?: string;
 

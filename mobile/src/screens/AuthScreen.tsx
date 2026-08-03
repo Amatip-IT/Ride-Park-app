@@ -12,11 +12,22 @@ import {
   Platform,
   Image,
 } from 'react-native';
-import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS, FONT_WEIGHTS } from '@/constants/theme';
+import {
+  COLORS,
+  SPACING,
+  FONT_SIZES,
+  BORDER_RADIUS,
+  FONT_WEIGHTS,
+} from '@/constants/theme';
 import { useEmailOtp } from '@/api/useOtpHooks';
 import { useAuthStore } from '@/store/authStore';
 import { authService } from '@/api/authService';
-import { RouteProp, useRoute, useNavigation, NavigationProp } from '@react-navigation/native';
+import {
+  RouteProp,
+  useRoute,
+  useNavigation,
+  NavigationProp,
+} from '@react-navigation/native';
 import { RootStackParamList } from '@/navigation/RootNavigator';
 import { Ionicons } from '@expo/vector-icons';
 import PhoneInput from 'react-native-phone-number-input';
@@ -28,15 +39,21 @@ import * as ImagePicker from 'expo-image-picker';
 import { isStrongPassword, PASSWORD_STRENGTH_MESSAGE } from '@/utils/helpers';
 import { providerApi } from '@/api';
 
-type AuthStep = 'register_step1' | 'register_step2' | 'register_step3' | 'otp' | 'login';
+type AuthStep =
+  | 'register_step1'
+  | 'register_step2'
+  | 'register_step3'
+  | 'otp'
+  | 'login';
 
 const ID_TYPE_OPTIONS = [
-  { label: 'UK Driver\'s Licence', value: 'driver_license' },
+  { label: "UK Driver's Licence", value: 'driver_license' },
   { label: 'Passport', value: 'passport' },
   { label: 'National Identity Card', value: 'national_identity_card' },
 ];
 
-const PROOF_OF_ADDRESS_INFO = 'Upload a utility bill, bank statement, or council tax letter dated within the last 3 months.';
+const PROOF_OF_ADDRESS_INFO =
+  'Upload a utility bill, bank statement, or council tax letter dated within the last 3 months.';
 
 export function AuthScreen() {
   const route = useRoute<RouteProp<RootStackParamList, 'Auth'>>();
@@ -44,11 +61,15 @@ export function AuthScreen() {
   const initialIsLogin = route.params?.isLogin ?? false;
   const initialRole = route.params?.role ?? 'user';
 
-  const isProvider = ['parking_provider', 'driver', 'taxi_driver'].includes(initialRole);
+  const isProvider = ['parking_provider', 'driver', 'taxi_driver'].includes(
+    initialRole,
+  );
 
   const [isLogin, setIsLogin] = useState(initialIsLogin);
-  const [currentStep, setCurrentStep] = useState<AuthStep>(initialIsLogin ? 'login' : 'register_step1');
-  
+  const [currentStep, setCurrentStep] = useState<AuthStep>(
+    initialIsLogin ? 'login' : 'register_step1',
+  );
+
   const [otp, setOtp] = useState('');
   const [termsAccepted, setTermsAccepted] = useState(false);
 
@@ -92,8 +113,16 @@ export function AuthScreen() {
   // Track whether we arrived at login after a fresh registration (docs need uploading)
   const [pendingDocUpload, setPendingDocUpload] = useState(false);
 
-  const { sendOtp, sendLoginOtp, verifyOtp, formatTime, error, loading, otpAttempts, clearError } =
-    useEmailOtp();
+  const {
+    sendOtp,
+    sendLoginOtp,
+    verifyOtp,
+    formatTime,
+    error,
+    loading,
+    otpAttempts,
+    clearError,
+  } = useEmailOtp();
   const { login: storeLogin, setError: setStoreError } = useAuthStore();
   const [submitting, setSubmitting] = useState(false);
   const busy = submitting || loading;
@@ -103,29 +132,40 @@ export function AuthScreen() {
   // ── Step 1 validation ──
   const handleStep1Next = () => {
     if (!formData.firstName.trim() || !formData.lastName.trim()) {
-      Alert.alert('Error', 'Please enter your first and last name'); return;
+      Alert.alert('Error', 'Please enter your first and last name');
+      return;
     }
     const usernameClean = formData.username.toLowerCase().trim();
     if (!usernameClean) {
-      Alert.alert('Error', 'Please enter a username'); return;
+      Alert.alert('Error', 'Please enter a username');
+      return;
     }
     if (usernameClean.length < 3 || usernameClean.length > 30) {
-      Alert.alert('Error', 'Username must be between 3 and 30 characters'); return;
+      Alert.alert('Error', 'Username must be between 3 and 30 characters');
+      return;
     }
     if (!/^[a-z0-9_]+$/.test(usernameClean)) {
-      Alert.alert('Error', 'Username can only contain lowercase letters, numbers, and underscores'); return;
+      Alert.alert(
+        'Error',
+        'Username can only contain lowercase letters, numbers, and underscores',
+      );
+      return;
     }
     if (!formData.email.trim() || !formData.email.includes('@')) {
-      Alert.alert('Error', 'Please enter a valid email address'); return;
+      Alert.alert('Error', 'Please enter a valid email address');
+      return;
     }
     if (!formData.phoneNumber.trim() || formData.phoneNumber.length < 10) {
-      Alert.alert('Error', 'Please enter a valid phone number'); return;
+      Alert.alert('Error', 'Please enter a valid phone number');
+      return;
     }
     if (!isStrongPassword(formData.password)) {
-      Alert.alert('Error', PASSWORD_STRENGTH_MESSAGE); return;
+      Alert.alert('Error', PASSWORD_STRENGTH_MESSAGE);
+      return;
     }
     if (formData.password !== formData.confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match'); return;
+      Alert.alert('Error', 'Passwords do not match');
+      return;
     }
     setCurrentStep('register_step2');
   };
@@ -133,32 +173,43 @@ export function AuthScreen() {
   // ── Step 2 validation ──
   const handleStep2Next = () => {
     if (!formData.postCode.trim()) {
-      Alert.alert('Error', 'Please enter your postcode or house number'); return;
+      Alert.alert('Error', 'Please enter your postcode or house number');
+      return;
     }
     if (!formData.town.trim()) {
-      Alert.alert('Error', 'Please enter your town'); return;
+      Alert.alert('Error', 'Please enter your town');
+      return;
     }
     if (!formData.country.trim()) {
-      Alert.alert('Error', 'Please enter your country'); return;
+      Alert.alert('Error', 'Please enter your country');
+      return;
     }
 
     if (formData.role === 'taxi_driver') {
       if (!formData.vehicleMake.trim()) {
-        Alert.alert('Error', 'Please enter your vehicle make'); return;
+        Alert.alert('Error', 'Please enter your vehicle make');
+        return;
       }
       if (!formData.vehicleModel.trim()) {
-        Alert.alert('Error', 'Please enter your vehicle model'); return;
+        Alert.alert('Error', 'Please enter your vehicle model');
+        return;
       }
       if (!formData.vehicleColor.trim()) {
-        Alert.alert('Error', 'Please enter your vehicle color'); return;
+        Alert.alert('Error', 'Please enter your vehicle color');
+        return;
       }
       if (!formData.plateNumber.trim()) {
-        Alert.alert('Error', 'Please enter your plate number'); return;
+        Alert.alert('Error', 'Please enter your plate number');
+        return;
       }
     }
 
     if (!termsAccepted) {
-      Alert.alert('Error', 'You must agree to the Terms & Conditions to continue'); return;
+      Alert.alert(
+        'Error',
+        'You must agree to the Terms & Conditions to continue',
+      );
+      return;
     }
 
     if (isProvider) {
@@ -174,7 +225,10 @@ export function AuthScreen() {
   const pickImage = async (setter: (uri: string) => void) => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('Permission Required', 'Please allow access to your photo library');
+      Alert.alert(
+        'Permission Required',
+        'Please allow access to your photo library',
+      );
       return;
     }
 
@@ -192,13 +246,16 @@ export function AuthScreen() {
   // ── Step 3 validation (providers only) ──
   const handleStep3Register = () => {
     if (!idType) {
-      Alert.alert('Error', 'Please select your ID document type'); return;
+      Alert.alert('Error', 'Please select your ID document type');
+      return;
     }
     if (!identityDocUri) {
-      Alert.alert('Error', 'Please upload your ID document'); return;
+      Alert.alert('Error', 'Please upload your ID document');
+      return;
     }
     if (!proofOfAddressUri) {
-      Alert.alert('Error', 'Please upload your proof of address'); return;
+      Alert.alert('Error', 'Please upload your proof of address');
+      return;
     }
     handleRegister();
   };
@@ -222,17 +279,21 @@ export function AuthScreen() {
           town: formData.town,
           country: formData.country,
         },
-        taxiType: formData.role === 'taxi_driver' ? formData.taxiType : undefined,
-        vehicleMake: formData.role === 'taxi_driver' ? formData.vehicleMake : undefined,
-        vehicleModel: formData.role === 'taxi_driver' ? formData.vehicleModel : undefined,
-        vehicleColor: formData.role === 'taxi_driver' ? formData.vehicleColor : undefined,
-        plateNumber: formData.role === 'taxi_driver' ? formData.plateNumber : undefined,
+        taxiType:
+          formData.role === 'taxi_driver' ? formData.taxiType : undefined,
+        vehicleMake:
+          formData.role === 'taxi_driver' ? formData.vehicleMake : undefined,
+        vehicleModel:
+          formData.role === 'taxi_driver' ? formData.vehicleModel : undefined,
+        vehicleColor:
+          formData.role === 'taxi_driver' ? formData.vehicleColor : undefined,
+        plateNumber:
+          formData.role === 'taxi_driver' ? formData.plateNumber : undefined,
         termsAccepted: true,
       };
 
       if (isProvider) {
         payload.idType = idType;
-        payload.identityStatus = 'pending';
       }
 
       const response = await authService.register(payload);
@@ -247,7 +308,8 @@ export function AuthScreen() {
               { text: 'OK', style: 'cancel' },
               ...suggestions.slice(0, 2).map((s: string) => ({
                 text: `Use "${s}"`,
-                onPress: () => setFormData((prev: any) => ({ ...prev, username: s })),
+                onPress: () =>
+                  setFormData((prev: any) => ({ ...prev, username: s })),
               })),
             ],
           );
@@ -265,11 +327,15 @@ export function AuthScreen() {
       if (otpSent) {
         setCurrentStep('otp');
       } else {
-        Alert.alert('Notice', 'Registered successfully, but failed to send verification email. Try logging in.');
+        Alert.alert(
+          'Notice',
+          'Registered successfully, but failed to send verification email. Try logging in.',
+        );
         setCurrentStep('login');
       }
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Registration failed';
+      const errorMsg =
+        err instanceof Error ? err.message : 'Registration failed';
       setStoreError(errorMsg);
       Alert.alert('Error', errorMsg);
     } finally {
@@ -289,7 +355,7 @@ export function AuthScreen() {
         const loginRes = await authService.login({
           email: loginData.email,
           password: loginData.password,
-          otp: otp
+          otp: otp,
         });
 
         const res: any = loginRes;
@@ -300,7 +366,8 @@ export function AuthScreen() {
           Alert.alert('Error', res.message || 'OTP verification failed');
         }
       } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : 'OTP verification failed';
+        const errorMsg =
+          err instanceof Error ? err.message : 'OTP verification failed';
         setStoreError(errorMsg);
         Alert.alert('Error', errorMsg);
       } finally {
@@ -309,7 +376,7 @@ export function AuthScreen() {
     } else {
       const emailToVerify = formData.email;
       const success = await verifyOtp(emailToVerify, otp);
-      
+
       if (success) {
         Alert.alert('Success', 'Email verified! Please sign in.');
         setLoginData({ email: formData.email, password: formData.password });
@@ -324,8 +391,10 @@ export function AuthScreen() {
 
   const uploadIdentityDocs = async () => {
     const uploads: { field: string; uri: string }[] = [];
-    if (identityDocUri) uploads.push({ field: 'identityDocumentUrl', uri: identityDocUri });
-    if (proofOfAddressUri) uploads.push({ field: 'proofOfAddressUrl', uri: proofOfAddressUri });
+    if (identityDocUri)
+      uploads.push({ field: 'identityDocumentUrl', uri: identityDocUri });
+    if (proofOfAddressUri)
+      uploads.push({ field: 'proofOfAddressUrl', uri: proofOfAddressUri });
     if (!uploads.length) return;
 
     const profilePatch: Record<string, string> = {};
@@ -335,7 +404,10 @@ export function AuthScreen() {
         const fd = new FormData();
         const fileName = uri.split('/').pop() || 'document.jpg';
         const fileExt = fileName.split('.').pop()?.toLowerCase() || 'jpg';
-        const mimeType = fileExt === 'pdf' ? 'application/pdf' : `image/${fileExt === 'jpg' ? 'jpeg' : fileExt}`;
+        const mimeType =
+          fileExt === 'pdf'
+            ? 'application/pdf'
+            : `image/${fileExt === 'jpg' ? 'jpeg' : fileExt}`;
 
         fd.append('file', { uri, name: fileName, type: mimeType } as any);
         const res = await providerApi.uploadDocument(fd);
@@ -448,17 +520,40 @@ export function AuthScreen() {
   };
 
   // ── Step indicator ──
-  const StepIndicator = ({ currentStepNum, totalSteps: total }: { currentStepNum: number; totalSteps: number }) => (
+  const StepIndicator = ({
+    currentStepNum,
+    totalSteps: total,
+  }: {
+    currentStepNum: number;
+    totalSteps: number;
+  }) => (
     <View style={styles.stepIndicator}>
       {Array.from({ length: total }, (_, i) => (
         <View key={i} style={styles.stepRow}>
-          <View style={[styles.stepDot, i < currentStepNum && styles.stepDotActive, i === currentStepNum - 1 && styles.stepDotCurrent]}>
-            {i < currentStepNum - 1 && <Ionicons name="checkmark" size={12} color="#FFF" />}
-            {i === currentStepNum - 1 && <Text style={styles.stepDotText}>{i + 1}</Text>}
-            {i >= currentStepNum && <Text style={styles.stepDotTextInactive}>{i + 1}</Text>}
+          <View
+            style={[
+              styles.stepDot,
+              i < currentStepNum && styles.stepDotActive,
+              i === currentStepNum - 1 && styles.stepDotCurrent,
+            ]}
+          >
+            {i < currentStepNum - 1 && (
+              <Ionicons name="checkmark" size={12} color="#FFF" />
+            )}
+            {i === currentStepNum - 1 && (
+              <Text style={styles.stepDotText}>{i + 1}</Text>
+            )}
+            {i >= currentStepNum && (
+              <Text style={styles.stepDotTextInactive}>{i + 1}</Text>
+            )}
           </View>
           {i < total - 1 && (
-            <View style={[styles.stepLine, i < currentStepNum - 1 && styles.stepLineActive]} />
+            <View
+              style={[
+                styles.stepLine,
+                i < currentStepNum - 1 && styles.stepLineActive,
+              ]}
+            />
           )}
         </View>
       ))}
@@ -466,8 +561,20 @@ export function AuthScreen() {
   );
 
   // ── Upload Button Component ──
-  const UploadButton = ({ label, uri, onPress }: { label: string; uri: string; onPress: () => void }) => (
-    <TouchableOpacity style={styles.uploadBtn} onPress={onPress} activeOpacity={0.7}>
+  const UploadButton = ({
+    label,
+    uri,
+    onPress,
+  }: {
+    label: string;
+    uri: string;
+    onPress: () => void;
+  }) => (
+    <TouchableOpacity
+      style={styles.uploadBtn}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
       {uri ? (
         <View style={styles.uploadPreviewRow}>
           <Image source={{ uri }} style={styles.uploadPreview} />
@@ -480,7 +587,11 @@ export function AuthScreen() {
       ) : (
         <View style={styles.uploadPlaceholderRow}>
           <View style={styles.uploadIconContainer}>
-            <Ionicons name="cloud-upload-outline" size={28} color={COLORS.electricTeal} />
+            <Ionicons
+              name="cloud-upload-outline"
+              size={28}
+              color={COLORS.electricTeal}
+            />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.uploadLabel}>{label}</Text>
@@ -502,13 +613,15 @@ export function AuthScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <Image 
-            source={require('../../assets/images/logo.jpg')} 
+          <Image
+            source={require('../../assets/images/logo.jpg')}
             style={styles.logoImage}
             resizeMode="contain"
           />
           <Text style={styles.subtitle}>
-            {isLogin ? 'Sign In to your account' : `Create your ${initialRole === 'user' ? 'account' : 'provider account'}`}
+            {isLogin
+              ? 'Sign In to your account'
+              : `Create your ${initialRole === 'user' ? 'account' : 'provider account'}`}
           </Text>
         </View>
 
@@ -525,7 +638,9 @@ export function AuthScreen() {
                   placeholder="First Name"
                   placeholderTextColor={COLORS.textTertiary}
                   value={formData.firstName}
-                  onChangeText={(text) => setFormData({ ...formData, firstName: text })}
+                  onChangeText={(text) =>
+                    setFormData({ ...formData, firstName: text })
+                  }
                 />
               </View>
               <View style={[styles.inputWrapper, styles.halfInput]}>
@@ -534,7 +649,9 @@ export function AuthScreen() {
                   placeholder="Last Name"
                   placeholderTextColor={COLORS.textTertiary}
                   value={formData.lastName}
-                  onChangeText={(text) => setFormData({ ...formData, lastName: text })}
+                  onChangeText={(text) =>
+                    setFormData({ ...formData, lastName: text })
+                  }
                 />
               </View>
             </View>
@@ -545,19 +662,26 @@ export function AuthScreen() {
                 placeholder="Username (lowercase, numbers, underscores)"
                 placeholderTextColor={COLORS.textTertiary}
                 value={formData.username}
-                onChangeText={(text) => setFormData({ ...formData, username: text.toLowerCase().replace(/[^a-z0-9_]/g, '') })}
+                onChangeText={(text) =>
+                  setFormData({
+                    ...formData,
+                    username: text.toLowerCase().replace(/[^a-z0-9_]/g, ''),
+                  })
+                }
                 autoCapitalize="none"
                 autoCorrect={false}
               />
             </View>
-            
+
             <View style={styles.inputWrapper}>
               <TextInput
                 style={styles.input}
                 placeholder="Email Address"
                 placeholderTextColor={COLORS.textTertiary}
                 value={formData.email}
-                onChangeText={(text) => setFormData({ ...formData, email: text })}
+                onChangeText={(text) =>
+                  setFormData({ ...formData, email: text })
+                }
                 keyboardType="email-address"
                 autoCapitalize="none"
               />
@@ -587,14 +711,20 @@ export function AuthScreen() {
                 placeholder="Password (min 8 chars)"
                 placeholderTextColor={COLORS.textTertiary}
                 value={formData.password}
-                onChangeText={(text) => setFormData({ ...formData, password: text })}
+                onChangeText={(text) =>
+                  setFormData({ ...formData, password: text })
+                }
                 secureTextEntry={!showPassword}
               />
-              <TouchableOpacity 
-                style={{ position: 'absolute', right: 15, top: 15 }} 
+              <TouchableOpacity
+                style={{ position: 'absolute', right: 15, top: 15 }}
                 onPress={() => setShowPassword(!showPassword)}
               >
-                <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color={COLORS.textTertiary} />
+                <Ionicons
+                  name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                  size={20}
+                  color={COLORS.textTertiary}
+                />
               </TouchableOpacity>
             </View>
 
@@ -604,23 +734,26 @@ export function AuthScreen() {
                 placeholder="Confirm Password"
                 placeholderTextColor={COLORS.textTertiary}
                 value={formData.confirmPassword}
-                onChangeText={(text) => setFormData({ ...formData, confirmPassword: text })}
+                onChangeText={(text) =>
+                  setFormData({ ...formData, confirmPassword: text })
+                }
                 secureTextEntry={!showConfirmPassword}
               />
-              <TouchableOpacity 
-                style={{ position: 'absolute', right: 15, top: 15 }} 
+              <TouchableOpacity
+                style={{ position: 'absolute', right: 15, top: 15 }}
                 onPress={() => setShowConfirmPassword(!showConfirmPassword)}
               >
-                <Ionicons name={showConfirmPassword ? "eye-off-outline" : "eye-outline"} size={20} color={COLORS.textTertiary} />
+                <Ionicons
+                  name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'}
+                  size={20}
+                  color={COLORS.textTertiary}
+                />
               </TouchableOpacity>
             </View>
 
             {error ? <Text style={styles.error}>{error}</Text> : null}
 
-            <TouchableOpacity
-              style={styles.button}
-              onPress={handleStep1Next}
-            >
+            <TouchableOpacity style={styles.button} onPress={handleStep1Next}>
               <Text style={styles.buttonText}>Next — Address Details</Text>
             </TouchableOpacity>
 
@@ -645,7 +778,9 @@ export function AuthScreen() {
                 placeholder="Postcode or house number (e.g. SW1A 1AA, No 9)"
                 placeholderTextColor={COLORS.textTertiary}
                 value={formData.postCode}
-                onChangeText={(text) => setFormData({ ...formData, postCode: text })}
+                onChangeText={(text) =>
+                  setFormData({ ...formData, postCode: text })
+                }
               />
             </View>
 
@@ -655,7 +790,9 @@ export function AuthScreen() {
                 placeholder="Street Address"
                 placeholderTextColor={COLORS.textTertiary}
                 value={formData.street}
-                onChangeText={(text) => setFormData({ ...formData, street: text })}
+                onChangeText={(text) =>
+                  setFormData({ ...formData, street: text })
+                }
               />
             </View>
 
@@ -665,7 +802,9 @@ export function AuthScreen() {
                 placeholder="Town / City"
                 placeholderTextColor={COLORS.textTertiary}
                 value={formData.town}
-                onChangeText={(text) => setFormData({ ...formData, town: text })}
+                onChangeText={(text) =>
+                  setFormData({ ...formData, town: text })
+                }
               />
             </View>
 
@@ -675,7 +814,9 @@ export function AuthScreen() {
                 placeholder="County (optional)"
                 placeholderTextColor={COLORS.textTertiary}
                 value={formData.county}
-                onChangeText={(text) => setFormData({ ...formData, county: text })}
+                onChangeText={(text) =>
+                  setFormData({ ...formData, county: text })
+                }
               />
             </View>
 
@@ -688,60 +829,124 @@ export function AuthScreen() {
 
             {initialRole === 'taxi_driver' && (
               <>
-                <Text style={[styles.fieldLabel, { marginTop: SPACING.md }]}>Taxi Type & Capacity</Text>
-                <View style={[styles.inputWrapper, { padding: 0, overflow: 'hidden', height: 50, justifyContent: 'center', backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.md, borderWidth: 1, borderColor: COLORS.border }]}>
+                <Text style={[styles.fieldLabel, { marginTop: SPACING.md }]}>
+                  Taxi Type & Capacity
+                </Text>
+                <View
+                  style={[
+                    styles.inputWrapper,
+                    {
+                      padding: 0,
+                      overflow: 'hidden',
+                      height: 50,
+                      justifyContent: 'center',
+                      backgroundColor: COLORS.surface,
+                      borderRadius: BORDER_RADIUS.md,
+                      borderWidth: 1,
+                      borderColor: COLORS.border,
+                    },
+                  ]}
+                >
                   <Picker
                     selectedValue={formData.taxiType}
-                    onValueChange={(itemValue) => setFormData({ ...formData, taxiType: itemValue })}
+                    onValueChange={(itemValue) =>
+                      setFormData({ ...formData, taxiType: itemValue })
+                    }
                     dropdownIconColor={COLORS.textSecondary}
-                    style={{ color: COLORS.textPrimary, height: 50, width: '100%' }}
+                    style={{
+                      color: COLORS.textPrimary,
+                      height: 50,
+                      width: '100%',
+                    }}
                   >
-                    <Picker.Item label="Normal car ➔ 4 seats" value="Normal car" color={COLORS.textPrimary} />
-                    <Picker.Item label="Mini Bus ➔ 6 seats" value="Mini Bus" color={COLORS.textPrimary} />
-                    <Picker.Item label="Bus ➔ 8 seats" value="Bus" color={COLORS.textPrimary} />
+                    <Picker.Item
+                      label="Normal car ➔ 4 seats"
+                      value="Normal car"
+                      color={COLORS.textPrimary}
+                    />
+                    <Picker.Item
+                      label="Mini Bus ➔ 6 seats"
+                      value="Mini Bus"
+                      color={COLORS.textPrimary}
+                    />
+                    <Picker.Item
+                      label="Bus ➔ 8 seats"
+                      value="Bus"
+                      color={COLORS.textPrimary}
+                    />
                   </Picker>
                 </View>
 
                 {/* Additional Vehicle Details */}
-                <Text style={[styles.fieldLabel, { marginTop: SPACING.md }]}>Vehicle Details</Text>
+                <Text style={[styles.fieldLabel, { marginTop: SPACING.md }]}>
+                  Vehicle Details
+                </Text>
                 <View style={styles.inputWrapper}>
-                  <Ionicons name="car-outline" size={20} color={COLORS.textTertiary} style={styles.inputIcon} />
+                  <Ionicons
+                    name="car-outline"
+                    size={20}
+                    color={COLORS.textTertiary}
+                    style={styles.inputIcon}
+                  />
                   <TextInput
                     style={styles.input}
                     placeholder="Vehicle Make (e.g. Toyota)"
                     placeholderTextColor={COLORS.textTertiary}
                     value={formData.vehicleMake}
-                    onChangeText={(t) => setFormData({ ...formData, vehicleMake: t })}
+                    onChangeText={(t) =>
+                      setFormData({ ...formData, vehicleMake: t })
+                    }
                   />
                 </View>
                 <View style={[styles.inputWrapper, { marginTop: SPACING.md }]}>
-                  <Ionicons name="car-sport-outline" size={20} color={COLORS.textTertiary} style={styles.inputIcon} />
+                  <Ionicons
+                    name="car-sport-outline"
+                    size={20}
+                    color={COLORS.textTertiary}
+                    style={styles.inputIcon}
+                  />
                   <TextInput
                     style={styles.input}
                     placeholder="Vehicle Model (e.g. Prius)"
                     placeholderTextColor={COLORS.textTertiary}
                     value={formData.vehicleModel}
-                    onChangeText={(t) => setFormData({ ...formData, vehicleModel: t })}
+                    onChangeText={(t) =>
+                      setFormData({ ...formData, vehicleModel: t })
+                    }
                   />
                 </View>
                 <View style={[styles.inputWrapper, { marginTop: SPACING.md }]}>
-                  <Ionicons name="color-palette-outline" size={20} color={COLORS.textTertiary} style={styles.inputIcon} />
+                  <Ionicons
+                    name="color-palette-outline"
+                    size={20}
+                    color={COLORS.textTertiary}
+                    style={styles.inputIcon}
+                  />
                   <TextInput
                     style={styles.input}
                     placeholder="Vehicle Color (e.g. Silver)"
                     placeholderTextColor={COLORS.textTertiary}
                     value={formData.vehicleColor}
-                    onChangeText={(t) => setFormData({ ...formData, vehicleColor: t })}
+                    onChangeText={(t) =>
+                      setFormData({ ...formData, vehicleColor: t })
+                    }
                   />
                 </View>
                 <View style={[styles.inputWrapper, { marginTop: SPACING.md }]}>
-                  <Ionicons name="information-circle-outline" size={20} color={COLORS.textTertiary} style={styles.inputIcon} />
+                  <Ionicons
+                    name="information-circle-outline"
+                    size={20}
+                    color={COLORS.textTertiary}
+                    style={styles.inputIcon}
+                  />
                   <TextInput
                     style={styles.input}
                     placeholder="Plate Number"
                     placeholderTextColor={COLORS.textTertiary}
                     value={formData.plateNumber}
-                    onChangeText={(t) => setFormData({ ...formData, plateNumber: t.toUpperCase() })}
+                    onChangeText={(t) =>
+                      setFormData({ ...formData, plateNumber: t.toUpperCase() })
+                    }
                     autoCapitalize="characters"
                   />
                 </View>
@@ -755,22 +960,37 @@ export function AuthScreen() {
                 activeOpacity={0.7}
                 style={{ flexDirection: 'row', alignItems: 'center' }}
               >
-                <View style={[styles.checkbox, termsAccepted && styles.checkboxChecked]}>
-                  {termsAccepted && <Ionicons name="checkmark" size={16} color="#FFF" />}
+                <View
+                  style={[
+                    styles.checkbox,
+                    termsAccepted && styles.checkboxChecked,
+                  ]}
+                >
+                  {termsAccepted && (
+                    <Ionicons name="checkmark" size={16} color="#FFF" />
+                  )}
                 </View>
               </TouchableOpacity>
               <Text style={styles.termsText}>
                 I agree to the{' '}
-                <Text 
-                  style={styles.termsLink} 
-                  onPress={() => navigation.navigate('LegalDocument', { documentType: 'terms' })}
+                <Text
+                  style={styles.termsLink}
+                  onPress={() =>
+                    navigation.navigate('LegalDocument', {
+                      documentType: 'terms',
+                    })
+                  }
                 >
                   Terms & Conditions
-                </Text>
-                {' '}and{' '}
-                <Text 
-                  style={styles.termsLink} 
-                  onPress={() => navigation.navigate('LegalDocument', { documentType: 'privacy' })}
+                </Text>{' '}
+                and{' '}
+                <Text
+                  style={styles.termsLink}
+                  onPress={() =>
+                    navigation.navigate('LegalDocument', {
+                      documentType: 'privacy',
+                    })
+                  }
                 >
                   Privacy Policy
                 </Text>
@@ -788,7 +1008,9 @@ export function AuthScreen() {
                 <ActivityIndicator color="#FFF" />
               ) : (
                 <Text style={styles.buttonText}>
-                  {isProvider ? 'Next — Identity Verification' : 'Register & Verify Email'}
+                  {isProvider
+                    ? 'Next — Identity Verification'
+                    : 'Register & Verify Email'}
                 </Text>
               )}
             </TouchableOpacity>
@@ -797,7 +1019,11 @@ export function AuthScreen() {
               style={styles.backStepButton}
               onPress={() => setCurrentStep('register_step1')}
             >
-              <Ionicons name="arrow-back" size={18} color={COLORS.textSecondary} />
+              <Ionicons
+                name="arrow-back"
+                size={18}
+                color={COLORS.textSecondary}
+              />
               <Text style={styles.backStepText}>Back to Personal Details</Text>
             </TouchableOpacity>
           </View>
@@ -809,7 +1035,8 @@ export function AuthScreen() {
             <StepIndicator currentStepNum={3} totalSteps={3} />
             <Text style={styles.label}>Identity Verification</Text>
             <Text style={styles.step3Subtitle}>
-              To verify your identity as a provider, please upload the following documents.
+              To verify your identity as a provider, please upload the following
+              documents.
             </Text>
 
             {/* ID Type Selection */}
@@ -820,14 +1047,27 @@ export function AuthScreen() {
                 return (
                   <TouchableOpacity
                     key={option.value}
-                    style={[styles.idTypeOption, isSelected && styles.idTypeOptionActive]}
+                    style={[
+                      styles.idTypeOption,
+                      isSelected && styles.idTypeOptionActive,
+                    ]}
                     onPress={() => setIdType(option.value)}
                     activeOpacity={0.7}
                   >
-                    <View style={[styles.radioOuter, isSelected && styles.radioOuterActive]}>
+                    <View
+                      style={[
+                        styles.radioOuter,
+                        isSelected && styles.radioOuterActive,
+                      ]}
+                    >
                       {isSelected && <View style={styles.radioInner} />}
                     </View>
-                    <Text style={[styles.idTypeLabel, isSelected && styles.idTypeLabelActive]}>
+                    <Text
+                      style={[
+                        styles.idTypeLabel,
+                        isSelected && styles.idTypeLabelActive,
+                      ]}
+                    >
                       {option.label}
                     </Text>
                   </TouchableOpacity>
@@ -837,16 +1077,26 @@ export function AuthScreen() {
 
             {/* Upload ID Document */}
             <Text style={styles.fieldLabel}>
-              Upload {idType ? ID_TYPE_OPTIONS.find(o => o.value === idType)?.label : 'ID Document'}
+              Upload{' '}
+              {idType
+                ? ID_TYPE_OPTIONS.find((o) => o.value === idType)?.label
+                : 'ID Document'}
             </Text>
             <UploadButton
-              label={idType ? ID_TYPE_OPTIONS.find(o => o.value === idType)?.label || 'ID Document' : 'ID Document'}
+              label={
+                idType
+                  ? ID_TYPE_OPTIONS.find((o) => o.value === idType)?.label ||
+                    'ID Document'
+                  : 'ID Document'
+              }
               uri={identityDocUri}
               onPress={() => pickImage(setIdentityDocUri)}
             />
 
             {/* Upload Proof of Address */}
-            <Text style={[styles.fieldLabel, { marginTop: SPACING.lg }]}>Proof of Address</Text>
+            <Text style={[styles.fieldLabel, { marginTop: SPACING.lg }]}>
+              Proof of Address
+            </Text>
             <Text style={styles.proofHint}>{PROOF_OF_ADDRESS_INFO}</Text>
             <UploadButton
               label="Proof of Address"
@@ -865,7 +1115,12 @@ export function AuthScreen() {
                 <ActivityIndicator color="#FFF" />
               ) : (
                 <View style={styles.buttonRow}>
-                  <Ionicons name="shield-checkmark" size={20} color="#FFF" style={{ marginRight: 8 }} />
+                  <Ionicons
+                    name="shield-checkmark"
+                    size={20}
+                    color="#FFF"
+                    style={{ marginRight: 8 }}
+                  />
                   <Text style={styles.buttonText}>Register & Verify Email</Text>
                 </View>
               )}
@@ -875,7 +1130,11 @@ export function AuthScreen() {
               style={styles.backStepButton}
               onPress={() => setCurrentStep('register_step2')}
             >
-              <Ionicons name="arrow-back" size={18} color={COLORS.textSecondary} />
+              <Ionicons
+                name="arrow-back"
+                size={18}
+                color={COLORS.textSecondary}
+              />
               <Text style={styles.backStepText}>Back to Address Details</Text>
             </TouchableOpacity>
           </View>
@@ -886,7 +1145,8 @@ export function AuthScreen() {
           <View style={styles.formContainer}>
             <Text style={styles.label}>Verify Email</Text>
             <Text style={styles.subtitle}>
-              Enter the 6-digit code sent to {isLogin ? loginData.email : formData.email}
+              Enter the 6-digit code sent to{' '}
+              {isLogin ? loginData.email : formData.email}
             </Text>
 
             <View style={styles.inputWrapper}>
@@ -895,7 +1155,9 @@ export function AuthScreen() {
                 placeholder="000000"
                 placeholderTextColor={COLORS.textTertiary}
                 value={otp}
-                onChangeText={(text) => setOtp(text.replace(/[^0-9]/g, '').slice(0, 6))}
+                onChangeText={(text) =>
+                  setOtp(text.replace(/[^0-9]/g, '').slice(0, 6))
+                }
                 keyboardType="numeric"
                 maxLength={6}
                 editable={!busy}
@@ -907,7 +1169,9 @@ export function AuthScreen() {
             <View style={styles.timerContainer}>
               <Text style={styles.timerText}>Expires in: {formatTime()}</Text>
               {otpAttempts > 0 && (
-                <Text style={styles.attemptsText}>Attempts: {otpAttempts}/3</Text>
+                <Text style={styles.attemptsText}>
+                  Attempts: {otpAttempts}/3
+                </Text>
               )}
             </View>
 
@@ -940,7 +1204,9 @@ export function AuthScreen() {
                 placeholder="Email"
                 placeholderTextColor={COLORS.textTertiary}
                 value={loginData.email}
-                onChangeText={(text) => setLoginData({ ...loginData, email: text })}
+                onChangeText={(text) =>
+                  setLoginData({ ...loginData, email: text })
+                }
                 keyboardType="email-address"
                 autoCapitalize="none"
               />
@@ -952,26 +1218,38 @@ export function AuthScreen() {
                 placeholder="Password"
                 placeholderTextColor={COLORS.textTertiary}
                 value={loginData.password}
-                onChangeText={(text) => setLoginData({ ...loginData, password: text })}
+                onChangeText={(text) =>
+                  setLoginData({ ...loginData, password: text })
+                }
                 secureTextEntry={!showLoginPassword}
               />
-              <TouchableOpacity 
-                style={{ position: 'absolute', right: 15, top: 15 }} 
+              <TouchableOpacity
+                style={{ position: 'absolute', right: 15, top: 15 }}
                 onPress={() => setShowLoginPassword(!showLoginPassword)}
               >
-                <Ionicons name={showLoginPassword ? "eye-off-outline" : "eye-outline"} size={20} color={COLORS.textTertiary} />
+                <Ionicons
+                  name={showLoginPassword ? 'eye-off-outline' : 'eye-outline'}
+                  size={20}
+                  color={COLORS.textTertiary}
+                />
               </TouchableOpacity>
             </View>
 
-            <TouchableOpacity 
+            <TouchableOpacity
               style={{ alignSelf: 'flex-end', marginBottom: SPACING.md }}
               onPress={() => navigation.navigate('ForgotPassword')}
             >
-              <Text style={{ color: COLORS.electricTeal, fontSize: FONT_SIZES.small, fontWeight: FONT_WEIGHTS.medium }}>
+              <Text
+                style={{
+                  color: COLORS.electricTeal,
+                  fontSize: FONT_SIZES.small,
+                  fontWeight: FONT_WEIGHTS.medium,
+                }}
+              >
                 Forgot Password?
               </Text>
             </TouchableOpacity>
-            
+
             {error ? <Text style={styles.error}>{error}</Text> : null}
 
             <TouchableOpacity
@@ -1004,27 +1282,69 @@ const styles = StyleSheet.create({
   scrollContent: { flexGrow: 1, padding: SPACING.lg, justifyContent: 'center' },
   inputIcon: { marginRight: SPACING.sm },
   eyeIcon: { padding: SPACING.xs },
-  header: { alignItems: 'center', marginBottom: SPACING.xl, marginTop: Platform.OS === 'ios' ? 40 : 20 },
+  header: {
+    alignItems: 'center',
+    marginBottom: SPACING.xl,
+    marginTop: Platform.OS === 'ios' ? 40 : 20,
+  },
   logoImage: { width: 260, height: 100, marginBottom: SPACING.sm },
-  appName: { fontSize: FONT_SIZES.hero, fontWeight: FONT_WEIGHTS.bold, color: COLORS.electricTeal, marginBottom: SPACING.sm },
+  appName: {
+    fontSize: FONT_SIZES.hero,
+    fontWeight: FONT_WEIGHTS.bold,
+    color: COLORS.electricTeal,
+    marginBottom: SPACING.sm,
+  },
   subtitle: { fontSize: FONT_SIZES.body, color: COLORS.textSecondary },
   formContainer: { width: '100%' },
-  label: { fontSize: FONT_SIZES.section, fontWeight: FONT_WEIGHTS.bold, color: COLORS.textPrimary, marginBottom: SPACING.md },
+  label: {
+    fontSize: FONT_SIZES.section,
+    fontWeight: FONT_WEIGHTS.bold,
+    color: COLORS.textPrimary,
+    marginBottom: SPACING.md,
+  },
 
   // Step indicator
-  stepIndicator: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: SPACING.xl },
+  stepIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: SPACING.xl,
+  },
   stepRow: { flexDirection: 'row', alignItems: 'center' },
   stepDot: {
-    width: 28, height: 28, borderRadius: 14,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: COLORS.surfaceAlt,
-    justifyContent: 'center', alignItems: 'center',
-    borderWidth: 2, borderColor: COLORS.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: COLORS.border,
   },
-  stepDotActive: { backgroundColor: COLORS.electricTeal, borderColor: COLORS.electricTeal },
-  stepDotCurrent: { borderColor: COLORS.electricTeal, backgroundColor: COLORS.electricTeal },
-  stepDotText: { color: COLORS.background, fontSize: 12, fontWeight: FONT_WEIGHTS.bold },
-  stepDotTextInactive: { color: COLORS.textSecondary, fontSize: 12, fontWeight: FONT_WEIGHTS.semibold },
-  stepLine: { width: 40, height: 2, backgroundColor: COLORS.border, marginHorizontal: 4 },
+  stepDotActive: {
+    backgroundColor: COLORS.electricTeal,
+    borderColor: COLORS.electricTeal,
+  },
+  stepDotCurrent: {
+    borderColor: COLORS.electricTeal,
+    backgroundColor: COLORS.electricTeal,
+  },
+  stepDotText: {
+    color: COLORS.background,
+    fontSize: 12,
+    fontWeight: FONT_WEIGHTS.bold,
+  },
+  stepDotTextInactive: {
+    color: COLORS.textSecondary,
+    fontSize: 12,
+    fontWeight: FONT_WEIGHTS.semibold,
+  },
+  stepLine: {
+    width: 40,
+    height: 2,
+    backgroundColor: COLORS.border,
+    marginHorizontal: 4,
+  },
   stepLineActive: { backgroundColor: COLORS.electricTeal },
 
   // Input fields
@@ -1032,9 +1352,13 @@ const styles = StyleSheet.create({
   halfInput: { flex: 1 },
   inputWrapper: { marginBottom: SPACING.md },
   input: {
-    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.md, color: COLORS.textPrimary,
-    fontSize: FONT_SIZES.body, borderWidth: 1, borderColor: COLORS.border,
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md,
+    color: COLORS.textPrimary,
+    fontSize: FONT_SIZES.body,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     height: 50,
   },
   phoneInputWrapper: {
@@ -1044,7 +1368,7 @@ const styles = StyleSheet.create({
     width: '100%',
     backgroundColor: COLORS.surface,
     borderRadius: BORDER_RADIUS.md,
-    borderWidth: 1, 
+    borderWidth: 1,
     borderColor: COLORS.border,
     height: 50,
   },
@@ -1057,7 +1381,8 @@ const styles = StyleSheet.create({
   phoneTextInput: {
     color: COLORS.textPrimary,
     fontSize: FONT_SIZES.body,
-    height: 50, padding: 0,
+    height: 50,
+    padding: 0,
   },
   phoneCodeText: {
     color: COLORS.textPrimary,
@@ -1066,51 +1391,89 @@ const styles = StyleSheet.create({
 
   // Terms & conditions
   termsRow: {
-    flexDirection: 'row', alignItems: 'flex-start',
-    marginBottom: SPACING.lg, marginTop: SPACING.sm,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: SPACING.lg,
+    marginTop: SPACING.sm,
   },
   checkbox: {
-    width: 24, height: 24, borderRadius: 6,
-    borderWidth: 2, borderColor: COLORS.border,
-    justifyContent: 'center', alignItems: 'center',
-    marginRight: SPACING.sm, marginTop: 2,
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: SPACING.sm,
+    marginTop: 2,
     backgroundColor: COLORS.surface,
   },
   checkboxChecked: {
-    backgroundColor: COLORS.electricTeal, borderColor: COLORS.electricTeal,
+    backgroundColor: COLORS.electricTeal,
+    borderColor: COLORS.electricTeal,
   },
-  termsText: { flex: 1, color: COLORS.textSecondary, fontSize: FONT_SIZES.small, lineHeight: 20 },
+  termsText: {
+    flex: 1,
+    color: COLORS.textSecondary,
+    fontSize: FONT_SIZES.small,
+    lineHeight: 20,
+  },
   termsLink: { color: COLORS.electricTeal, textDecorationLine: 'underline' },
 
   // Buttons
   button: {
-    backgroundColor: COLORS.electricTeal, borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.lg, alignItems: 'center',
-    marginTop: SPACING.lg, marginBottom: SPACING.md,
+    backgroundColor: COLORS.electricTeal,
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.lg,
+    alignItems: 'center',
+    marginTop: SPACING.lg,
+    marginBottom: SPACING.md,
   },
   buttonDisabled: { opacity: 0.6 },
-  buttonText: { color: '#FFF', fontSize: FONT_SIZES.label, fontWeight: FONT_WEIGHTS.bold },
-  buttonRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  buttonText: {
+    color: '#FFF',
+    fontSize: FONT_SIZES.label,
+    fontWeight: FONT_WEIGHTS.bold,
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 
   // Back step
   backStepButton: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    marginTop: SPACING.md, padding: SPACING.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: SPACING.md,
+    padding: SPACING.sm,
   },
-  backStepText: { color: COLORS.textSecondary, fontSize: FONT_SIZES.body, marginLeft: SPACING.xs },
+  backStepText: {
+    color: COLORS.textSecondary,
+    fontSize: FONT_SIZES.body,
+    marginLeft: SPACING.xs,
+  },
 
   // Step 3 - Identity Verification
   step3Subtitle: {
-    color: COLORS.textSecondary, fontSize: FONT_SIZES.body,
-    lineHeight: 22, marginBottom: SPACING.xl,
+    color: COLORS.textSecondary,
+    fontSize: FONT_SIZES.body,
+    lineHeight: 22,
+    marginBottom: SPACING.xl,
   },
   fieldLabel: {
-    color: COLORS.textPrimary, fontSize: FONT_SIZES.label,
-    fontWeight: FONT_WEIGHTS.semibold, marginBottom: SPACING.sm, marginTop: SPACING.sm,
+    color: COLORS.textPrimary,
+    fontSize: FONT_SIZES.label,
+    fontWeight: FONT_WEIGHTS.semibold,
+    marginBottom: SPACING.sm,
+    marginTop: SPACING.sm,
   },
   proofHint: {
-    color: COLORS.textSecondary, fontSize: FONT_SIZES.small,
-    lineHeight: 18, marginBottom: SPACING.md,
+    color: COLORS.textSecondary,
+    fontSize: FONT_SIZES.small,
+    lineHeight: 18,
+    marginBottom: SPACING.md,
   },
 
   // ID Type radio buttons
@@ -1119,9 +1482,12 @@ const styles = StyleSheet.create({
     gap: SPACING.sm,
   },
   idTypeOption: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.md, borderWidth: 1.5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md,
+    borderWidth: 1.5,
     borderColor: COLORS.border,
   },
   idTypeOptionActive: {
@@ -1129,9 +1495,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 194, 168, 0.08)',
   },
   radioOuter: {
-    width: 22, height: 22, borderRadius: 11,
-    borderWidth: 2, borderColor: COLORS.border,
-    justifyContent: 'center', alignItems: 'center',
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginRight: SPACING.md,
     backgroundColor: COLORS.background,
   },
@@ -1139,69 +1509,116 @@ const styles = StyleSheet.create({
     borderColor: COLORS.electricTeal,
   },
   radioInner: {
-    width: 12, height: 12, borderRadius: 6,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
     backgroundColor: COLORS.electricTeal,
   },
   idTypeLabel: {
-    color: COLORS.textPrimary, fontSize: FONT_SIZES.body,
+    color: COLORS.textPrimary,
+    fontSize: FONT_SIZES.body,
     fontWeight: FONT_WEIGHTS.medium,
   },
   idTypeLabelActive: {
-    color: COLORS.electricTeal, fontWeight: FONT_WEIGHTS.bold,
+    color: COLORS.electricTeal,
+    fontWeight: FONT_WEIGHTS.bold,
   },
 
   // Upload buttons
   uploadBtn: {
-    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.md, borderWidth: 1.5,
-    borderColor: COLORS.border, borderStyle: 'dashed',
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    borderStyle: 'dashed',
     marginBottom: SPACING.sm,
   },
   uploadPlaceholderRow: {
-    flexDirection: 'row', alignItems: 'center', gap: SPACING.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
   },
   uploadIconContainer: {
-    width: 48, height: 48, borderRadius: BORDER_RADIUS.md,
+    width: 48,
+    height: 48,
+    borderRadius: BORDER_RADIUS.md,
     backgroundColor: 'rgba(0, 194, 168, 0.12)',
-    justifyContent: 'center', alignItems: 'center',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   uploadLabel: {
-    color: COLORS.textPrimary, fontSize: FONT_SIZES.label,
+    color: COLORS.textPrimary,
+    fontSize: FONT_SIZES.label,
     fontWeight: FONT_WEIGHTS.semibold,
   },
   uploadHint: {
-    color: COLORS.textSecondary, fontSize: FONT_SIZES.small,
+    color: COLORS.textSecondary,
+    fontSize: FONT_SIZES.small,
     marginTop: 2,
   },
   uploadPreviewRow: {
-    flexDirection: 'row', alignItems: 'center', gap: SPACING.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
   },
   uploadPreview: {
-    width: 48, height: 48, borderRadius: BORDER_RADIUS.sm,
+    width: 48,
+    height: 48,
+    borderRadius: BORDER_RADIUS.sm,
   },
   uploadLabelDone: {
-    color: COLORS.textPrimary, fontSize: FONT_SIZES.label,
+    color: COLORS.textPrimary,
+    fontSize: FONT_SIZES.label,
     fontWeight: FONT_WEIGHTS.semibold,
   },
   uploadStatusDone: {
-    color: COLORS.success, fontSize: FONT_SIZES.small,
-    marginTop: 2, fontWeight: FONT_WEIGHTS.medium,
+    color: COLORS.success,
+    fontSize: FONT_SIZES.small,
+    marginTop: 2,
+    fontWeight: FONT_WEIGHTS.medium,
   },
 
   // Misc
-  error: { color: COLORS.coralRed, fontSize: FONT_SIZES.small, marginBottom: SPACING.md, marginTop: -SPACING.md },
-  timerContainer: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    marginVertical: SPACING.md, padding: SPACING.md,
-    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.md, borderWidth: 1, borderColor: COLORS.border,
+  error: {
+    color: COLORS.coralRed,
+    fontSize: FONT_SIZES.small,
+    marginBottom: SPACING.md,
+    marginTop: -SPACING.md,
   },
-  timerText: { color: COLORS.electricTeal, fontSize: FONT_SIZES.body, fontWeight: FONT_WEIGHTS.semibold },
+  timerContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginVertical: SPACING.md,
+    padding: SPACING.md,
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  timerText: {
+    color: COLORS.electricTeal,
+    fontSize: FONT_SIZES.body,
+    fontWeight: FONT_WEIGHTS.semibold,
+  },
   attemptsText: { color: COLORS.textSecondary, fontSize: FONT_SIZES.small },
   resendLink: {
-    color: COLORS.electricTeal, fontSize: FONT_SIZES.body,
-    textAlign: 'center', textDecorationLine: 'underline', marginTop: SPACING.md,
+    color: COLORS.electricTeal,
+    fontSize: FONT_SIZES.body,
+    textAlign: 'center',
+    textDecorationLine: 'underline',
+    marginTop: SPACING.md,
   },
-  toggleContainer: { flexDirection: 'row', justifyContent: 'center', marginTop: SPACING.lg },
+  toggleContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginTop: SPACING.lg,
+  },
   toggleText: { color: COLORS.textSecondary, fontSize: FONT_SIZES.body },
-  toggleLink: { color: COLORS.electricTeal, fontSize: FONT_SIZES.body, fontWeight: FONT_WEIGHTS.bold },
+  toggleLink: {
+    color: COLORS.electricTeal,
+    fontSize: FONT_SIZES.body,
+    fontWeight: FONT_WEIGHTS.bold,
+  },
 });
