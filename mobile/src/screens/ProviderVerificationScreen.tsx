@@ -196,6 +196,9 @@ export function ProviderVerificationScreen() {
 
   const getMaxImages = (key: string) => key === 'cctvPhotos' ? 3 : 6;
 
+  // ============================================================
+  // UPDATED pickImage function with documentType support
+  // ============================================================
   const pickImage = async (key: string) => {
     const maxImages = getMaxImages(key);
     const existing = selectedImages[key] || [];
@@ -223,9 +226,53 @@ export function ProviderVerificationScreen() {
 
     if (!result.canceled && result.assets.length > 0) {
       const newUris = result.assets.map(a => a.uri);
+
+      // ============================================================
+      // Upload images immediately after selection with documentType
+      // ============================================================
+      const uploadedUrls: string[] = [];
+
+      for (const uri of newUris) {
+        try {
+          // ============================================================
+          // Determine document type based on the field key
+          // ============================================================
+          let documentType = 'other';
+          if (key === 'parkPhotos' || key === 'cctvPhotos') {
+            documentType = 'proof_of_address';
+          }
+
+          const imgFormData = new FormData();
+          imgFormData.append('file', {
+            uri: Platform.OS === 'ios' ? uri.replace('file://', '') : uri,
+            name: `park_${key}_${Date.now()}.jpg`,
+            type: 'image/jpeg',
+          } as any);
+
+          // ============================================================
+          // CRITICAL: Append documentType to the form data
+          // ============================================================
+          imgFormData.append('documentType', documentType);
+
+          const uploadRes = await providerApi.uploadDocument(imgFormData);
+          if (uploadRes.success && uploadRes.url) {
+            uploadedUrls.push(uploadRes.url);
+          }
+        } catch (uploadErr) {
+          console.warn(`Failed to upload ${key} image:`, uploadErr);
+        }
+      }
+
+      // Store the uploaded URLs in selectedImages
       setSelectedImages(prev => ({
         ...prev,
-        [key]: [...(prev[key] || []), ...newUris].slice(0, maxImages),
+        [key]: [...(prev[key] || []), ...uploadedUrls],
+      }));
+
+      // Also store in documents for form submission
+      setDocuments(prev => ({
+        ...prev,
+        [key]: [...(Array.isArray(prev[key]) ? prev[key] : []), ...uploadedUrls],
       }));
     }
   };
@@ -267,6 +314,12 @@ export function ProviderVerificationScreen() {
         const s3Urls: string[] = [];
         for (const uri of uris) {
           try {
+            // Determine document type
+            let documentType = 'other';
+            if (key === 'parkPhotos' || key === 'cctvPhotos') {
+              documentType = 'proof_of_address';
+            }
+
             const imgFormData = new FormData();
             imgFormData.append('file', {
               uri: Platform.OS === 'ios' ? uri.replace('file://', '') : uri,
@@ -274,9 +327,14 @@ export function ProviderVerificationScreen() {
               type: 'image/jpeg',
             } as any);
 
+            // ============================================================
+            // CRITICAL: Append documentType
+            // ============================================================
+            imgFormData.append('documentType', documentType);
+
             const uploadRes = await providerApi.uploadDocument(imgFormData);
-            if (uploadRes.data?.success && uploadRes.data.url) {
-              s3Urls.push(uploadRes.data.url);
+            if (uploadRes.success && uploadRes.url) {
+              s3Urls.push(uploadRes.url);
             }
           } catch (uploadErr) {
             console.warn(`Failed to upload ${key} image:`, uploadErr);

@@ -4,8 +4,8 @@ import axios, {
   InternalAxiosRequestConfig,
 } from 'axios';
 import Constants from 'expo-constants';
-import { useAuthStore } from '@/store/authStore';
-import { secureStorage } from '@/utils/secureStorage';
+import { useAuthStore } from '../store/authStore';
+import { secureStorage } from '../utils/secureStorage';
 
 // Prefer the Expo public environment variable for flexibility across
 // development, staging, and production.

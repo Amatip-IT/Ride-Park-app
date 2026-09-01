@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import { ApiResponse, AuthResponse, User, RegisterRequest, LoginRequest } from '@/types';
+import { ApiResponse, AuthResponse, User, RegisterRequest, LoginRequest } from '../types';
 
 class AuthService {
   private api = apiClient.getInstance();

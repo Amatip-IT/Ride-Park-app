@@ -613,8 +613,8 @@ export function AuthScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <Image
-            source={require('../../assets/images/logo.jpg')}
+          <Image 
+            source={require('../../assets/images/auth_logo.jpg')} 
             style={styles.logoImage}
             resizeMode="contain"
           />
@@ -1126,8 +1126,7 @@ export function AuthScreen() {
               )}
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.backStepButton}
+            <TouchableOpacity              style={styles.backStepButton}
               onPress={() => setCurrentStep('register_step2')}
             >
               <Ionicons

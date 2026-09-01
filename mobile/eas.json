@@ -1,24 +1,120 @@
 {
   "cli": {
     "version": ">= 18.7.0",
-    "appVersionSource": "remote"
+    "appVersionSource": "remote",
+    "requireCommit": true
   },
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "ios": {
+        "buildConfiguration": "Debug",
+        "simulator": true
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://www.gleezip.com/api",
+        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_test_51SahnEIfn0kPvar74SnKFnUVDDi2DU5Ecwtcsx7iagGu8g91K8lffsBlQpLpv0Xv9or7IgJ49ymcYgzS8RPD4ydl00WgXBe80o"
+      }
+    },
+    "development-simulator": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "ios": {
+        "simulator": true,
+        "buildConfiguration": "Debug"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://www.gleezip.com/api",
+        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_test_51SahnEIfn0kPvar74SnKFnUVDDi2DU5Ecwtcsx7iagGu8g91K8lffsBlQpLpv0Xv9or7IgJ49ymcYgzS8RPD4ydl00WgXBe80o"
+      }
     },
     "preview": {
       "distribution": "internal",
       "android": {
-        "buildType": "apk"
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease"
+      },
+      "ios": {
+        "buildConfiguration": "Release",
+        "simulator": false
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://www.gleezip.com/api",
+        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_test_51SahnEIfn0kPvar74SnKFnUVDDi2DU5Ecwtcsx7iagGu8g91K8lffsBlQpLpv0Xv9or7IgJ49ymcYgzS8RPD4ydl00WgXBe80o"
+      }
+    },
+    "preview-simulator": {
+      "distribution": "internal",
+      "ios": {
+        "simulator": true,
+        "buildConfiguration": "Release"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://www.gleezip.com/api",
+        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_test_51SahnEIfn0kPvar74SnKFnUVDDi2DU5Ecwtcsx7iagGu8g91K8lffsBlQpLpv0Xv9or7IgJ49ymcYgzS8RPD4ydl00WgXBe80o"
       }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "android": {
+        "buildType": "app-bundle",
+        "gradleCommand": ":app:bundleRelease"
+      },
+      "ios": {
+        "buildConfiguration": "Release",
+        "simulator": false
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://www.gleezip.com/api",
+        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_live_51NXKolEvpzlSCOAbGL0SQmKYE8jg5mJeZOaR4ZgeoVztc3LC9R0MVCbPV0DnTC7WdUbY3Qa0qQqRGLSLOHk739uU00o371LeUm"
+      }
+    },
+    "production-simulator": {
+      "autoIncrement": true,
+      "ios": {
+        "simulator": true,
+        "buildConfiguration": "Release"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://www.gleezip.com/api",
+        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_live_51NXKolEvpzlSCOAbGL0SQmKYE8jg5mJeZOaR4ZgeoVztc3LC9R0MVCbPV0DnTC7WdUbY3Qa0qQqRGLSLOHk739uU00o371LeUm"
+      }
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {
+        "appleId": "YOUR_APPLE_ID",
+        "ascAppId": "YOUR_ASC_APP_ID",
+        "appleTeamId": "YOUR_APPLE_TEAM_ID",
+        "sku": "GLEEZIP_APP_2024",
+        "language": "en-US",
+        "companyName": "Amatip IT"
+      },
+      "android": {
+        "serviceAccountKeyPath": "./google-service-account.json",
+        "track": "production",
+        "releaseStatus": "completed"
+      }
+    },
+    "preview": {
+      "ios": {
+        "appleId": "YOUR_APPLE_ID",
+        "ascAppId": "YOUR_ASC_APP_ID",
+        "appleTeamId": "YOUR_APPLE_TEAM_ID",
+        "sku": "GLEEZIP_APP_PREVIEW",
+        "language": "en-US",
+        "companyName": "Amatip IT"
+      },
+      "android": {
+        "serviceAccountKeyPath": "./google-service-account.json",
+        "track": "internal",
+        "releaseStatus": "draft"
+      }
+    }
   }
 }

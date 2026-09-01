@@ -158,3 +158,8 @@ export const searchLocationByPosition = async (lat: number, lng: number): Promis
 
   return null;
 };
+
+export default {
+  searchLocationByText,
+  searchLocationByPosition,
+};

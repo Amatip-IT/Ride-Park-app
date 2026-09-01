@@ -1,7 +1,15 @@
 import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, Image, Platform,
-  SafeAreaView, ActivityIndicator, Alert, ScrollView
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Image,
+  Platform,
+  SafeAreaView,
+  ActivityIndicator,
+  Alert,
+  ScrollView
 } from 'react-native';
 import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
@@ -32,6 +40,23 @@ const DOC_FIELD_MAPPING: Record<string, string> = {
   v5c: 'v5cUrl',
   insurance: 'insuranceUrl',
   vehicle_inspection: 'vehicleInspectionUrl',
+};
+
+// ============================================================
+// DOCUMENT TYPE MAPPING - Maps docId to backend documentType
+// ============================================================
+const DOCUMENT_TYPE_MAPPING: Record<string, string> = {
+  nat_insurance: 'driver_license',
+  vat_cert: 'vat_certificate',
+  dvla_licence: 'driver_license',
+  bank_statement: 'proof_of_address',
+  dvla_check_code: 'id_document',
+  phv_driver_licence: 'driver_license',
+  profile_photo: 'profile_photo',
+  phvl: 'vehicle_registration',
+  v5c: 'vehicle_registration',
+  insurance: 'insurance',
+  vehicle_inspection: 'insurance',
 };
 
 export function DocumentUploadScreen() {
@@ -98,7 +123,20 @@ export function DocumentUploadScreen() {
   };
 
   const handleUpload = async () => {
-    if (!documentUri) return;
+    if (!documentUri) {
+      Alert.alert('Error', 'Please select a document to upload');
+      return;
+    }
+
+    // ============================================================
+    // Get the document type from the mapping
+    // ============================================================
+    const documentType = DOCUMENT_TYPE_MAPPING[docId];
+    if (!documentType) {
+      Alert.alert('Error', `Unknown document type for: ${docId}. Please contact support.`);
+      return;
+    }
+
     setIsUploading(true);
 
     try {
@@ -110,12 +148,14 @@ export function DocumentUploadScreen() {
       // Get the dedicated backend field for this document
       const docField = DOC_FIELD_MAPPING[docId];
       if (!docField) {
-        Alert.alert('Error', `Unknown document type: ${docId}`);
+        Alert.alert('Error', `Unknown document field: ${docId}`);
         setIsUploading(false);
         return;
       }
 
-      // 1. Upload the file to S3
+      // ============================================================
+      // 1. Upload the file to S3 with documentType
+      // ============================================================
       const formData = new FormData();
       formData.append('file', {
         uri: Platform.OS === 'ios' ? documentUri.replace('file://', '') : documentUri,
@@ -123,13 +163,18 @@ export function DocumentUploadScreen() {
         type: documentName?.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg',
       } as any);
 
+      // ============================================================
+      // CRITICAL: Append documentType to the form data
+      // ============================================================
+      formData.append('documentType', documentType);
+
       const uploadRes = await providerApi.uploadDocument(formData);
-      
-      if (!uploadRes.data?.success || !uploadRes.data.url) {
-        throw new Error(uploadRes.data?.message || 'Failed to upload document to storage');
+
+      if (!uploadRes.success || !uploadRes.url) {
+        throw new Error(uploadRes.message || 'Failed to upload document to storage');
       }
 
-      const s3Url = uploadRes.data.url;
+      const s3Url = uploadRes.url;
 
       // 2. Submit the S3 URL with the dedicated field name
       let res;
@@ -139,23 +184,35 @@ export function DocumentUploadScreen() {
         res = await providerApi.submitDriverVerification({ docField, docUrl: s3Url });
       }
 
-      if (res.data?.success) {
+      if (res?.success) {
         Alert.alert(
-          'Document Uploaded! ✅', 
-          'Your document has been submitted and is now pending review. Status: Uploaded, Await Review.',
+          'Document Uploaded! ✅',
+          'Your document has been submitted and is now pending review.',
           [{ text: 'OK', onPress: () => navigation.goBack() }]
         );
       } else {
-        Alert.alert('Error', res.data?.message || 'Failed to upload document.');
+        Alert.alert('Error', res?.message || 'Failed to upload document.');
       }
     } catch (error: any) {
       const isNetwork = error?.isNetworkError ||
         error?.message?.toLowerCase().includes('network request failed') ||
         error?.message?.toLowerCase().includes('cannot reach');
+
+      // ============================================================
+      // Handle the specific documentType error from the backend
+      // ============================================================
+      const isDocumentTypeError = error?.message?.toLowerCase().includes('documenttype');
+
       const title = isNetwork ? 'Connection Error' : 'Upload Failed';
-      const message = isNetwork
-        ? (error?.message || 'Cannot reach the server. Make sure the backend is running and your device is on the same Wi-Fi network.')
-        : (error?.response?.data?.message || error?.message || 'Failed to upload document. Try again.');
+      let message = isNetwork
+        ? 'Cannot reach the server. Please check your internet connection.'
+        : (error?.response?.data?.message || error?.message || 'Failed to upload document.');
+
+      // Enhance the documentType error message
+      if (isDocumentTypeError) {
+        message = 'Document type is required. Please select a valid document type.';
+      }
+
       Alert.alert(title, message);
     } finally {
       setIsUploading(false);
@@ -166,8 +223,8 @@ export function DocumentUploadScreen() {
   const isImageFile = () => {
     if (!documentName) return false;
     const name = documentName.toLowerCase();
-    return name.match(/\.(jpg|jpeg|png|gif|webp)$/) || 
-           name === 'camera_photo.jpg' || 
+    return name.match(/\.(jpg|jpeg|png|gif|webp)$/) ||
+           name === 'camera_photo.jpg' ||
            name === 'uploaded_image.jpg';
   };
 
