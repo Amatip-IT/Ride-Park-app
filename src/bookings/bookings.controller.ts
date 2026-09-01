@@ -11,21 +11,20 @@ import {
   UseGuards,
   Req,
 } from '@nestjs/common';
+import { Types } from 'mongoose';
 import { BookingsService } from './bookings.service';
 import { AuthGuard } from 'src/guards/auth.guard';
 import { AdminGuard } from 'src/guards/admin.guard';
 import { RateLimit } from 'src/common/rate-limit.decorator';
 import { getRequestUserId } from 'src/common/request.util';
+import { ObjectIdPipe } from 'src/common/object-id.pipe';
+import { validateObjectId } from 'src/common/object-id.utils';
 
 @Controller('bookings')
 @UseGuards(AuthGuard)
 export class BookingsController {
   constructor(private readonly bookingsService: BookingsService) {}
 
-  /**
-   * POST /bookings
-   * Create a new booking request (consumer → provider)
-   */
   @Post()
   async createBooking(
     @Req() req: any,
@@ -45,12 +44,15 @@ export class BookingsController {
       );
     }
 
-    // Broadcast requests might omit serviceId
     if (body.serviceType === 'parking' && !body.serviceId) {
       throw new HttpException(
         { message: 'serviceId is required for parking bookings' },
         HttpStatus.BAD_REQUEST,
       );
+    }
+
+    if (body.serviceId) {
+      validateObjectId(body.serviceId);
     }
 
     const result = await this.bookingsService.createBookingRequest({
@@ -67,19 +69,11 @@ export class BookingsController {
     return result;
   }
 
-  /**
-   * GET /bookings/my
-   * Get current user's bookings (consumer view)
-   */
   @Get('my')
   async getMyBookings(@Req() req: any, @Query('status') status?: string) {
     return this.bookingsService.getMyBookings(getRequestUserId(req), status);
   }
 
-  /**
-   * GET /bookings/provider
-   * Get incoming requests for a provider (provider dashboard)
-   */
   @Get('provider')
   async getProviderRequests(@Req() req: any, @Query('status') status?: string) {
     return this.bookingsService.getProviderRequests(
@@ -88,14 +82,10 @@ export class BookingsController {
     );
   }
 
-  /**
-   * PATCH /bookings/:id/respond
-   * Provider accepts or rejects a booking request
-   */
   @Patch(':id/respond')
   async respondToRequest(
     @Req() req: any,
-    @Param('id') id: string,
+    @Param('id', ObjectIdPipe) id: Types.ObjectId,
     @Body() body: { action: 'accept' | 'reject'; responseMessage?: string },
   ) {
     if (!body.action || !['accept', 'reject'].includes(body.action)) {
@@ -106,7 +96,7 @@ export class BookingsController {
     }
 
     const result = await this.bookingsService.respondToRequest(
-      id,
+      id.toString(),
       getRequestUserId(req),
       body.action,
       body.responseMessage,
@@ -121,14 +111,13 @@ export class BookingsController {
     return result;
   }
 
-  /**
-   * PATCH /bookings/:id/complete
-   * Provider marks a booking as completed — frees the parking spot
-   */
   @Patch(':id/complete')
-  async completeBooking(@Req() req: any, @Param('id') id: string) {
+  async completeBooking(
+    @Req() req: any,
+    @Param('id', ObjectIdPipe) id: Types.ObjectId,
+  ) {
     const result = await this.bookingsService.completeBooking(
-      id,
+      id.toString(),
       getRequestUserId(req),
     );
 
@@ -141,14 +130,13 @@ export class BookingsController {
     return result;
   }
 
-  /**
-   * POST /bookings/:id/confirm-arrival
-   * Consumer confirms they are at the service location
-   */
   @Post(':id/confirm-arrival')
-  async confirmArrival(@Req() req: any, @Param('id') id: string) {
+  async confirmArrival(
+    @Req() req: any,
+    @Param('id', ObjectIdPipe) id: Types.ObjectId,
+  ) {
     const result = await this.bookingsService.confirmBookingArrival(
-      id,
+      id.toString(),
       getRequestUserId(req),
     );
 
@@ -161,15 +149,14 @@ export class BookingsController {
     return result;
   }
 
-  /**
-   * POST /bookings/:id/pay
-   * Consumer confirms payment for a booking awaiting payment
-   */
   @Post(':id/pay')
   @RateLimit({ limit: 5, windowMs: 10 * 60_000 })
-  async payBooking(@Req() req: any, @Param('id') id: string) {
+  async payBooking(
+    @Req() req: any,
+    @Param('id', ObjectIdPipe) id: Types.ObjectId,
+  ) {
     const result = await this.bookingsService.payBooking(
-      id,
+      id.toString(),
       getRequestUserId(req),
     );
 
@@ -182,14 +169,13 @@ export class BookingsController {
     return result;
   }
 
-  /**
-   * GET /bookings/:id/receipt
-   * Receipt for a completed parking or chauffeur booking
-   */
   @Get(':id/receipt')
-  async getBookingReceipt(@Req() req: any, @Param('id') id: string) {
+  async getBookingReceipt(
+    @Req() req: any,
+    @Param('id', ObjectIdPipe) id: Types.ObjectId,
+  ) {
     const result = await this.bookingsService.getBookingReceipt(
-      id,
+      id.toString(),
       getRequestUserId(req),
     );
 
@@ -202,14 +188,13 @@ export class BookingsController {
     return result;
   }
 
-  /**
-   * PATCH /bookings/:id/cancel
-   * Consumer cancels their own booking
-   */
   @Patch(':id/cancel')
-  async cancelBooking(@Req() req: any, @Param('id') id: string) {
+  async cancelBooking(
+    @Req() req: any,
+    @Param('id', ObjectIdPipe) id: Types.ObjectId,
+  ) {
     const result = await this.bookingsService.cancelBooking(
-      id,
+      id.toString(),
       getRequestUserId(req),
     );
 
@@ -222,10 +207,6 @@ export class BookingsController {
     return result;
   }
 
-  /**
-   * POST /bookings/auto-complete
-   * Admin/system endpoint to auto-complete all expired bookings
-   */
   @Post('auto-complete')
   @UseGuards(AdminGuard)
   async autoCompleteExpired() {

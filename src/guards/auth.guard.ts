@@ -3,80 +3,111 @@ import {
   CanActivate,
   ExecutionContext,
   UnauthorizedException,
+  Logger,
 } from '@nestjs/common';
-import { Request } from 'express';
+import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import * as jwt from 'jsonwebtoken';
-import dotenv from 'dotenv';
-import { User, UserDocument } from 'src/schemas/user.schema';
-dotenv.config();
+import { User, UserDocument } from '../schemas/user.schema';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
-  constructor(@InjectModel(User.name) private userModel: Model<UserDocument>) {} // Inject User model
+  private readonly logger = new Logger(AuthGuard.name);
 
-  //method to check if the request is authorized by a user that has a valid token and can activate the route
+  constructor(
+    @InjectModel(User.name) private userModel: Model<UserDocument>,
+    private jwtService: JwtService,
+  ) {}
+
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request: Request = context.switchToHttp().getRequest();
+    const request = context.switchToHttp().getRequest();
+    const authHeader = request.headers.authorization;
 
-    // Check if Authorization header exists
-    const authHeader: string | undefined = request.headers.authorization;
-
-    if (!authHeader || !authHeader.startsWith('Bearer')) {
-      throw new UnauthorizedException(
-        'Authorization header is missing or invalid',
-      );
+    if (!authHeader) {
+      this.logger.warn('No authorization header provided');
+      throw new UnauthorizedException('No authorization token provided');
     }
 
-    // Extract token from "Bearer <token>"
-    const token: string | undefined = authHeader.split(' ')[1];
+    const [type, token] = authHeader.split(' ');
 
-    if (!token) {
-      throw new UnauthorizedException('Invalid authorization format');
-    }
-
-    //get secret key from environment variables
-    if (!process.env.JWT_SECRET) {
-      throw new UnauthorizedException('JWT_SECRET is not defined');
+    if (type !== 'Bearer' || !token) {
+      this.logger.warn('Invalid authorization header format');
+      throw new UnauthorizedException('Invalid authorization token format');
     }
 
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET, {
-        algorithms: ['HS256'],
-      });
+      // Verify JWT token
+      const payload = this.jwtService.verify(token);
+      this.logger.log(`Token payload: ${JSON.stringify(payload)}`);
 
-      // if the verification is successful, fetch the user from database
-      if (decoded && typeof decoded['id'] === 'string') {
-        const user = await this.userModel.findById(decoded['id']).exec();
-
-        if (!user) {
-          throw new UnauthorizedException('User not found');
-        }
-
-        const tokenVersion =
-          typeof decoded['tv'] === 'number' ? decoded['tv'] : 0;
-        if (tokenVersion !== (user.tokenVersion ?? 0)) {
-          throw new UnauthorizedException(
-            'Session invalidated. Please sign in again.',
-          );
-        }
-
-        // Attach user to request object for further use
-        request['user'] = user;
-      } else {
-        throw new UnauthorizedException(
-          'Not authorized, authorization failed, please login again',
-        );
+      // Get user ID from payload - now using _id
+      const userId = payload._id || payload.id || payload.sub || payload.userId;
+      
+      if (!userId) {
+        this.logger.error(`No user ID found in token payload: ${JSON.stringify(payload)}`);
+        throw new UnauthorizedException('Invalid token payload');
       }
+
+      this.logger.log(`Looking for user with ID: ${userId}`);
+
+      // Find user from database
+      const user = await this.userModel
+        .findById(userId)
+        .select('-password -refreshToken')
+        .lean();
+
+      if (!user) {
+        this.logger.warn(`User not found for ID: ${userId}`);
+        throw new UnauthorizedException('User not found');
+      }
+
+      // Check if token version matches - using tokenVersion from payload
+      if (payload.tokenVersion !== undefined && user.tokenVersion !== undefined) {
+        if (payload.tokenVersion !== user.tokenVersion) {
+          this.logger.warn(`Token version mismatch for user: ${user._id}`);
+          throw new UnauthorizedException('Token has been revoked');
+        }
+      }
+
+      // Check account status
+      if (user.accountStatus === 'banned') {
+        throw new UnauthorizedException('Account has been permanently banned');
+      }
+
+      if (user.accountStatus === 'suspended') {
+        const now = new Date();
+        if (user.suspensionEndDate && new Date(user.suspensionEndDate) <= now) {
+          await this.userModel.findByIdAndUpdate(user._id, {
+            accountStatus: 'active',
+            suspensionReason: undefined,
+            suspensionEndDate: undefined,
+          });
+        } else {
+          throw new UnauthorizedException('Account is temporarily suspended');
+        }
+      }
+
+      // Attach user to request
+      request.user = {
+        _id: user._id,
+        id: user._id.toString(),
+        email: user.email,
+        role: user.role,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        phoneNumber: user.phoneNumber,
+        username: user.username,
+        accountStatus: user.accountStatus,
+        tokenVersion: user.tokenVersion,
+      };
+
+      return true;
     } catch (error) {
-      if (error instanceof UnauthorizedException) {
-        throw error;
+      this.logger.error(`Authentication failed: ${error.message}`);
+      if (error.name === 'TokenExpiredError') {
+        throw new UnauthorizedException('Token has expired. Please refresh your token.');
       }
-      console.error('Token verification error:', error);
-      throw new UnauthorizedException('Not authorized, authorization failed');
+      throw new UnauthorizedException('Invalid or expired token');
     }
-
-    return true;
   }
 }

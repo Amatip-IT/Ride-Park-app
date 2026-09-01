@@ -15,6 +15,7 @@ import {
   UploadedFile,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Types } from 'mongoose';
 import { UsersService } from './users.service';
 import { User } from 'src/schemas/user.schema';
 import type { UserDocument } from 'src/schemas/user.schema';
@@ -23,6 +24,8 @@ import { AuthGuard } from 'src/guards/auth.guard';
 import { CreateUserDto } from './dto/create-user.dto';
 import { FileUploadService } from 'src/verification/services/file/file-upload.service';
 import { RateLimit } from 'src/common/rate-limit.decorator';
+import { ObjectIdPipe } from 'src/common/object-id.pipe';
+import { validateObjectId } from 'src/common/object-id.utils';
 import {
   EmailRequestDto,
   LoginDto,
@@ -37,12 +40,10 @@ export class UsersController {
     private readonly fileUploadService: FileUploadService,
   ) {}
 
-  //route to login a user
   @Post('login')
   @RateLimit({ limit: 8, windowMs: 5 * 60_000 })
   async loginUser(@Body() loginDto: LoginDto) {
     const result = await this.usersService.loginUser(loginDto);
-    // Check if result is an error response with success false
     if (!result.success) {
       throw new HttpException(
         { message: result.message },
@@ -52,20 +53,16 @@ export class UsersController {
     return result;
   }
 
-  //route to create a new user(non-admin)
   @Post('register')
   @RateLimit({ limit: 5, windowMs: 60 * 60_000 })
   async createUser(@Body() createUserDto: CreateUserDto) {
     const result = await this.usersService.createUser(createUserDto);
-
-    // Check if result is an error response with success false
     if (!result.success) {
       throw new HttpException(
         { message: result.message },
         HttpStatus.BAD_REQUEST,
       );
     }
-
     return result;
   }
 
@@ -99,7 +96,6 @@ export class UsersController {
     return result;
   }
 
-  // route to refresh access token
   @Post('refresh-token')
   @RateLimit({ limit: 30, windowMs: 5 * 60_000 })
   async refreshToken(@Body() body: RefreshTokenDto) {
@@ -128,6 +124,8 @@ export class UsersController {
   @UseGuards(AuthGuard)
   async getProfile(@Req() req: any) {
     const userId = req.user._id?.toString() || req.user.id;
+    // Validate ObjectID
+    validateObjectId(userId);
     const result = await this.usersService.getProfile(userId);
     if (!result.success) {
       throw new HttpException(
@@ -140,8 +138,8 @@ export class UsersController {
 
   @Get(':id')
   @UseGuards(AuthGuard, AdminGuard)
-  async findOne(@Param('id') id: string) {
-    const result = await this.usersService.findOneById(id);
+  async findOne(@Param('id', ObjectIdPipe) id: Types.ObjectId) {
+    const result = await this.usersService.findOneById(id.toString());
     if (!result.success) {
       throw new HttpException(
         { message: result.message },
@@ -151,10 +149,6 @@ export class UsersController {
     return result;
   }
 
-  /**
-   * POST /users/upload-file
-   * Upload a profile photo or dispute evidence file to S3
-   */
   @Post('upload-file')
   @UseGuards(AuthGuard)
   @UseInterceptors(
@@ -169,6 +163,8 @@ export class UsersController {
     }
 
     const userId = req.user._id || req.user.id;
+    validateObjectId(userId);
+
     const allowedTypes = [
       'image/jpeg',
       'image/png',
@@ -207,11 +203,11 @@ export class UsersController {
     }
   }
 
-  // Update own profile (or save push tokens)
   @Patch('profile')
   @UseGuards(AuthGuard)
   async updateProfile(@Req() req: any, @Body() updateData: Partial<User>) {
     const userId = req.user._id || req.user.id;
+    validateObjectId(userId);
     const user = await this.usersService.findById(userId);
     if (!user) {
       throw new HttpException('User not found', HttpStatus.NOT_FOUND);
@@ -238,8 +234,11 @@ export class UsersController {
 
   @Patch(':id')
   @UseGuards(AuthGuard, AdminGuard)
-  async update(@Param('id') id: string, @Body() updateUserDto: Partial<User>) {
-    const result = await this.usersService.updateById(id, updateUserDto);
+  async update(
+    @Param('id', ObjectIdPipe) id: Types.ObjectId,
+    @Body() updateUserDto: Partial<User>,
+  ) {
+    const result = await this.usersService.updateById(id.toString(), updateUserDto);
     if (!result.success) {
       throw new HttpException(
         { message: result.message },
@@ -251,9 +250,12 @@ export class UsersController {
 
   @Delete(':id')
   @UseGuards(AuthGuard, AdminGuard)
-  async remove(@Param('id') id: string, @Req() req: any) {
+  async remove(
+    @Param('id', ObjectIdPipe) id: Types.ObjectId,
+    @Req() req: any,
+  ) {
     const requestingUserId = (req.user?._id || req.user?.id)?.toString();
-    const result = await this.usersService.remove(id, requestingUserId);
+    const result = await this.usersService.remove(id.toString(), requestingUserId);
     if (!result.success) {
       throw new HttpException(
         { message: result.message },

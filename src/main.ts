@@ -3,6 +3,7 @@ import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import helmet from 'helmet';
 import { SanitizeInterceptor } from './common/sanitize.interceptor';
+import { MongoExceptionFilter } from './common/mongo-exception.filter';
 import {
   assertProductionSecurityConfig,
   getAllowedCorsOrigins,
@@ -17,13 +18,11 @@ const bootstrap = async (): Promise<void> => {
 
   app.use(
     helmet({
-      // API responses are JSON; CSP is mainly for HTML surfaces
       contentSecurityPolicy: false,
       crossOriginResourcePolicy: { policy: 'cross-origin' },
     }),
   );
 
-  // CORS - Allow frontend to communicate with backend
   app.enableCors({
     origin: getAllowedCorsOrigins(),
     credentials: true,
@@ -42,11 +41,13 @@ const bootstrap = async (): Promise<void> => {
     ],
   });
 
-  // Global API prefix — mobile client expects /api/...
   app.setGlobalPrefix('api');
 
-  // Global sanitization — strips HTML, scripts, null bytes from all inputs
+  // Global sanitization
   app.useGlobalInterceptors(new SanitizeInterceptor());
+
+  // Global MongoDB exception filter
+  app.useGlobalFilters(new MongoExceptionFilter());
 
   // Global validation pipe
   app.useGlobalPipes(

@@ -6,7 +6,7 @@ import { OtpStorage, OtpStorageSchema } from './otp.schema';
 
 export type UserDocument = HydratedDocument<User>;
 
-@Schema({ timestamps: true }) // Enable automatic createdAt and updatedAt fields
+@Schema({ timestamps: true })
 export class User {
   @Prop({ required: true })
   firstName: string;
@@ -64,7 +64,6 @@ export class User {
   @Prop({ type: Date })
   termsAcceptedAt?: Date;
 
-  // Identity Verification fields for providers/drivers
   @Prop({
     type: String,
     enum: ['driver_license', 'national_identity_card', 'passport'],
@@ -97,7 +96,6 @@ export class User {
   @Prop({ type: String, enum: ['Normal car', 'Mini Bus', 'Bus'] })
   taxiType?: string;
 
-  // Embedded small docs
   @Prop({ type: VerifiedStatusSchema, default: {} })
   isVerified: VerifiedStatus;
 
@@ -110,7 +108,6 @@ export class User {
   @Prop({ type: String, select: false, default: null })
   refreshToken?: string;
 
-  /** Bumped on password reset / refresh-token reuse to invalidate outstanding access JWTs */
   @Prop({ type: Number, default: 0 })
   tokenVersion: number;
 
@@ -129,7 +126,6 @@ export class User {
   @Prop({ type: String, default: null })
   profileImageUrl?: string;
 
-  // Account status for suspension/ban functionality
   @Prop({ default: 'active', enum: ['active', 'suspended', 'banned'] })
   accountStatus: string;
 
@@ -144,12 +140,59 @@ export class User {
 
   @Prop({ type: Date })
   suspendedAt?: Date;
+
+  // ============================================================
+  // NEW: Properly typed documents array for uploaded documents
+  // ============================================================
+  @Prop({
+    type: [{
+      documentType: {
+        type: String,
+        required: true,
+        enum: [
+          'vat_certificate',
+          'driver_license',
+          'insurance',
+          'vehicle_registration',
+          'id_document',
+          'proof_of_address',
+          'profile_photo',
+          'other'
+        ]
+      },
+      url: { type: String, required: true },
+      fileName: { type: String, required: true },
+      fileSize: { type: Number, required: true },
+      mimeType: { type: String, required: true },
+      uploadedAt: { type: Date, default: Date.now },
+      status: {
+        type: String,
+        enum: ['pending', 'approved', 'rejected'],
+        default: 'pending'
+      },
+      rejectionReason: { type: String },
+      reviewedAt: { type: Date },
+      reviewedBy: { type: String }
+    }],
+    default: []
+  })
+  documents: Array<{
+    documentType: string;
+    url: string;
+    fileName: string;
+    fileSize: number;
+    mimeType: string;
+    uploadedAt: Date;
+    status: string;
+    rejectionReason?: string;
+    reviewedAt?: Date;
+    reviewedBy?: string;
+  }>;
 }
 
 export const UserSchema: MongooseSchema<User> =
   SchemaFactory.createForClass(User);
 
-// Normalize username before validation (fixes legacy accounts registered with uppercase)
 UserSchema.pre('save', function (next) {
   if (typeof this.username === 'string') {
     this.username = this.username.toLowerCase().trim();
@@ -157,9 +200,7 @@ UserSchema.pre('save', function (next) {
   next();
 });
 
-// Pre-save hook to hash password
 UserSchema.pre('save', async function (next) {
-  // Only hash if password is modified
   if (!this.isModified('password')) {
     return next();
   }
@@ -173,7 +214,6 @@ UserSchema.pre('save', async function (next) {
   }
 });
 
-// Virtuals for related verifications
 UserSchema.virtual('driverVerifications', {
   ref: 'DriverVerification',
   localField: '_id',
@@ -192,6 +232,5 @@ UserSchema.virtual('identityVerifications', {
   foreignField: 'user',
 });
 
-// Enable virtuals in JSON / Object outputs
 UserSchema.set('toObject', { virtuals: true });
 UserSchema.set('toJSON', { virtuals: true });

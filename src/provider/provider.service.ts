@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import {
@@ -21,7 +21,6 @@ import { Response } from 'src/common/interfaces/response.interface';
 import { WalletService } from 'src/wallet/wallet.service';
 import { AmazonLocationService } from 'src/utility/amazon-location.service';
 
-// All valid document field names that can be uploaded
 const VALID_DOC_FIELDS = [
   'natInsuranceUrl',
   'vatCertUrl',
@@ -53,9 +52,89 @@ export class ProviderService {
     private readonly amazonLocationService: AmazonLocationService,
   ) {}
 
-  /**
-   * Get the current verification status for a provider
-   */
+  // ============================================================
+  // NEW: Save provider document to user's documents array
+  // ============================================================
+  async saveProviderDocument(
+    userId: string,
+    documentType: string,
+    url: string,
+    fileName: string,
+    fileSize: number,
+    mimeType: string,
+  ) {
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+    }
+
+    if (!user.documents) {
+      user.documents = [];
+    }
+
+    const documentEntry = {
+      documentType,
+      url,
+      fileName,
+      fileSize,
+      mimeType,
+      uploadedAt: new Date(),
+      status: 'pending' as const,
+    };
+
+    user.documents.push(documentEntry);
+    await user.save();
+
+    const savedDoc = user.documents[user.documents.length - 1];
+    return {
+      _id: user._id,
+      ...savedDoc
+    };
+  }
+
+  // ============================================================
+  // NEW: Get user documents
+  // ============================================================
+  async getUserDocuments(userId: string) {
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+    }
+    return user.documents || [];
+  }
+
+  // ============================================================
+  // NEW: Update document status (admin)
+  // ============================================================
+  async updateDocumentStatus(
+    userId: string,
+    documentIndex: number,
+    status: 'pending' | 'approved' | 'rejected',
+    rejectionReason?: string,
+  ) {
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+    }
+
+    if (!user.documents || documentIndex >= user.documents.length) {
+      throw new HttpException('Document not found', HttpStatus.NOT_FOUND);
+    }
+
+    user.documents[documentIndex].status = status;
+    if (status === 'rejected' && rejectionReason) {
+      user.documents[documentIndex].rejectionReason = rejectionReason;
+    }
+    user.documents[documentIndex].reviewedAt = new Date();
+
+    await user.save();
+    return user.documents[documentIndex];
+  }
+
+  // ============================================================
+  // Existing methods below
+  // ============================================================
+
   async getVerificationStatus(userId: string, role: string): Promise<Response> {
     try {
       let record: any = null;
@@ -90,7 +169,6 @@ export class ProviderService {
           return { success: false, message: 'Invalid provider role' };
       }
 
-      // Build individual documents map for driver/taxi
       const docs: Record<string, string | null> = {};
       const docStatuses: Record<string, string> = {};
 
@@ -134,9 +212,6 @@ export class ProviderService {
     }
   }
 
-  /**
-   * Provider earnings — sourced from wallet ledger (net of platform fees)
-   */
   async getEarnings(userId: string): Promise<Response> {
     try {
       const wallet = await this.walletService.getWallet(userId);
@@ -195,9 +270,6 @@ export class ProviderService {
     }
   }
 
-  /**
-   * Submit or update verification documents for a parking provider
-   */
   async submitParkingVerification(
     userId: string,
     data: Record<string, any>,
@@ -222,7 +294,6 @@ export class ProviderService {
         });
       }
 
-      // Update documents (store all dynamic fields)
       record.documents = {
         ...record.documents,
         ...data,
@@ -231,7 +302,6 @@ export class ProviderService {
       if (data.parkAddress) record.address = data.parkAddress;
       if (data.parkPostcode) record.postcode = data.parkPostcode;
 
-      // Resolve exact map coordinates from client GPS/autocomplete or AWS geocoding
       let lat = parseFloat(data.parkLat);
       let lng = parseFloat(data.parkLng);
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
@@ -272,10 +342,6 @@ export class ProviderService {
     }
   }
 
-  /**
-   * Submit or update a single document for a driver (chauffeur).
-   * Each document is stored in its own dedicated field.
-   */
   async submitDriverVerification(
     userId: string,
     data: {
@@ -286,7 +352,6 @@ export class ProviderService {
     try {
       const { docField, docUrl } = data;
 
-      // Validate the field name
       if (!VALID_DOC_FIELDS.includes(docField as any)) {
         return {
           success: false,
@@ -304,10 +369,8 @@ export class ProviderService {
         });
       }
 
-      // Set the specific document URL on its own field
       (record as any)[docField] = docUrl;
 
-      // Set per-document status to 'uploaded'
       if (!record.documentStatuses) record.documentStatuses = {};
       record.documentStatuses[docField] = {
         status: 'uploaded',
@@ -315,7 +378,6 @@ export class ProviderService {
       };
       record.markModified('documentStatuses');
 
-      // Update overall status to pending_admin_review if not already approved
       if (record.status !== 'approved') {
         record.status = 'pending_admin_review';
       }
@@ -340,16 +402,11 @@ export class ProviderService {
     }
   }
 
-  /**
-   * Submit or update a single document for a taxi driver.
-   * Each document is stored in its own dedicated field.
-   */
   async submitTaxiVerification(
     userId: string,
     data: {
       docField: string;
       docUrl: string;
-      // Optional vehicle info
       plateNumber?: string;
       vehicleMake?: string;
       vehicleModel?: string;
@@ -359,7 +416,6 @@ export class ProviderService {
     try {
       const { docField, docUrl } = data;
 
-      // Validate the field name
       if (!VALID_DOC_FIELDS.includes(docField as any)) {
         return {
           success: false,
@@ -378,10 +434,8 @@ export class ProviderService {
         });
       }
 
-      // Set the specific document URL on its own field
       (record as any)[docField] = docUrl;
 
-      // Set per-document status to 'uploaded'
       if (!record.documentStatuses) record.documentStatuses = {};
       record.documentStatuses[docField] = {
         status: 'uploaded',
@@ -389,7 +443,6 @@ export class ProviderService {
       };
       record.markModified('documentStatuses');
 
-      // Update vehicle info if provided
       if (
         data.plateNumber ||
         data.vehicleMake ||
@@ -405,7 +458,6 @@ export class ProviderService {
         };
       }
 
-      // Update overall status to pending_admin_review if not already approved
       if (record.status !== 'approved') {
         record.status = 'pending_admin_review';
       }
@@ -431,10 +483,6 @@ export class ProviderService {
     }
   }
 
-  /**
-   * Toggle driver/taxi availability (online/offline)
-   * Cannot toggle if currently busy (on a trip)
-   */
   async toggleAvailability(
     userId: string,
     role: string,
@@ -486,9 +534,6 @@ export class ProviderService {
     }
   }
 
-  /**
-   * Update a driver's live GPS coordinates while online.
-   */
   async updateDriverLocation(
     userId: string,
     role: string,
@@ -526,9 +571,6 @@ export class ProviderService {
     }
   }
 
-  /**
-   * Get assigned driver number
-   */
   async getDriverNumber(userId: string, role: string): Promise<Response> {
     try {
       const record: any =
@@ -540,7 +582,6 @@ export class ProviderService {
         return { success: false, message: 'Provider record not found' };
       }
 
-      // If no number yet, assign one
       if (!record.driverNumber) {
         record.driverNumber = await this.generateNextDriverNumber();
         await record.save();
@@ -559,11 +600,7 @@ export class ProviderService {
     }
   }
 
-  /**
-   * Generate the next sequential driver number across both chauffeurs and taxis
-   */
   private async generateNextDriverNumber(): Promise<string> {
-    // Find the highest driver number from both collections
     const [latestChauffeur, latestTaxi] = await Promise.all([
       this.chauffeurModel
         .findOne({ driverNumber: { $exists: true, $ne: null } })
@@ -585,19 +622,9 @@ export class ProviderService {
       : 0;
 
     const nextNum = Math.max(chauffeurNum, taxiNum) + 1;
-
-    // Pad to 3 digits minimum (001, 002, ..., 999, 1000, ...)
     return nextNum.toString().padStart(3, '0');
   }
 
-  // ══════════════════════════════════════════════
-  // ── Parking Space Management (Post-Approval) ──
-  // ══════════════════════════════════════════════
-
-  /**
-   * Get all approved parking spaces owned by this provider
-   * Returns each space with live occupancy, booking stats, and revenue
-   */
   async getMySpaces(userId: string): Promise<Response> {
     try {
       const spaces = await this.parkingSpaceModel
@@ -605,12 +632,10 @@ export class ProviderService {
         .sort({ createdAt: -1 })
         .exec();
 
-      // Enrich each space with booking stats
       const enriched = await Promise.all(
         spaces.map(async (space) => {
           const spaceObj = space.toObject();
 
-          // Count bookings by status for this space
           const [activeCount, pendingCount, completedCount, totalRevenue] =
             await Promise.all([
               this.bookingModel.countDocuments({
@@ -647,7 +672,6 @@ export class ProviderService {
             (space.totalSpots || 0) - occupyingCount,
           );
 
-          // Sync the occupiedSpots field if it drifted from actual booking count
           if (space.occupiedSpots !== occupyingCount) {
             await this.parkingSpaceModel.findByIdAndUpdate(space._id, {
               occupiedSpots: occupyingCount,
@@ -681,10 +705,6 @@ export class ProviderService {
     }
   }
 
-  /**
-   * Update an approved parking space's details
-   * Provider can change: pricing, description, opening times, capacity, photos, accepted vehicles
-   */
   async updateSpace(
     userId: string,
     spaceId: string,
@@ -717,7 +737,6 @@ export class ProviderService {
         };
       }
 
-      // Apply only provided updates
       if (updates.name !== undefined) space.name = updates.name;
       if (updates.description !== undefined)
         space.description = updates.description;
@@ -740,7 +759,6 @@ export class ProviderService {
       if (updates.cctvPhotos !== undefined)
         space.cctvPhotos = updates.cctvPhotos;
 
-      // Handle totalSpots change carefully
       if (updates.totalSpots !== undefined) {
         if (updates.totalSpots < space.occupiedSpots) {
           return {
@@ -749,7 +767,6 @@ export class ProviderService {
           };
         }
         space.totalSpots = updates.totalSpots;
-        // Re-evaluate availability
         space.isAvailable = space.occupiedSpots < space.totalSpots;
       }
 
@@ -768,10 +785,6 @@ export class ProviderService {
     }
   }
 
-  /**
-   * Manually toggle a parking space's availability on/off
-   * Guards: cannot enable if all spots are occupied
-   */
   async toggleSpaceAvailability(
     userId: string,
     spaceId: string,
@@ -790,7 +803,6 @@ export class ProviderService {
       }
 
       if (!space.isAvailable) {
-        // Trying to re-enable — check capacity first
         if (space.occupiedSpots >= space.totalSpots) {
           return {
             success: false,
