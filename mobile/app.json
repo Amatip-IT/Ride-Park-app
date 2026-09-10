@@ -1,26 +1,28 @@
 {
   "expo": {
-    "name": "Ride & Park",
-    "slug": "gleezip",
+    "name": "Gleezip",
+    "slug": "gleezip-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "gleezip",
+    "scheme": "rideandpark",
     "userInterfaceStyle": "dark",
-    "newArchEnabled": true,
+    "extra": {
+      "eas": {
+        "projectId": "133474a7-8ff5-4d49-8688-e83a4a9ae76c"
+      }
+    },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.gleezip.app",
+      "bundleIdentifier": "com.gleezip.mobile",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Gleezip uses your location to provide nearby ride services.",
-        "NSUserNotificationsUsageDescription": "Gleezip sends ride updates and important notifications.",
-        "NSCameraUsageDescription": "Gleezip uses the camera for profile photos and verification.",
-        "NSPhotoLibraryUsageDescription": "Gleezip accesses your photo library for profile uploads.",
-        "ITSAppUsesNonExemptEncryption": false
+        "NSLocationWhenInUseUsageDescription": "Gleezip uses your location to find nearby parking and track rides.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Gleezip uses your location to provide ride tracking for drivers and passengers."
       }
     },
     "android": {
-      "package": "com.gleezip.app",
+      "package": "com.gleezip.mobile",
+      "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -52,43 +54,29 @@
           }
         }
       ],
-      "@react-native-community/datetimepicker",
-      "expo-secure-store",
-      "expo-web-browser",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#00C2A8"
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow Gleezip to use your location to find parking and rides nearby."
+        }
+      ],
       [
         "@stripe/stripe-react-native",
         {
-          "merchantIdentifier": "merchant.com.gleezip.app",
+          "merchantIdentifier": "merchant.com.gleezip.mobile",
           "enableGooglePay": true
         }
-      ],
-      [
-        "expo-build-properties",
-        {
-          "android": {
-            "kotlinVersion": "2.0.21",
-            "agpVersion": "8.5.2"
-          }
-        }
-      ],
-      "expo-font"
+      ]
     ],
     "experiments": {
-      "typedRoutes": true,
       "reactCompiler": true
-    },
-    "extra": {
-      "apiUrl": "https://www.gleezip.com/api",
-      "eas": {
-        "projectId": "abf770af-6f99-43f3-9cc7-c2b354d85316"
-      }
-    },
-    "owner": "amatip-it",
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
-    "updates": {
-      "url": "https://u.expo.dev/abf770af-6f99-43f3-9cc7-c2b354d85316"
     }
   }
 }
