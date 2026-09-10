@@ -6,19 +6,50 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "ios": {
+        "buildConfiguration": "Debug",
+        "simulator": true
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://www.gleezip.com/api",
+        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_test_51SahnEIfn0kPvar74SnKFnUVDDi2DU5Ecwtcsx7iagGu8g91K8lffsBlQpLpv0Xv9or7IgJ49ymcYgzS8RPD4ydl00WgXBe80o"
+      }
     },
     "preview": {
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "ios": {
+        "buildConfiguration": "Release",
+        "simulator": false
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://www.gleezip.com/api",
+        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_test_51SahnEIfn0kPvar74SnKFnUVDDi2DU5Ecwtcsx7iagGu8g91K8lffsBlQpLpv0Xv9or7IgJ49ymcYgzS8RPD4ydl00WgXBe80o"
       }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "ios": {
+        "buildConfiguration": "Release",
+        "simulator": false
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://www.gleezip.com/api",
+        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_live_51NXKolEvpzlSCOAbGL0SQmKYE8jg5mJeZOaR4ZgeoVztc3LC9R0MVCbPV0DnTC7WdUbY3Qa0qQqRGLSLOHk739uU00o371LeUm"
+      }
     }
   },
   "submit": {
     "production": {}
   }
 }
+
