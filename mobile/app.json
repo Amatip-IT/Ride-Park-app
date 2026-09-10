@@ -7,7 +7,6 @@
     "icon": "./assets/images/icon.png",
     "scheme": "rideandpark",
     "userInterfaceStyle": "dark",
-    "newArchEnabled": true,
     "extra": {
       "eas": {
         "projectId": "133474a7-8ff5-4d49-8688-e83a4a9ae76c"
@@ -77,7 +76,6 @@
       ]
     ],
     "experiments": {
-      "typedRoutes": true,
       "reactCompiler": true
     }
   }

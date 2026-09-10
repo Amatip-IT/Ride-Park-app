@@ -8,16 +8,36 @@
     "allowJs": true,
     "strict": true,
     "paths": {
-      "@/*": ["./src/*"],
-      "@/api": ["./src/api"],
-      "@/contexts": ["./src/contexts"],
-      "@/types": ["./src/types"],
-      "@/screens": ["./src/screens"],
-      "@/store": ["./src/store"],
-      "@/navigation": ["./src/navigation"],
-      "@/utils": ["./src/utils"],
-      "@/components": ["./src/components"],
-      "@/constants": ["./src/constants"]
+      "@/*": [
+        "./src/*"
+      ],
+      "@/api": [
+        "./src/api"
+      ],
+      "@/contexts": [
+        "./src/contexts"
+      ],
+      "@/types": [
+        "./src/types"
+      ],
+      "@/screens": [
+        "./src/screens"
+      ],
+      "@/store": [
+        "./src/store"
+      ],
+      "@/navigation": [
+        "./src/navigation"
+      ],
+      "@/utils": [
+        "./src/utils"
+      ],
+      "@/components": [
+        "./src/components"
+      ],
+      "@/constants": [
+        "./src/constants"
+      ]
     },
     "skipLibCheck": true,
     "esModuleInterop": true,
@@ -25,8 +45,6 @@
   },
   "include": [
     "**/*.ts",
-    "**/*.tsx",
-    ".expo/types/**/*.ts",
-    "expo-env.d.ts"
+    "**/*.tsx"
   ]
 }
