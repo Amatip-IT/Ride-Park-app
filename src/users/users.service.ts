@@ -18,6 +18,7 @@ import {
   PASSWORD_STRENGTH_MESSAGE,
 } from 'src/utility/password.util';
 import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 
 import { Taxi, TaxiDocument } from 'src/schemas/taxi.schema';
 import { Wallet, WalletDocument } from 'src/schemas/wallet.schema';
@@ -73,6 +74,45 @@ export class UsersService {
     const takenSet = new Set(taken.map((u) => u.username));
 
     return candidates.filter((c) => !takenSet.has(c)).slice(0, 4);
+  }
+
+  async checkUsernameAvailability(username: string): Promise<Response> {
+    const normalizedUsername = username?.toLowerCase().trim() || '';
+
+    if (normalizedUsername.length < 3 || normalizedUsername.length > 30) {
+      return {
+        success: false,
+        message: 'Username must be between 3 and 30 characters',
+      };
+    }
+
+    if (!/^[a-z0-9_]+$/.test(normalizedUsername)) {
+      return {
+        success: false,
+        message:
+          'Username can only contain lowercase letters, numbers, and underscores',
+      };
+    }
+
+    const usernameTaken = await this.userModel
+      .findOne({ username: normalizedUsername })
+      .lean();
+
+    if (usernameTaken) {
+      const suggestions =
+        await this.generateUsernameSuggestions(normalizedUsername);
+      return {
+        success: true,
+        message: `The username "${normalizedUsername}" is already taken.`,
+        data: { available: false, suggestions },
+      };
+    }
+
+    return {
+      success: true,
+      message: 'Username is available',
+      data: { available: true },
+    };
   }
 
   /* METHOD TO CREATE A NEW USER (NON-ADMIN) */
@@ -392,11 +432,13 @@ export class UsersService {
             _id: userWithoutSensitiveData._id,
             firstName: userWithoutSensitiveData.firstName,
             lastName: userWithoutSensitiveData.lastName,
+            username: userWithoutSensitiveData.username,
             email: userWithoutSensitiveData.email,
             phoneNumber: userWithoutSensitiveData.phoneNumber,
             postCode: userWithoutSensitiveData.postCode,
             address: userWithoutSensitiveData.address,
             role: userWithoutSensitiveData.role,
+            profileImageUrl: userWithoutSensitiveData.profileImageUrl,
             isVerified: userWithoutSensitiveData.isVerified,
           },
           message: 'Login successful',
@@ -640,6 +682,48 @@ export class UsersService {
 
   findById(id: string) {
     return this.userModel.findById(id).exec();
+  }
+
+  async updateOwnProfile(
+    userId: string,
+    dto: UpdateProfileDto,
+  ): Promise<Response> {
+    const $set: Record<string, string> = {};
+    if (dto.firstName) $set.firstName = dto.firstName;
+    if (dto.lastName) $set.lastName = dto.lastName;
+    if (dto.phoneNumber) $set.phoneNumber = dto.phoneNumber;
+    if (dto.profileImageUrl) $set.profileImageUrl = dto.profileImageUrl;
+    if (dto.pushToken) $set.pushToken = dto.pushToken;
+    if (dto.identityDocumentUrl)
+      $set.identityDocumentUrl = dto.identityDocumentUrl;
+    if (dto.proofOfAddressUrl) $set.proofOfAddressUrl = dto.proofOfAddressUrl;
+
+    try {
+      if (Object.keys($set).length === 0) {
+        return this.getProfile(userId);
+      }
+
+      const user = await this.userModel
+        .findByIdAndUpdate(userId, { $set }, { new: true, runValidators: true })
+        .select('-password -refreshToken')
+        .exec();
+
+      if (!user) {
+        return { success: false, message: 'User not found' };
+      }
+
+      return {
+        success: true,
+        message: 'Profile updated successfully',
+        data: user,
+      };
+    } catch (error) {
+      const raw = error instanceof Error ? error.message : 'Unknown error';
+      const message = raw.includes('phoneNumber')
+        ? 'Phone number must be in international format with no spaces (e.g. +447123456789)'
+        : `Could not update profile: ${raw}`;
+      return { success: false, message };
+    }
   }
 
   async getProfile(userId: string): Promise<Response> {

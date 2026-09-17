@@ -4,7 +4,8 @@ import {
   ActivityIndicator, Alert,
 } from 'react-native';
 import { adminApi } from '@/api';
-import { COLORS, SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '@/constants/theme';
+import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS, ThemeColors } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute, useFocusEffect } from '@react-navigation/native';
 import { AdminScreenLayout } from '@/components/admin/AdminScreenLayout';
@@ -67,6 +68,8 @@ const TEMPLATE_CATEGORY_LABELS: Record<string, string> = {
 };
 
 export function AdminMessagingScreen() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const route = useRoute<any>();
   const preselectedUserId = route.params?.userId as string | undefined;
   const preselectedUserName = route.params?.userName as string | undefined;
@@ -243,7 +246,7 @@ export function AdminMessagingScreen() {
   if (loading) {
     return (
       <SafeAreaView style={styles.centerSafe} edges={['top', 'bottom']}>
-        <ActivityIndicator size="large" color={COLORS.electricTeal} />
+        <ActivityIndicator size="large" color={colors.electricTeal} />
       </SafeAreaView>
     );
   }
@@ -258,13 +261,13 @@ export function AdminMessagingScreen() {
       contentContainerStyle={styles.scrollContent}
     >
         <TouchableOpacity style={styles.userPicker} onPress={() => setShowUserPicker(true)}>
-          <Ionicons name="person-outline" size={20} color={COLORS.electricTeal} />
+          <Ionicons name="person-outline" size={20} color={colors.electricTeal} />
           <Text style={styles.userPickerText}>
             {selectedUser
               ? `${selectedUser.firstName} ${selectedUser.lastName} · ${selectedUser.email}`
               : preselectedUserName || 'Select recipient...'}
           </Text>
-          <Ionicons name="chevron-down" size={18} color={COLORS.textTertiary} />
+          <Ionicons name="chevron-down" size={18} color={colors.textTertiary} />
         </TouchableOpacity>
 
         {tab === 'compose' && (
@@ -306,7 +309,7 @@ export function AdminMessagingScreen() {
               style={styles.input}
               value={subject}
               onChangeText={setSubject}
-              placeholderTextColor={COLORS.textTertiary}
+              placeholderTextColor={colors.textTertiary}
               returnKeyType="done"
               blurOnSubmit
             />
@@ -319,7 +322,7 @@ export function AdminMessagingScreen() {
               multiline
               textAlignVertical="top"
               placeholder="Write your message..."
-              placeholderTextColor={COLORS.textTertiary}
+              placeholderTextColor={colors.textTertiary}
               blurOnSubmit
             />
 
@@ -338,7 +341,7 @@ export function AdminMessagingScreen() {
 
             <View style={styles.actionRow}>
               <TouchableOpacity style={styles.previewBtn} onPress={() => setShowPreview(true)}>
-                <Ionicons name="eye-outline" size={18} color={COLORS.info} />
+                <Ionicons name="eye-outline" size={18} color={colors.info} />
                 <Text style={styles.previewBtnText}>Preview</Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -370,8 +373,8 @@ export function AdminMessagingScreen() {
                 <View key={item._id} style={styles.historyCard}>
                   <View style={styles.historyHeader}>
                     <Text style={styles.historySubject}>{item.subject || 'Admin Message'}</Text>
-                    <View style={[styles.statusPill, { backgroundColor: `${COLORS.success}15` }]}>
-                      <Text style={[styles.statusPillText, { color: COLORS.success }]}>{item.deliveryStatus}</Text>
+                    <View style={[styles.statusPill, { backgroundColor: `${colors.success}15` }]}>
+                      <Text style={[styles.statusPillText, { color: colors.success }]}>{item.deliveryStatus}</Text>
                     </View>
                   </View>
                   <Text style={styles.historyMessage}>{item.message}</Text>
@@ -394,7 +397,7 @@ export function AdminMessagingScreen() {
         <TextInput
           style={styles.input}
           placeholder="Search users..."
-          placeholderTextColor={COLORS.textTertiary}
+          placeholderTextColor={colors.textTertiary}
           value={userSearch}
           onChangeText={setUserSearch}
           returnKeyType="search"
@@ -440,21 +443,21 @@ export function AdminMessagingScreen() {
         <TextInput
           style={styles.input}
           placeholder="Template name"
-          placeholderTextColor={COLORS.textTertiary}
+          placeholderTextColor={colors.textTertiary}
           value={newTemplate.name}
           onChangeText={v => setNewTemplate(p => ({ ...p, name: v }))}
         />
         <TextInput
           style={styles.input}
           placeholder="Subject"
-          placeholderTextColor={COLORS.textTertiary}
+          placeholderTextColor={colors.textTertiary}
           value={newTemplate.subject}
           onChangeText={v => setNewTemplate(p => ({ ...p, subject: v }))}
         />
         <TextInput
           style={[styles.input, styles.messageInput]}
           placeholder="Body"
-          placeholderTextColor={COLORS.textTertiary}
+          placeholderTextColor={colors.textTertiary}
           value={newTemplate.body}
           onChangeText={v => setNewTemplate(p => ({ ...p, body: v }))}
           multiline
@@ -473,33 +476,33 @@ export function AdminMessagingScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  centerSafe: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.background },
-  tabRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: COLORS.border },
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
+  centerSafe: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background },
+  tabRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: colors.border },
   tab: { flex: 1, paddingVertical: SPACING.md, alignItems: 'center' },
-  tabActive: { borderBottomWidth: 2, borderBottomColor: COLORS.electricTeal },
-  tabText: { color: COLORS.textSecondary, fontWeight: FONT_WEIGHTS.medium },
-  tabTextActive: { color: COLORS.electricTeal },
+  tabActive: { borderBottomWidth: 2, borderBottomColor: colors.electricTeal },
+  tabText: { color: colors.textSecondary, fontWeight: FONT_WEIGHTS.medium },
+  tabTextActive: { color: colors.electricTeal },
   scrollContent: { paddingBottom: SPACING.xl },
   userPicker: {
     flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
-    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.md,
+    backgroundColor: colors.surface, borderRadius: BORDER_RADIUS.md,
     padding: SPACING.md, marginBottom: SPACING.lg,
-    borderWidth: 1, borderColor: COLORS.border,
+    borderWidth: 1, borderColor: colors.border,
   },
-  userPickerText: { flex: 1, color: COLORS.textPrimary, fontSize: FONT_SIZES.small },
+  userPickerText: { flex: 1, color: colors.textPrimary, fontSize: FONT_SIZES.small },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.sm },
-  sectionTitle: { color: COLORS.textPrimary, fontWeight: FONT_WEIGHTS.semibold },
+  sectionTitle: { color: colors.textPrimary, fontWeight: FONT_WEIGHTS.semibold },
   sectionHint: {
-    color: COLORS.textSecondary,
+    color: colors.textSecondary,
     fontSize: 12,
     lineHeight: 17,
     marginBottom: SPACING.md,
   },
-  linkText: { color: COLORS.electricTeal, fontWeight: FONT_WEIGHTS.medium, fontSize: FONT_SIZES.small },
+  linkText: { color: colors.electricTeal, fontWeight: FONT_WEIGHTS.medium, fontSize: FONT_SIZES.small },
   templateGroup: { marginBottom: SPACING.md },
   templateGroupLabel: {
-    color: COLORS.textTertiary,
+    color: colors.textTertiary,
     fontSize: 11,
     fontWeight: FONT_WEIGHTS.semibold,
     textTransform: 'uppercase',
@@ -516,58 +519,58 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: BORDER_RADIUS.full,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.surface,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
     maxWidth: '100%',
   },
-  templateChipActive: { backgroundColor: `${COLORS.electricTeal}12`, borderColor: COLORS.electricTeal },
-  templateChipText: { color: COLORS.textSecondary, fontSize: 12, maxWidth: 220 },
-  templateChipTextActive: { color: COLORS.electricTeal, fontWeight: FONT_WEIGHTS.semibold },
-  label: { color: COLORS.textSecondary, fontSize: FONT_SIZES.small, marginBottom: SPACING.xs },
+  templateChipActive: { backgroundColor: `${colors.electricTeal}12`, borderColor: colors.electricTeal },
+  templateChipText: { color: colors.textSecondary, fontSize: 12, maxWidth: 220 },
+  templateChipTextActive: { color: colors.electricTeal, fontWeight: FONT_WEIGHTS.semibold },
+  label: { color: colors.textSecondary, fontSize: FONT_SIZES.small, marginBottom: SPACING.xs },
   input: {
-    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.md, color: COLORS.textPrimary,
-    borderWidth: 1, borderColor: COLORS.border, marginBottom: SPACING.md,
+    backgroundColor: colors.surface, borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md, color: colors.textPrimary,
+    borderWidth: 1, borderColor: colors.border, marginBottom: SPACING.md,
   },
   messageInput: { minHeight: 120 },
   channelRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm, marginBottom: SPACING.lg },
   channelChip: {
     paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm,
-    borderRadius: BORDER_RADIUS.full, borderWidth: 1, borderColor: COLORS.border,
-    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.full, borderWidth: 1, borderColor: colors.border,
+    backgroundColor: colors.surface,
   },
-  channelChipActive: { backgroundColor: `${COLORS.info}15`, borderColor: COLORS.info },
-  channelText: { color: COLORS.textSecondary, fontSize: FONT_SIZES.small },
-  channelTextActive: { color: COLORS.info },
+  channelChipActive: { backgroundColor: `${colors.info}15`, borderColor: colors.info },
+  channelText: { color: colors.textSecondary, fontSize: FONT_SIZES.small },
+  channelTextActive: { color: colors.info },
   actionRow: { flexDirection: 'row', gap: SPACING.md, alignItems: 'center' },
   previewBtn: {
     flexDirection: 'row', alignItems: 'center', gap: SPACING.xs,
     padding: SPACING.md, borderRadius: BORDER_RADIUS.md,
-    borderWidth: 1, borderColor: COLORS.border, flex: 1, justifyContent: 'center',
+    borderWidth: 1, borderColor: colors.border, flex: 1, justifyContent: 'center',
   },
-  previewBtnText: { color: COLORS.info, fontWeight: FONT_WEIGHTS.medium },
+  previewBtnText: { color: colors.info, fontWeight: FONT_WEIGHTS.medium },
   sendBtn: {
     flex: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACING.sm,
-    backgroundColor: COLORS.electricTeal, borderRadius: BORDER_RADIUS.md, padding: SPACING.md,
+    backgroundColor: colors.electricTeal, borderRadius: BORDER_RADIUS.md, padding: SPACING.md,
   },
   sendBtnDisabled: { opacity: 0.6 },
   sendBtnText: { color: '#FFF', fontWeight: FONT_WEIGHTS.semibold },
-  emptyHint: { color: COLORS.textSecondary, textAlign: 'center', marginTop: SPACING.xl },
+  emptyHint: { color: colors.textSecondary, textAlign: 'center', marginTop: SPACING.xl },
   historyCard: {
-    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.lg,
+    backgroundColor: colors.surface, borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.md, marginBottom: SPACING.sm,
-    borderWidth: 1, borderColor: COLORS.border,
+    borderWidth: 1, borderColor: colors.border,
   },
   historyHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: SPACING.xs },
-  historySubject: { color: COLORS.textPrimary, fontWeight: FONT_WEIGHTS.semibold, flex: 1 },
+  historySubject: { color: colors.textPrimary, fontWeight: FONT_WEIGHTS.semibold, flex: 1 },
   statusPill: { paddingHorizontal: SPACING.sm, paddingVertical: 2, borderRadius: BORDER_RADIUS.sm },
   statusPillText: { fontSize: 10, fontWeight: FONT_WEIGHTS.bold },
-  historyMessage: { color: COLORS.textSecondary, marginBottom: SPACING.xs },
-  historyMeta: { color: COLORS.textTertiary, fontSize: 11 },
-  userRow: { paddingVertical: SPACING.md, borderBottomWidth: 1, borderBottomColor: COLORS.divider },
-  userRowName: { color: COLORS.textPrimary, fontWeight: FONT_WEIGHTS.medium },
-  userRowEmail: { color: COLORS.textSecondary, fontSize: FONT_SIZES.small },
-  previewSubject: { color: COLORS.textPrimary, fontWeight: FONT_WEIGHTS.bold, marginBottom: SPACING.sm },
-  previewBody: { color: COLORS.textSecondary, marginBottom: SPACING.md, lineHeight: 22 },
-  previewMeta: { color: COLORS.textTertiary, fontSize: FONT_SIZES.small, marginBottom: SPACING.lg },
+  historyMessage: { color: colors.textSecondary, marginBottom: SPACING.xs },
+  historyMeta: { color: colors.textTertiary, fontSize: 11 },
+  userRow: { paddingVertical: SPACING.md, borderBottomWidth: 1, borderBottomColor: colors.divider },
+  userRowName: { color: colors.textPrimary, fontWeight: FONT_WEIGHTS.medium },
+  userRowEmail: { color: colors.textSecondary, fontSize: FONT_SIZES.small },
+  previewSubject: { color: colors.textPrimary, fontWeight: FONT_WEIGHTS.bold, marginBottom: SPACING.sm },
+  previewBody: { color: colors.textSecondary, marginBottom: SPACING.md, lineHeight: 22 },
+  previewMeta: { color: colors.textTertiary, fontSize: FONT_SIZES.small, marginBottom: SPACING.lg },
 });

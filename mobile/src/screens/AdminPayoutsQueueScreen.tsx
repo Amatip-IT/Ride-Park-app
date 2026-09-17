@@ -1,9 +1,10 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   ActivityIndicator, Alert, TextInput,
 } from 'react-native';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
+import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, ThemeColors } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { Ionicons } from '@expo/vector-icons';
 import { adminApi } from '@/api';
 import { useFocusEffect } from '@react-navigation/native';
@@ -11,6 +12,8 @@ import { AdminScreenLayout } from '@/components/admin/AdminScreenLayout';
 import { AdminFormModal } from '@/components/admin/AdminFormModal';
 
 export function AdminPayoutsQueueScreen() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [withdrawals, setWithdrawals] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -78,10 +81,10 @@ export function AdminPayoutsQueueScreen() {
     <>
     <AdminScreenLayout title="Payouts Queue" subtitle="Pending provider withdrawals" scroll contentContainerStyle={styles.scrollContent}>
         {loading ? (
-          <ActivityIndicator size="large" color={COLORS.electricTeal} style={{ marginTop: 40 }} />
+          <ActivityIndicator size="large" color={colors.electricTeal} style={{ marginTop: 40 }} />
         ) : withdrawals.length === 0 ? (
           <View style={styles.emptyState}>
-            <Ionicons name="checkmark-circle-outline" size={48} color={COLORS.success} />
+            <Ionicons name="checkmark-circle-outline" size={48} color={colors.success} />
             <Text style={styles.emptyText}>No pending withdrawals</Text>
           </View>
         ) : (
@@ -119,7 +122,7 @@ export function AdminPayoutsQueueScreen() {
                   </TouchableOpacity>
                   {canReject && (
                     <TouchableOpacity style={styles.rejectBtn} onPress={() => setRejectModal(w._id)}>
-                      <Ionicons name="close" size={18} color={COLORS.error} />
+                      <Ionicons name="close" size={18} color={colors.error} />
                       <Text style={styles.rejectBtnText}>Reject</Text>
                     </TouchableOpacity>
                   )}
@@ -139,7 +142,7 @@ export function AdminPayoutsQueueScreen() {
         <TextInput
           style={styles.modalInput}
           placeholder="Why are you rejecting this withdrawal?"
-          placeholderTextColor={COLORS.textTertiary}
+          placeholderTextColor={colors.textTertiary}
           value={rejectReason}
           onChangeText={setRejectReason}
           multiline
@@ -154,7 +157,7 @@ export function AdminPayoutsQueueScreen() {
             <Text style={styles.rejectBtnText}>Cancel</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.approveBtn, { flex: 1, backgroundColor: COLORS.error }]}
+            style={[styles.approveBtn, { flex: 1, backgroundColor: colors.error }]}
             onPress={handleReject}
           >
             <Text style={styles.approveBtnText}>Reject</Text>
@@ -165,29 +168,29 @@ export function AdminPayoutsQueueScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   scrollContent: { paddingBottom: SPACING.xl },
 
   emptyState: { alignItems: 'center', marginTop: 60 },
-  emptyText: { color: COLORS.textSecondary, fontSize: FONT_SIZES.body, marginTop: SPACING.md },
+  emptyText: { color: colors.textSecondary, fontSize: FONT_SIZES.body, marginTop: SPACING.md },
 
-  card: { backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.lg, padding: SPACING.lg, marginBottom: SPACING.md, borderWidth: 1, borderColor: COLORS.border },
+  card: { backgroundColor: colors.surface, borderRadius: BORDER_RADIUS.lg, padding: SPACING.lg, marginBottom: SPACING.md, borderWidth: 1, borderColor: colors.border },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: SPACING.sm },
-  providerName: { color: COLORS.textPrimary, fontSize: 16, fontWeight: FONT_WEIGHTS.bold },
-  providerEmail: { color: COLORS.textSecondary, fontSize: 13, marginTop: 2 },
-  amount: { color: COLORS.electricTeal, fontSize: 22, fontWeight: FONT_WEIGHTS.bold },
-  dateText: { color: COLORS.textTertiary, fontSize: 12, marginBottom: SPACING.md },
-  statusText: { color: COLORS.amber, fontSize: 12, textTransform: 'capitalize', marginBottom: SPACING.md },
+  providerName: { color: colors.textPrimary, fontSize: 16, fontWeight: FONT_WEIGHTS.bold },
+  providerEmail: { color: colors.textSecondary, fontSize: 13, marginTop: 2 },
+  amount: { color: colors.electricTeal, fontSize: 22, fontWeight: FONT_WEIGHTS.bold },
+  dateText: { color: colors.textTertiary, fontSize: 12, marginBottom: SPACING.md },
+  statusText: { color: colors.amber, fontSize: 12, textTransform: 'capitalize', marginBottom: SPACING.md },
 
   actions: { flexDirection: 'row', gap: SPACING.md },
-  approveBtn: { flex: 1, backgroundColor: COLORS.success, borderRadius: BORDER_RADIUS.md, paddingVertical: SPACING.md, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  approveBtn: { flex: 1, backgroundColor: colors.success, borderRadius: BORDER_RADIUS.md, paddingVertical: SPACING.md, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   approveBtnText: { color: '#FFF', fontWeight: FONT_WEIGHTS.bold, fontSize: FONT_SIZES.label },
-  rejectBtn: { flex: 1, backgroundColor: `${COLORS.error}10`, borderRadius: BORDER_RADIUS.md, paddingVertical: SPACING.md, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1, borderColor: `${COLORS.error}30` },
-  rejectBtnText: { color: COLORS.error, fontWeight: FONT_WEIGHTS.bold, fontSize: FONT_SIZES.label },
+  rejectBtn: { flex: 1, backgroundColor: `${colors.error}10`, borderRadius: BORDER_RADIUS.md, paddingVertical: SPACING.md, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1, borderColor: `${colors.error}30` },
+  rejectBtnText: { color: colors.error, fontWeight: FONT_WEIGHTS.bold, fontSize: FONT_SIZES.label },
 
   modalInput: {
-    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.md, padding: SPACING.md,
-    color: COLORS.textPrimary, fontSize: FONT_SIZES.body, borderWidth: 1, borderColor: COLORS.border,
+    backgroundColor: colors.surface, borderRadius: BORDER_RADIUS.md, padding: SPACING.md,
+    color: colors.textPrimary, fontSize: FONT_SIZES.body, borderWidth: 1, borderColor: colors.border,
     minHeight: 100, textAlignVertical: 'top', marginBottom: SPACING.lg,
   },
   modalActions: { flexDirection: 'row', gap: SPACING.md },

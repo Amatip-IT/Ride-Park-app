@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { StyleSheet, Dimensions } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -10,7 +10,8 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import * as SplashScreen from 'expo-splash-screen';
-import { COLORS } from '@/constants/theme';
+import { ThemeColors } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 
 interface AnimatedSplashScreenProps {
   onAnimationComplete: () => void;
@@ -19,6 +20,8 @@ interface AnimatedSplashScreenProps {
 const { width, height } = Dimensions.get('window');
 
 export function AnimatedSplashScreen({ onAnimationComplete }: AnimatedSplashScreenProps) {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const opacity = useSharedValue(1);
   const scale = useSharedValue(0.6);
 
@@ -59,7 +62,7 @@ export function AnimatedSplashScreen({ onAnimationComplete }: AnimatedSplashScre
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: '#002B49', // A dark premium background matching 'anime.png' vibes or standard theme

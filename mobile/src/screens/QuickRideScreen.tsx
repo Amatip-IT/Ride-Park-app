@@ -119,7 +119,7 @@ export function QuickRideScreen() {
       setDestination(text);
       if (debounceRef.current) clearTimeout(debounceRef.current);
 
-      if (text.trim().length < 3) {
+      if (text.trim().length < 2) {
         setSuggestions([]);
         setShowSuggestions(false);
         return;
@@ -202,15 +202,9 @@ export function QuickRideScreen() {
         });
 
         if (res.data?.success) {
-          Alert.alert(
-            '🚖 Ride Requested!',
-            res.data.message || `Searching for a driver. Estimated: ${Math.round(durMins)} min, £${cost.toFixed(2)}`,
-            [
-              { text: 'Track', onPress: () => navigation.navigate('ConsumerTabs', { screen: 'Bookings' }) },
-              { text: 'OK' },
-            ],
-          );
+          const created = res.data.data;
           setDestination('');
+          navigation.replace('PassengerTracking', { requestId: created._id });
         } else {
           const msg = res.data?.message || 'Could not request ride';
           if (msg.toLowerCase().includes('payment')) {
@@ -297,7 +291,9 @@ export function QuickRideScreen() {
             keyExtractor={(_, i) => `sug-${i}`}
             keyboardShouldPersistTaps="handled"
             style={styles.list}
-            renderItem={({ item }) => (
+            renderItem={({ item }) => {
+              if (!item) return null;
+              return (
               <TouchableOpacity
                 style={styles.suggestionRow}
                 onPress={() => handleSelectDestination(item)}
@@ -313,11 +309,12 @@ export function QuickRideScreen() {
                   )}
                 </View>
               </TouchableOpacity>
-            )}
+              );
+            }}
           />
         ) : (
           <FlatList
-            data={recentSearches}
+            data={recentSearches.filter(Boolean)}
             keyExtractor={(item, i) => `recent-${i}`}
             keyboardShouldPersistTaps="handled"
             style={styles.list}
@@ -335,7 +332,9 @@ export function QuickRideScreen() {
                 </Text>
               </View>
             }
-            renderItem={({ item }) => (
+            renderItem={({ item }) => {
+              if (!item) return null;
+              return (
               <TouchableOpacity
                 style={styles.suggestionRow}
                 onPress={() => handleSelectDestination(item)}
@@ -349,7 +348,8 @@ export function QuickRideScreen() {
                   )}
                 </View>
               </TouchableOpacity>
-            )}
+              );
+            }}
           />
         )}
 

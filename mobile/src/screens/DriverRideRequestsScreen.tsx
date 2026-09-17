@@ -1,10 +1,11 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Platform, SafeAreaView, ActivityIndicator, Alert, TextInput,
   RefreshControl, Modal
 } from 'react-native';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
+import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, ThemeColors } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, NavigationProp, useFocusEffect } from '@react-navigation/native';
 import { taxiBookingsApi, providerApi } from '@/api';
@@ -14,6 +15,8 @@ import * as Haptics from 'expo-haptics';
 import { useDriverLocationSync } from '@/hooks/useDriverLocationSync';
 
 export function DriverRideRequestsScreen() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const navigation = useNavigation<NavigationProp<any>>();
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -172,14 +175,14 @@ export function DriverRideRequestsScreen() {
         {/* Route */}
         <View style={styles.routeSection}>
           <View style={styles.routeRow}>
-            <Ionicons name="radio-button-on" size={14} color={COLORS.success} />
+            <Ionicons name="radio-button-on" size={14} color={colors.success} />
             <Text style={styles.routeText} numberOfLines={1}>
               {req.pickupAddress || req.pickupPostcode || 'GPS Location'}
             </Text>
           </View>
           <View style={styles.routeDivider} />
           <View style={styles.routeRow}>
-            <Ionicons name="location" size={14} color={COLORS.error} />
+            <Ionicons name="location" size={14} color={colors.error} />
             <Text style={styles.routeText} numberOfLines={1}>
               {req.destinationAddress || req.destinationPostcode}
             </Text>
@@ -189,7 +192,7 @@ export function DriverRideRequestsScreen() {
         {/* Passenger note */}
         {req.passengerNote && (
           <View style={styles.noteRow}>
-            <Ionicons name="chatbubble-outline" size={14} color={COLORS.textSecondary} />
+            <Ionicons name="chatbubble-outline" size={14} color={colors.textSecondary} />
             <Text style={styles.noteText}>{req.passengerNote}</Text>
           </View>
         )}
@@ -232,7 +235,7 @@ export function DriverRideRequestsScreen() {
       <View style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
+            <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Ride Requests</Text>
           <View style={{ width: 32 }} />
@@ -240,7 +243,7 @@ export function DriverRideRequestsScreen() {
 
         {!statusLoading && !isOnline && (
           <View style={styles.offlineBanner}>
-            <Ionicons name="cloud-offline-outline" size={20} color={COLORS.amber} />
+            <Ionicons name="cloud-offline-outline" size={20} color={colors.amber} />
             <Text style={styles.offlineBannerText}>
               You are offline. Go online to receive live ride requests.
             </Text>
@@ -252,14 +255,14 @@ export function DriverRideRequestsScreen() {
 
         {fetchError && (
           <View style={styles.errorBanner}>
-            <Ionicons name="alert-circle" size={18} color={COLORS.coralRed} />
+            <Ionicons name="alert-circle" size={18} color={colors.coralRed} />
             <Text style={styles.errorBannerText}>{fetchError}</Text>
           </View>
         )}
 
         {loading || statusLoading ? (
           <View style={styles.centered}>
-            <ActivityIndicator size="large" color={COLORS.electricTeal} />
+            <ActivityIndicator size="large" color={colors.electricTeal} />
             <Text style={styles.loadingText}>Loading ride requests...</Text>
           </View>
         ) : (
@@ -267,12 +270,12 @@ export function DriverRideRequestsScreen() {
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
             refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={() => fetchRequests(true)} tintColor={COLORS.electricTeal} />
+              <RefreshControl refreshing={refreshing} onRefresh={() => fetchRequests(true)} tintColor={colors.electricTeal} />
             }
           >
             {requests.length === 0 ? (
               <View style={styles.emptyState}>
-                <Ionicons name="car-outline" size={64} color={COLORS.textTertiary} />
+                <Ionicons name="car-outline" size={64} color={colors.textTertiary} />
                 <Text style={styles.emptyTitle}>No Ride Requests</Text>
                 <Text style={styles.emptyDesc}>
                   {isOnline
@@ -366,8 +369,8 @@ export function DriverRideRequestsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: COLORS.background },
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: colors.background },
   container: { flex: 1 },
 
   offlineBanner: {
@@ -381,9 +384,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(245, 158, 11, 0.15)',
     borderRadius: BORDER_RADIUS.md,
   },
-  offlineBannerText: { flex: 1, color: COLORS.amber, fontSize: 13, lineHeight: 18, marginBottom: SPACING.sm },
+  offlineBannerText: { flex: 1, color: colors.amber, fontSize: 13, lineHeight: 18, marginBottom: SPACING.sm },
   goOnlineBtn: {
-    backgroundColor: COLORS.electricTeal,
+    backgroundColor: colors.electricTeal,
     paddingVertical: SPACING.sm,
     paddingHorizontal: SPACING.md,
     borderRadius: BORDER_RADIUS.md,
@@ -400,22 +403,22 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 107, 107, 0.12)',
     borderRadius: BORDER_RADIUS.md,
   },
-  errorBannerText: { flex: 1, color: COLORS.coralRed, fontSize: 13, lineHeight: 18 },
+  errorBannerText: { flex: 1, color: colors.coralRed, fontSize: 13, lineHeight: 18 },
 
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: SPACING.lg,
     paddingTop: Platform.OS === 'android' ? SPACING.xl : SPACING.sm,
     paddingBottom: SPACING.md,
-    borderBottomWidth: 1, borderBottomColor: COLORS.border,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
   },
   backBtn: { padding: SPACING.xs },
   headerTitle: {
-    color: COLORS.textPrimary, fontSize: FONT_SIZES.section, fontWeight: FONT_WEIGHTS.bold,
+    color: colors.textPrimary, fontSize: FONT_SIZES.section, fontWeight: FONT_WEIGHTS.bold,
   },
 
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  loadingText: { color: COLORS.textSecondary, marginTop: SPACING.md },
+  loadingText: { color: colors.textSecondary, marginTop: SPACING.md },
   scrollContent: { padding: SPACING.lg, paddingBottom: 100 },
 
   // Count badge
@@ -424,43 +427,43 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
   },
   countDot: {
-    width: 10, height: 10, borderRadius: 5, backgroundColor: COLORS.success,
+    width: 10, height: 10, borderRadius: 5, backgroundColor: colors.success,
   },
   countText: {
-    color: COLORS.textSecondary, fontSize: FONT_SIZES.label, fontWeight: FONT_WEIGHTS.medium,
+    color: colors.textSecondary, fontSize: FONT_SIZES.label, fontWeight: FONT_WEIGHTS.medium,
   },
 
   // Request card
   requestCard: {
-    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.lg,
+    backgroundColor: colors.surface, borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.lg, marginBottom: SPACING.md,
-    borderWidth: 1, borderColor: COLORS.border,
+    borderWidth: 1, borderColor: colors.border,
   },
   cardHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
     marginBottom: SPACING.md,
   },
   passengerName: {
-    color: COLORS.textPrimary, fontSize: 16, fontWeight: FONT_WEIGHTS.semibold,
+    color: colors.textPrimary, fontSize: 16, fontWeight: FONT_WEIGHTS.semibold,
   },
   timingBadge: {
-    color: COLORS.textSecondary, fontSize: FONT_SIZES.small, marginTop: 4,
+    color: colors.textSecondary, fontSize: FONT_SIZES.small, marginTop: 4,
   },
   estimatedCost: {
-    color: COLORS.electricTeal, fontSize: 18, fontWeight: FONT_WEIGHTS.bold,
+    color: colors.electricTeal, fontSize: 18, fontWeight: FONT_WEIGHTS.bold,
   },
 
   // Route
   routeSection: {
-    backgroundColor: COLORS.surfaceAlt, borderRadius: BORDER_RADIUS.md,
+    backgroundColor: colors.surfaceAlt, borderRadius: BORDER_RADIUS.md,
     padding: SPACING.md, marginBottom: SPACING.sm,
   },
   routeRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
   routeDivider: {
-    width: 2, height: 16, backgroundColor: COLORS.border, marginLeft: 6, marginVertical: 2,
+    width: 2, height: 16, backgroundColor: colors.border, marginLeft: 6, marginVertical: 2,
   },
   routeText: {
-    color: COLORS.textPrimary, fontSize: FONT_SIZES.label, flex: 1,
+    color: colors.textPrimary, fontSize: FONT_SIZES.label, flex: 1,
   },
 
   // Note
@@ -469,7 +472,7 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.sm,
   },
   noteText: {
-    color: COLORS.textSecondary, fontSize: FONT_SIZES.small, fontStyle: 'italic', flex: 1,
+    color: colors.textSecondary, fontSize: FONT_SIZES.small, fontStyle: 'italic', flex: 1,
   },
 
   // Meta
@@ -478,14 +481,14 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
   },
   metaBadge: {
-    backgroundColor: COLORS.surfaceAlt, paddingHorizontal: SPACING.sm, paddingVertical: 3,
+    backgroundColor: colors.surfaceAlt, paddingHorizontal: SPACING.sm, paddingVertical: 3,
     borderRadius: BORDER_RADIUS.sm,
   },
-  metaText: { color: COLORS.textSecondary, fontSize: 11, fontWeight: FONT_WEIGHTS.medium },
-  timeAgo: { color: COLORS.textTertiary, fontSize: 11, marginLeft: 'auto' },
+  metaText: { color: colors.textSecondary, fontSize: 11, fontWeight: FONT_WEIGHTS.medium },
+  timeAgo: { color: colors.textTertiary, fontSize: 11, marginLeft: 'auto' },
 
   acceptBtn: {
-    backgroundColor: COLORS.electricTeal, borderRadius: BORDER_RADIUS.md,
+    backgroundColor: colors.electricTeal, borderRadius: BORDER_RADIUS.md,
     paddingVertical: SPACING.md, flexDirection: 'row',
     justifyContent: 'center', alignItems: 'center', gap: SPACING.sm,
   },
@@ -494,11 +497,11 @@ const styles = StyleSheet.create({
   // Empty state
   emptyState: { alignItems: 'center', marginTop: 80 },
   emptyTitle: {
-    color: COLORS.textPrimary, fontSize: 20, fontWeight: FONT_WEIGHTS.semibold,
+    color: colors.textPrimary, fontSize: 20, fontWeight: FONT_WEIGHTS.semibold,
     marginTop: SPACING.lg, marginBottom: SPACING.sm,
   },
   emptyDesc: {
-    color: COLORS.textSecondary, fontSize: 14, textAlign: 'center',
+    color: colors.textSecondary, fontSize: 14, textAlign: 'center',
     maxWidth: '80%', lineHeight: 20,
   },
 

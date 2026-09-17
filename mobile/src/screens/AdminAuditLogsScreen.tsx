@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator,
   RefreshControl, TextInput, Alert, Share,
 } from 'react-native';
 import { adminApi } from '@/api';
-import { COLORS, SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '@/constants/theme';
+import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS, ThemeColors } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { Ionicons } from '@expo/vector-icons';
 import { AdminScreenLayout } from '@/components/admin/AdminScreenLayout';
 
@@ -46,6 +47,8 @@ type AuditLog = {
 };
 
 export function AdminAuditLogsScreen() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -132,7 +135,7 @@ export function AdminAuditLogsScreen() {
       <TextInput
         style={styles.filterInput}
         placeholder="Filter by action..."
-        placeholderTextColor={COLORS.textTertiary}
+        placeholderTextColor={colors.textTertiary}
         value={actionFilter}
         onChangeText={setActionFilter}
         returnKeyType="done"
@@ -141,7 +144,7 @@ export function AdminAuditLogsScreen() {
       <TextInput
         style={styles.filterInput}
         placeholder="Target ID..."
-        placeholderTextColor={COLORS.textTertiary}
+        placeholderTextColor={colors.textTertiary}
         value={targetFilter}
         onChangeText={setTargetFilter}
         returnKeyType="done"
@@ -178,18 +181,18 @@ export function AdminAuditLogsScreen() {
       headerBottom={filterRow}
       rightSlot={(
         <TouchableOpacity style={styles.exportBtn} onPress={handleExport}>
-          <Ionicons name="download-outline" size={22} color={COLORS.electricTeal} />
+          <Ionicons name="download-outline" size={22} color={colors.electricTeal} />
         </TouchableOpacity>
       )}
       footer={!loading && logs.length > 0 ? pagination : undefined}
     >
       {loading ? (
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={COLORS.electricTeal} />
+          <ActivityIndicator size="large" color={colors.electricTeal} />
         </View>
       ) : logs.length === 0 ? (
         <View style={styles.centerContainer}>
-          <Ionicons name="document-text-outline" size={64} color={COLORS.textTertiary} />
+          <Ionicons name="document-text-outline" size={64} color={colors.textTertiary} />
           <Text style={styles.emptyTitle}>No audit logs yet</Text>
           <Text style={styles.emptySub}>Admin actions will appear here.</Text>
         </View>
@@ -205,7 +208,7 @@ export function AdminAuditLogsScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={() => fetchLogs(page, true)}
-              tintColor={COLORS.electricTeal}
+              tintColor={colors.electricTeal}
             />
           }
         />
@@ -214,7 +217,7 @@ export function AdminAuditLogsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   exportBtn: { padding: SPACING.sm, width: 40, alignItems: 'center' },
   filterRow: {
     flexDirection: 'row',
@@ -222,17 +225,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: colors.border,
   },
   filterInput: {
     flex: 1,
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
     borderRadius: BORDER_RADIUS.md,
     padding: SPACING.sm,
-    color: COLORS.textPrimary,
+    color: colors.textPrimary,
     fontSize: FONT_SIZES.small,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
   },
   centerContainer: {
     flex: 1,
@@ -241,25 +244,25 @@ const styles = StyleSheet.create({
     padding: SPACING.xl,
   },
   emptyTitle: {
-    color: COLORS.textPrimary,
+    color: colors.textPrimary,
     fontSize: FONT_SIZES.section,
     fontWeight: FONT_WEIGHTS.bold,
     marginTop: SPACING.md,
   },
   emptySub: {
-    color: COLORS.textSecondary,
+    color: colors.textSecondary,
     fontSize: FONT_SIZES.body,
     marginTop: SPACING.sm,
     textAlign: 'center',
   },
   listContainer: { padding: SPACING.md, paddingBottom: SPACING.md },
   logCard: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.md,
     marginBottom: SPACING.sm,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
   },
   logHeader: {
     flexDirection: 'row',
@@ -268,38 +271,38 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.xs,
   },
   actionText: {
-    color: COLORS.textPrimary,
+    color: colors.textPrimary,
     fontSize: FONT_SIZES.label,
     fontWeight: FONT_WEIGHTS.semibold,
     flex: 1,
   },
-  timeText: { color: COLORS.textTertiary, fontSize: 11 },
-  adminText: { color: COLORS.textSecondary, fontSize: FONT_SIZES.small, marginBottom: 4 },
-  detailText: { color: COLORS.textSecondary, fontSize: FONT_SIZES.small },
-  reasonText: { color: COLORS.amber, fontSize: FONT_SIZES.small, marginTop: 4 },
-  notesText: { color: COLORS.textTertiary, fontSize: FONT_SIZES.small, marginTop: 2 },
+  timeText: { color: colors.textTertiary, fontSize: 11 },
+  adminText: { color: colors.textSecondary, fontSize: FONT_SIZES.small, marginBottom: 4 },
+  detailText: { color: colors.textSecondary, fontSize: FONT_SIZES.small },
+  reasonText: { color: colors.amber, fontSize: FONT_SIZES.small, marginTop: 4 },
+  notesText: { color: colors.textTertiary, fontSize: FONT_SIZES.small, marginTop: 2 },
   paginationRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: SPACING.md,
     borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-    backgroundColor: COLORS.background,
+    borderTopColor: colors.border,
+    backgroundColor: colors.background,
   },
   pageBtn: {
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
     borderRadius: BORDER_RADIUS.sm,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
   },
   pageBtnDisabled: { opacity: 0.4 },
   pageBtnText: {
-    color: COLORS.electricTeal,
+    color: colors.electricTeal,
     fontSize: FONT_SIZES.small,
     fontWeight: FONT_WEIGHTS.medium,
   },
-  pageText: { color: COLORS.textSecondary, fontSize: FONT_SIZES.small },
+  pageText: { color: colors.textSecondary, fontSize: FONT_SIZES.small },
 });

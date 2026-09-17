@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, SPACING, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
+import { SPACING, FONT_SIZES, FONT_WEIGHTS, ThemeColors } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 
 /** Jump straight to the admin home screen (not one step back in the stack). */
 export function useAdminDashboardBack() {
@@ -46,6 +47,8 @@ export function AdminScreenLayout({
   footer,
   headerBottom,
 }: AdminScreenLayoutProps) {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const goToDashboard = useAdminDashboardBack();
 
   const body = scroll ? (
@@ -77,7 +80,7 @@ export function AdminScreenLayout({
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               accessibilityLabel="Go back"
             >
-              <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
+              <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
             </TouchableOpacity>
             <View style={styles.headerText}>
               <Text style={styles.headerTitle} numberOfLines={1}>{title}</Text>
@@ -96,8 +99,8 @@ export function AdminScreenLayout({
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: COLORS.background },
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
+  safe: { flex: 1, backgroundColor: colors.background },
   flex: { flex: 1 },
   header: {
     flexDirection: 'row',
@@ -105,18 +108,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.md,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    backgroundColor: COLORS.background,
+    borderBottomColor: colors.border,
+    backgroundColor: colors.background,
   },
   backBtn: { padding: SPACING.xs, marginRight: SPACING.sm },
   headerText: { flex: 1, minWidth: 0 },
   headerTitle: {
-    color: COLORS.textPrimary,
+    color: colors.textPrimary,
     fontSize: FONT_SIZES.section,
     fontWeight: FONT_WEIGHTS.bold,
   },
   headerSub: {
-    color: COLORS.textSecondary,
+    color: colors.textSecondary,
     fontSize: FONT_SIZES.small,
     marginTop: 2,
     lineHeight: 18,

@@ -1,20 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView,
-  Platform, ActivityIndicator, Alert, Image, Linking, Dimensions,
+  Platform, ActivityIndicator, Alert,
 } from 'react-native';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
+import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, ThemeColors } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { adminApi } from '@/api';
+import { PresignedDocumentImage } from '@/components/admin/PresignedDocumentImage';
 
 type ParamList = {
   AdminProviderDetail: { provider: any };
 };
 
-const { width } = Dimensions.get('window');
-
 export function AdminProviderDetailScreen() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const navigation = useNavigation<any>();
   const route = useRoute<RouteProp<ParamList, 'AdminProviderDetail'>>();
   const { provider } = route.params;
@@ -31,15 +33,6 @@ export function AdminProviderDetailScreen() {
     { label: 'Identity Document', url: provider.identityDocumentUrl, icon: 'id-card-outline' },
     { label: 'Proof of Address', url: provider.proofOfAddressUrl, icon: 'home-outline' },
   ];
-
-  const isImageUrl = (url: string) => {
-    if (!url) return false;
-    return /\.(jpg|jpeg|png|gif|webp)/i.test(url);
-  };
-
-  const openDocument = (url: string) => {
-    if (url) Linking.openURL(url).catch(() => Alert.alert('Error', 'Cannot open document'));
-  };
 
   const handleApprove = () => {
     Alert.alert(
@@ -100,7 +93,7 @@ export function AdminProviderDetailScreen() {
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
+          <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Provider Details</Text>
         <View style={{ width: 32 }} />
@@ -122,23 +115,23 @@ export function AdminProviderDetailScreen() {
 
           <View style={styles.contactSection}>
             <View style={styles.contactRow}>
-              <Ionicons name="mail-outline" size={16} color={COLORS.electricTeal} />
+              <Ionicons name="mail-outline" size={16} color={colors.electricTeal} />
               <Text style={styles.contactText}>{provider.email}</Text>
             </View>
             {provider.phoneNumber && (
               <View style={styles.contactRow}>
-                <Ionicons name="call-outline" size={16} color={COLORS.electricTeal} />
+                <Ionicons name="call-outline" size={16} color={colors.electricTeal} />
                 <Text style={styles.contactText}>{provider.phoneNumber}</Text>
               </View>
             )}
             {provider.idType && (
               <View style={styles.contactRow}>
-                <Ionicons name="card-outline" size={16} color={COLORS.electricTeal} />
+                <Ionicons name="card-outline" size={16} color={colors.electricTeal} />
                 <Text style={styles.contactText}>ID Type: {provider.idType}</Text>
               </View>
             )}
             <View style={styles.contactRow}>
-              <Ionicons name="time-outline" size={16} color={COLORS.textTertiary} />
+              <Ionicons name="time-outline" size={16} color={colors.textTertiary} />
               <Text style={styles.contactText}>
                 Submitted: {provider.createdAt ? new Date(provider.createdAt).toLocaleDateString() : 'N/A'}
               </Text>
@@ -152,38 +145,24 @@ export function AdminProviderDetailScreen() {
         {documents.map((doc, index) => (
           <View key={index} style={styles.docCard}>
             <View style={styles.docHeader}>
-              <Ionicons name={doc.icon as any} size={20} color={COLORS.info} />
+              <Ionicons name={doc.icon as any} size={20} color={colors.info} />
               <Text style={styles.docLabel}>{doc.label}</Text>
               {doc.url ? (
-                <View style={[styles.statusChip, { backgroundColor: `${COLORS.success}15` }]}>
-                  <Text style={[styles.statusChipText, { color: COLORS.success }]}>Uploaded</Text>
+                <View style={[styles.statusChip, { backgroundColor: `${colors.success}15` }]}>
+                  <Text style={[styles.statusChipText, { color: colors.success }]}>Uploaded</Text>
                 </View>
               ) : (
-                <View style={[styles.statusChip, { backgroundColor: `${COLORS.error}15` }]}>
-                  <Text style={[styles.statusChipText, { color: COLORS.error }]}>Missing</Text>
+                <View style={[styles.statusChip, { backgroundColor: `${colors.error}15` }]}>
+                  <Text style={[styles.statusChipText, { color: colors.error }]}>Missing</Text>
                 </View>
               )}
             </View>
 
             {doc.url ? (
-              isImageUrl(doc.url) ? (
-                <TouchableOpacity onPress={() => openDocument(doc.url)} activeOpacity={0.8}>
-                  <Image
-                    source={{ uri: doc.url }}
-                    style={styles.docImage}
-                    resizeMode="contain"
-                  />
-                  <Text style={styles.tapToView}>Tap to view full size</Text>
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity style={styles.pdfButton} onPress={() => openDocument(doc.url)}>
-                  <Ionicons name="document-attach-outline" size={24} color={COLORS.info} />
-                  <Text style={styles.pdfButtonText}>Open Document (PDF)</Text>
-                </TouchableOpacity>
-              )
+              <PresignedDocumentImage url={doc.url} label={doc.label} height={220} />
             ) : (
               <View style={styles.missingBox}>
-                <Ionicons name="alert-circle-outline" size={32} color={COLORS.error} />
+                <Ionicons name="alert-circle-outline" size={32} color={colors.error} />
                 <Text style={styles.missingText}>This document has not been uploaded yet.</Text>
               </View>
             )}
@@ -197,7 +176,7 @@ export function AdminProviderDetailScreen() {
             disabled={processing}
             onPress={handleReject}
           >
-            <Ionicons name="close-circle-outline" size={20} color={COLORS.error} />
+            <Ionicons name="close-circle-outline" size={20} color={colors.error} />
             <Text style={styles.rejectText}>Reject</Text>
           </TouchableOpacity>
 
@@ -221,46 +200,46 @@ export function AdminProviderDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: COLORS.background },
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: SPACING.lg,
     paddingTop: Platform.OS === 'android' ? SPACING.xl : SPACING.md,
     paddingBottom: SPACING.md,
-    borderBottomWidth: 1, borderBottomColor: COLORS.border,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
   },
   backBtn: { padding: SPACING.xs },
   headerTitle: {
-    color: COLORS.textPrimary, fontSize: 18, fontWeight: FONT_WEIGHTS.bold,
+    color: colors.textPrimary, fontSize: 18, fontWeight: FONT_WEIGHTS.bold,
   },
   content: { padding: SPACING.lg, paddingBottom: 40 },
 
   // Info Card
   infoCard: {
-    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.xl,
+    backgroundColor: colors.surface, borderRadius: BORDER_RADIUS.xl,
     padding: SPACING.xl, marginBottom: SPACING.xl,
     alignItems: 'center',
-    borderWidth: 1, borderColor: COLORS.border,
+    borderWidth: 1, borderColor: colors.border,
   },
   avatarCircle: {
     width: 72, height: 72, borderRadius: 36,
-    backgroundColor: `${COLORS.electricTeal}18`,
+    backgroundColor: `${colors.electricTeal}18`,
     justifyContent: 'center', alignItems: 'center', marginBottom: SPACING.md,
   },
   avatarText: {
-    color: COLORS.electricTeal, fontSize: 26, fontWeight: FONT_WEIGHTS.bold,
+    color: colors.electricTeal, fontSize: 26, fontWeight: FONT_WEIGHTS.bold,
   },
   providerName: {
-    color: COLORS.textPrimary, fontSize: 22, fontWeight: FONT_WEIGHTS.bold,
+    color: colors.textPrimary, fontSize: 22, fontWeight: FONT_WEIGHTS.bold,
     marginBottom: SPACING.xs,
   },
   roleBadge: {
-    backgroundColor: `${COLORS.electricTeal}15`, paddingHorizontal: 12, paddingVertical: 4,
+    backgroundColor: `${colors.electricTeal}15`, paddingHorizontal: 12, paddingVertical: 4,
     borderRadius: 20, marginBottom: SPACING.lg,
   },
   roleBadgeText: {
-    color: COLORS.electricTeal, fontSize: 13, fontWeight: FONT_WEIGHTS.semibold,
+    color: colors.electricTeal, fontSize: 13, fontWeight: FONT_WEIGHTS.semibold,
   },
   contactSection: { width: '100%' },
   contactRow: {
@@ -268,25 +247,25 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.sm,
   },
   contactText: {
-    color: COLORS.textSecondary, fontSize: 14,
+    color: colors.textSecondary, fontSize: 14,
   },
 
   // Documents
   sectionTitle: {
-    color: COLORS.textPrimary, fontSize: 18, fontWeight: FONT_WEIGHTS.bold,
+    color: colors.textPrimary, fontSize: 18, fontWeight: FONT_WEIGHTS.bold,
     marginBottom: SPACING.md,
   },
   docCard: {
-    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.lg,
+    backgroundColor: colors.surface, borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.lg, marginBottom: SPACING.md,
-    borderWidth: 1, borderColor: COLORS.border,
+    borderWidth: 1, borderColor: colors.border,
   },
   docHeader: {
     flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
     marginBottom: SPACING.md,
   },
   docLabel: {
-    flex: 1, color: COLORS.textPrimary, fontSize: 15, fontWeight: FONT_WEIGHTS.semibold,
+    flex: 1, color: colors.textPrimary, fontSize: 15, fontWeight: FONT_WEIGHTS.semibold,
   },
   statusChip: {
     paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12,
@@ -294,29 +273,12 @@ const styles = StyleSheet.create({
   statusChipText: {
     fontSize: 11, fontWeight: FONT_WEIGHTS.bold,
   },
-  docImage: {
-    width: width - (SPACING.lg * 4), height: 250,
-    borderRadius: BORDER_RADIUS.md, backgroundColor: '#F1F5F9',
-  },
-  tapToView: {
-    textAlign: 'center', color: COLORS.info, fontSize: 12,
-    marginTop: SPACING.xs, fontWeight: FONT_WEIGHTS.medium,
-  },
-  pdfButton: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: SPACING.sm, paddingVertical: SPACING.lg,
-    borderRadius: BORDER_RADIUS.md, borderWidth: 1, borderColor: COLORS.info,
-    backgroundColor: `${COLORS.info}08`,
-  },
-  pdfButtonText: {
-    color: COLORS.info, fontSize: 14, fontWeight: FONT_WEIGHTS.semibold,
-  },
   missingBox: {
     alignItems: 'center', paddingVertical: SPACING.xl,
-    backgroundColor: `${COLORS.error}05`, borderRadius: BORDER_RADIUS.md,
+    backgroundColor: `${colors.error}05`, borderRadius: BORDER_RADIUS.md,
   },
   missingText: {
-    color: COLORS.textSecondary, fontSize: 13, marginTop: SPACING.sm,
+    color: colors.textSecondary, fontSize: 13, marginTop: SPACING.sm,
   },
 
   // Actions
@@ -326,17 +288,17 @@ const styles = StyleSheet.create({
   rejectButton: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: SPACING.xs, paddingVertical: 14,
-    borderRadius: BORDER_RADIUS.lg, borderWidth: 1.5, borderColor: COLORS.error,
-    backgroundColor: `${COLORS.error}08`,
+    borderRadius: BORDER_RADIUS.lg, borderWidth: 1.5, borderColor: colors.error,
+    backgroundColor: `${colors.error}08`,
   },
   rejectText: {
-    color: COLORS.error, fontSize: 15, fontWeight: FONT_WEIGHTS.bold,
+    color: colors.error, fontSize: 15, fontWeight: FONT_WEIGHTS.bold,
   },
   approveButton: {
     flex: 1.5, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: SPACING.xs, paddingVertical: 14,
-    borderRadius: BORDER_RADIUS.lg, backgroundColor: COLORS.success,
-    shadowColor: COLORS.success, shadowOffset: { width: 0, height: 4 },
+    borderRadius: BORDER_RADIUS.lg, backgroundColor: colors.success,
+    shadowColor: colors.success, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3, shadowRadius: 8, elevation: 4,
   },
   approveText: {

@@ -28,11 +28,26 @@ export class EmailService {
     this.registerPartials();
   }
 
+  /**
+   * dotenv keeps # inside quotes; some loaders still pass the quote characters through.
+   */
+  private unwrapEnv(value?: string): string | undefined {
+    if (!value) return undefined;
+    const trimmed = value.trim();
+    if (
+      (trimmed.startsWith('"') && trimmed.endsWith('"') && trimmed.length >= 2) ||
+      (trimmed.startsWith("'") && trimmed.endsWith("'") && trimmed.length >= 2)
+    ) {
+      return trimmed.slice(1, -1);
+    }
+    return trimmed;
+  }
+
   private getSenderAddress(): string {
     return (
-      this.configService.get<string>('SMTP_FROM') ||
-      this.configService.get<string>('SMTP_USER') ||
-      this.configService.get<string>('GMAIL_USER') ||
+      this.unwrapEnv(this.configService.get<string>('SMTP_FROM')) ||
+      this.unwrapEnv(this.configService.get<string>('SMTP_USER')) ||
+      this.unwrapEnv(this.configService.get<string>('GMAIL_USER')) ||
       'noreply@gleezip.com'
     );
   }
@@ -41,14 +56,14 @@ export class EmailService {
    * Initialize SMTP transporter (generic host or legacy Gmail service shortcut).
    */
   private initializeTransporter(): void {
-    const host = this.configService.get<string>('SMTP_HOST');
+    const host = this.unwrapEnv(this.configService.get<string>('SMTP_HOST'));
     const user =
-      this.configService.get<string>('SMTP_USER') ||
-      this.configService.get<string>('GMAIL_USER');
+      this.unwrapEnv(this.configService.get<string>('SMTP_USER')) ||
+      this.unwrapEnv(this.configService.get<string>('GMAIL_USER'));
     const password =
-      this.configService.get<string>('SMTP_PASSWORD') ||
-      this.configService.get<string>('SMTP_PASS') ||
-      this.configService.get<string>('GMAIL_APP_PASSWORD');
+      this.unwrapEnv(this.configService.get<string>('SMTP_PASSWORD')) ||
+      this.unwrapEnv(this.configService.get<string>('SMTP_PASS')) ||
+      this.unwrapEnv(this.configService.get<string>('GMAIL_APP_PASSWORD'));
 
     if (host) {
       const port = Number(this.configService.get<string>('SMTP_PORT') || 587);
@@ -203,8 +218,11 @@ export class EmailService {
       return true;
     } catch (error) {
       console.error(`Failed to send OTP email to ${email}:`, error);
+      const authFailed = (error as { code?: string })?.code === 'EAUTH';
       throw new InternalServerErrorException(
-        'Failed to send verification email. Please try again later.',
+        authFailed
+          ? 'Email service authentication failed. Check SMTP credentials and try again.'
+          : 'Failed to send verification email. Please try again later.',
       );
     }
   }

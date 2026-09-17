@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator,
   RefreshControl, TextInput, Alert, Platform,
 } from 'react-native';
 import { adminApi } from '@/api';
-import { COLORS, SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '@/constants/theme';
+import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS, ThemeColors } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { Ionicons } from '@expo/vector-icons';
 import { UserRole } from '@/types';
 import { useNavigation } from '@react-navigation/native';
@@ -44,6 +45,8 @@ const TABS = [
 const SUSPENSION_PRESETS = [7, 30, 90];
 
 export function AdminUsersScreen() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const navigation = useNavigation<any>();
   const { user: currentUser } = useAuthStore();
   const [users, setUsers] = useState<UserData[]>([]);
@@ -81,11 +84,11 @@ export function AdminUsersScreen() {
 
   const getRoleColor = (role: string) => {
     switch (role) {
-      case 'admin': return COLORS.error;
-      case 'taxi_driver': return COLORS.amber;
-      case 'driver': return COLORS.info;
-      case 'parking_provider': return COLORS.electricTeal;
-      default: return COLORS.textSecondary;
+      case 'admin': return colors.error;
+      case 'taxi_driver': return colors.amber;
+      case 'driver': return colors.info;
+      case 'parking_provider': return colors.electricTeal;
+      default: return colors.textSecondary;
     }
   };
 
@@ -101,9 +104,9 @@ export function AdminUsersScreen() {
 
   const getAccountStatusColor = (status?: string) => {
     switch (status) {
-      case 'suspended': return COLORS.amber;
-      case 'banned': return COLORS.error;
-      default: return COLORS.success;
+      case 'suspended': return colors.amber;
+      case 'banned': return colors.error;
+      default: return colors.success;
     }
   };
 
@@ -243,7 +246,11 @@ export function AdminUsersScreen() {
 
     return (
       <View style={styles.userCard}>
-        <View style={styles.cardHeader}>
+        <TouchableOpacity
+          style={styles.cardHeader}
+          onPress={() => navigation.navigate('AdminUserDetail', { userId: item._id })}
+          activeOpacity={0.75}
+        >
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>{item.firstName?.charAt(0) || 'U'}</Text>
           </View>
@@ -252,7 +259,8 @@ export function AdminUsersScreen() {
             <Text style={styles.userEmail}>{item.email}</Text>
             {item.phoneNumber && <Text style={styles.userPhone}>{item.phoneNumber}</Text>}
           </View>
-        </View>
+          <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
+        </TouchableOpacity>
 
         <View style={styles.divider} />
 
@@ -283,8 +291,8 @@ export function AdminUsersScreen() {
               })}
               disabled={isProcessing}
             >
-              <Ionicons name="mail-outline" size={16} color={COLORS.info} />
-              <Text style={[styles.actionBtnText, { color: COLORS.info }]}>Message</Text>
+              <Ionicons name="mail-outline" size={16} color={colors.info} />
+              <Text style={[styles.actionBtnText, { color: colors.info }]}>Message</Text>
             </TouchableOpacity>
             {status === 'active' && (
               <>
@@ -293,29 +301,29 @@ export function AdminUsersScreen() {
                   onPress={() => { setActionModal({ type: 'suspend', user: item }); setReason(''); setDurationDays('7'); }}
                   disabled={isProcessing}
                 >
-                  <Ionicons name="pause-circle-outline" size={16} color={COLORS.amber} />
-                  <Text style={[styles.actionBtnText, { color: COLORS.amber }]}>Suspend</Text>
+                  <Ionicons name="pause-circle-outline" size={16} color={colors.amber} />
+                  <Text style={[styles.actionBtnText, { color: colors.amber }]}>Suspend</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.actionBtn, styles.banBtn]}
                   onPress={() => { setActionModal({ type: 'ban', user: item }); setReason(''); }}
                   disabled={isProcessing}
                 >
-                  <Ionicons name="ban-outline" size={16} color={COLORS.error} />
-                  <Text style={[styles.actionBtnText, { color: COLORS.error }]}>Ban</Text>
+                  <Ionicons name="ban-outline" size={16} color={colors.error} />
+                  <Text style={[styles.actionBtnText, { color: colors.error }]}>Ban</Text>
                 </TouchableOpacity>
               </>
             )}
             {status === 'suspended' && (
               <TouchableOpacity style={styles.actionBtn} onPress={() => handleUnsuspend(item)} disabled={isProcessing}>
-                <Ionicons name="checkmark-circle-outline" size={16} color={COLORS.success} />
-                <Text style={[styles.actionBtnText, { color: COLORS.success }]}>Unsuspend</Text>
+                <Ionicons name="checkmark-circle-outline" size={16} color={colors.success} />
+                <Text style={[styles.actionBtnText, { color: colors.success }]}>Unsuspend</Text>
               </TouchableOpacity>
             )}
             {status === 'banned' && (
               <TouchableOpacity style={styles.actionBtn} onPress={() => handleUnban(item)} disabled={isProcessing}>
-                <Ionicons name="shield-checkmark-outline" size={16} color={COLORS.info} />
-                <Text style={[styles.actionBtnText, { color: COLORS.info }]}>Unban</Text>
+                <Ionicons name="shield-checkmark-outline" size={16} color={colors.info} />
+                <Text style={[styles.actionBtnText, { color: colors.info }]}>Unban</Text>
               </TouchableOpacity>
             )}
             <TouchableOpacity
@@ -324,11 +332,11 @@ export function AdminUsersScreen() {
               disabled={isProcessing || currentUser?._id === item._id}
             >
               {isProcessing ? (
-                <ActivityIndicator size="small" color={COLORS.error} />
+                <ActivityIndicator size="small" color={colors.error} />
               ) : (
                 <>
-                  <Ionicons name="trash-outline" size={16} color={COLORS.error} />
-                  <Text style={[styles.actionBtnText, { color: COLORS.error }]}>Delete</Text>
+                  <Ionicons name="trash-outline" size={16} color={colors.error} />
+                  <Text style={[styles.actionBtnText, { color: colors.error }]}>Delete</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -342,11 +350,11 @@ export function AdminUsersScreen() {
     <View>
       <View style={styles.searchRow}>
         <View style={styles.searchInputWrap}>
-          <Ionicons name="search-outline" size={18} color={COLORS.textTertiary} />
+          <Ionicons name="search-outline" size={18} color={colors.textTertiary} />
           <TextInput
             style={styles.searchInput}
             placeholder="Search by name or email..."
-            placeholderTextColor={COLORS.textTertiary}
+            placeholderTextColor={colors.textTertiary}
             value={searchQuery}
             onChangeText={setSearchQuery}
             autoCapitalize="none"
@@ -356,7 +364,7 @@ export function AdminUsersScreen() {
           />
           {searchQuery.length > 0 && (
             <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Ionicons name="close-circle" size={18} color={COLORS.textTertiary} />
+              <Ionicons name="close-circle" size={18} color={colors.textTertiary} />
             </TouchableOpacity>
           )}
         </View>
@@ -392,7 +400,7 @@ export function AdminUsersScreen() {
       >
         {loading ? (
           <View style={styles.centered}>
-            <ActivityIndicator size="large" color={COLORS.electricTeal} />
+            <ActivityIndicator size="large" color={colors.electricTeal} />
           </View>
         ) : (
           <FlatList
@@ -402,11 +410,11 @@ export function AdminUsersScreen() {
             contentContainerStyle={styles.listContent}
             keyboardDismissMode="on-drag"
             refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.electricTeal} />
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.electricTeal} />
             }
             ListEmptyComponent={
               <View style={styles.centered}>
-                <Ionicons name="people-outline" size={48} color={COLORS.textTertiary} />
+                <Ionicons name="people-outline" size={48} color={colors.textTertiary} />
                 <Text style={styles.emptyText}>
                   {query ? 'No users match your search.' : 'No users found in this category.'}
                 </Text>
@@ -425,7 +433,7 @@ export function AdminUsersScreen() {
         <TextInput
           style={styles.modalInput}
           placeholder="Reason (required)"
-          placeholderTextColor={COLORS.textTertiary}
+          placeholderTextColor={colors.textTertiary}
           value={reason}
           onChangeText={setReason}
           multiline
@@ -451,7 +459,7 @@ export function AdminUsersScreen() {
             <TextInput
               style={styles.modalInput}
               placeholder="Custom days"
-              placeholderTextColor={COLORS.textTertiary}
+              placeholderTextColor={colors.textTertiary}
               value={durationDays}
               onChangeText={setDurationDays}
               keyboardType="numeric"
@@ -476,7 +484,7 @@ export function AdminUsersScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   searchRow: {
     paddingHorizontal: SPACING.md,
     paddingTop: SPACING.sm,
@@ -485,9 +493,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.sm,
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
     borderRadius: BORDER_RADIUS.lg,
     paddingHorizontal: SPACING.md,
     paddingVertical: Platform.OS === 'ios' ? 10 : 6,
@@ -495,75 +503,75 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 14,
-    color: COLORS.textPrimary,
+    color: colors.textPrimary,
     paddingVertical: 0,
   },
   tabsContainer: { paddingVertical: SPACING.sm },
   tab: {
     paddingHorizontal: SPACING.lg, paddingVertical: 8, marginRight: SPACING.sm,
-    borderRadius: 20, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border,
+    borderRadius: 20, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
   },
-  activeTab: { backgroundColor: COLORS.electricTeal, borderColor: COLORS.electricTeal },
-  tabText: { fontSize: 14, color: COLORS.textSecondary, fontWeight: FONT_WEIGHTS.medium },
+  activeTab: { backgroundColor: colors.electricTeal, borderColor: colors.electricTeal },
+  tabText: { fontSize: 14, color: colors.textSecondary, fontWeight: FONT_WEIGHTS.medium },
   activeTabText: { color: '#FFF', fontWeight: FONT_WEIGHTS.semibold },
   listContent: { padding: SPACING.md },
   userCard: {
-    backgroundColor: '#FFF', borderRadius: BORDER_RADIUS.lg, padding: SPACING.lg,
+    backgroundColor: colors.surface, borderRadius: BORDER_RADIUS.lg, padding: SPACING.lg,
     marginBottom: SPACING.md, shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05, shadowRadius: 5, elevation: 2,
   },
   cardHeader: { flexDirection: 'row', alignItems: 'center' },
   avatar: {
-    width: 48, height: 48, borderRadius: 24, backgroundColor: COLORS.electricTeal,
+    width: 48, height: 48, borderRadius: 24, backgroundColor: colors.electricTeal,
     justifyContent: 'center', alignItems: 'center', marginRight: SPACING.md,
   },
   avatarText: { color: '#FFF', fontSize: 18, fontWeight: 'bold' },
   userInfo: { flex: 1 },
-  userName: { fontSize: 16, fontWeight: FONT_WEIGHTS.bold, color: COLORS.textPrimary },
-  userEmail: { fontSize: 14, color: COLORS.textSecondary, marginTop: 2 },
-  userPhone: { fontSize: 13, color: COLORS.textTertiary, marginTop: 2 },
-  divider: { height: 1, backgroundColor: COLORS.border, marginVertical: SPACING.md },
+  userName: { fontSize: 16, fontWeight: FONT_WEIGHTS.bold, color: colors.textPrimary },
+  userEmail: { fontSize: 14, color: colors.textSecondary, marginTop: 2 },
+  userPhone: { fontSize: 13, color: colors.textTertiary, marginTop: 2 },
+  divider: { height: 1, backgroundColor: colors.border, marginVertical: SPACING.md },
   cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   roleBadge: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12 },
   roleText: { fontSize: 12, fontWeight: FONT_WEIGHTS.bold },
   accountBadge: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12 },
   accountBadgeText: { fontSize: 12, fontWeight: FONT_WEIGHTS.bold },
-  reasonText: { fontSize: 12, color: COLORS.textSecondary, marginTop: SPACING.sm, fontStyle: 'italic' },
+  reasonText: { fontSize: 12, color: colors.textSecondary, marginTop: SPACING.sm, fontStyle: 'italic' },
   actionsRow: { flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.md, flexWrap: 'wrap' },
   actionBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm,
-    borderRadius: BORDER_RADIUS.md, borderWidth: 1, borderColor: COLORS.border,
+    borderRadius: BORDER_RADIUS.md, borderWidth: 1, borderColor: colors.border,
   },
-  suspendBtn: { borderColor: `${COLORS.amber}40` },
-  banBtn: { borderColor: `${COLORS.error}40` },
-  deleteBtn: { borderColor: `${COLORS.error}50`, backgroundColor: `${COLORS.error}08` },
+  suspendBtn: { borderColor: `${colors.amber}40` },
+  banBtn: { borderColor: `${colors.error}40` },
+  deleteBtn: { borderColor: `${colors.error}50`, backgroundColor: `${colors.error}08` },
   actionBtnText: { fontSize: 13, fontWeight: FONT_WEIGHTS.semibold },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: SPACING.xl },
-  emptyText: { marginTop: SPACING.md, fontSize: 16, color: COLORS.textSecondary },
+  emptyText: { marginTop: SPACING.md, fontSize: 16, color: colors.textSecondary },
   modalInput: {
-    backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border,
-    borderRadius: BORDER_RADIUS.lg, padding: SPACING.md, color: COLORS.textPrimary,
+    backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border,
+    borderRadius: BORDER_RADIUS.lg, padding: SPACING.md, color: colors.textPrimary,
     fontSize: 14, marginBottom: SPACING.md, minHeight: 80, textAlignVertical: 'top',
   },
-  presetLabel: { fontSize: 13, color: COLORS.textSecondary, marginBottom: SPACING.sm },
+  presetLabel: { fontSize: 13, color: colors.textSecondary, marginBottom: SPACING.sm },
   presetRow: { flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.md },
   presetBtn: {
     paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm,
-    borderRadius: BORDER_RADIUS.full, borderWidth: 1, borderColor: COLORS.border,
+    borderRadius: BORDER_RADIUS.full, borderWidth: 1, borderColor: colors.border,
   },
-  presetBtnActive: { backgroundColor: COLORS.electricTeal, borderColor: COLORS.electricTeal },
-  presetBtnText: { color: COLORS.textSecondary, fontWeight: FONT_WEIGHTS.medium },
+  presetBtnActive: { backgroundColor: colors.electricTeal, borderColor: colors.electricTeal },
+  presetBtnText: { color: colors.textSecondary, fontWeight: FONT_WEIGHTS.medium },
   presetBtnTextActive: { color: '#FFF' },
   modalActions: { flexDirection: 'row', gap: SPACING.md, marginTop: SPACING.sm },
   modalCancel: {
     flex: 1, paddingVertical: SPACING.md, borderRadius: BORDER_RADIUS.lg,
-    borderWidth: 1, borderColor: COLORS.border, alignItems: 'center',
+    borderWidth: 1, borderColor: colors.border, alignItems: 'center',
   },
-  modalCancelText: { color: COLORS.textSecondary, fontWeight: FONT_WEIGHTS.bold },
+  modalCancelText: { color: colors.textSecondary, fontWeight: FONT_WEIGHTS.bold },
   modalConfirm: {
     flex: 1, paddingVertical: SPACING.md, borderRadius: BORDER_RADIUS.lg,
-    backgroundColor: COLORS.electricTeal, alignItems: 'center',
+    backgroundColor: colors.electricTeal, alignItems: 'center',
   },
   modalConfirmText: { color: '#FFF', fontWeight: FONT_WEIGHTS.bold },
 });

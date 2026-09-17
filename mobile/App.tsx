@@ -6,6 +6,7 @@ import { StripeProvider } from '@stripe/stripe-react-native';
 import { RootNavigator } from '@/navigation/RootNavigator';
 import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/index';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 
 SplashScreen.preventAutoHideAsync();
@@ -29,6 +30,7 @@ function AppContent() {
 export default function App() {
   const { restoreToken, isLoading } = useAuthStore();
   const hydrateDarkMode = useUIStore((s) => s.hydrateDarkMode);
+  const colors = useThemeColors();
 
   useEffect(() => {
     restoreToken();
@@ -46,7 +48,7 @@ export default function App() {
   }
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.background }}>
       <StripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY}>
         <AppContent />
       </StripeProvider>

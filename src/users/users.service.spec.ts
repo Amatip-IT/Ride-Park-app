@@ -21,6 +21,8 @@ describe('UsersService auth hardening', () => {
   const mockUserModel = {
     findOne: jest.fn(),
     findById: jest.fn(),
+    findByIdAndUpdate: jest.fn(),
+    find: jest.fn(),
   };
 
   const mockEmailVerificationService = {
@@ -79,6 +81,43 @@ describe('UsersService auth hardening', () => {
     };
     return doc;
   }
+
+  describe('checkUsernameAvailability', () => {
+    it('returns available when the username is free', async () => {
+      mockUserModel.findOne.mockReturnValue({
+        lean: jest.fn().mockResolvedValue(null),
+      });
+
+      const result = await service.checkUsernameAvailability('fresh_user');
+
+      expect(result.success).toBe(true);
+      expect(result.data).toEqual({ available: true });
+    });
+
+    it('returns suggestions when the username is taken', async () => {
+      mockUserModel.findOne.mockReturnValue({
+        lean: jest.fn().mockResolvedValue({ username: 'taken_user' }),
+      });
+      mockUserModel.find.mockReturnValue({
+        select: jest.fn().mockReturnValue({
+          lean: jest.fn().mockResolvedValue([]),
+        }),
+      });
+
+      const result = await service.checkUsernameAvailability('taken_user');
+
+      expect(result.success).toBe(true);
+      expect(result.data.available).toBe(false);
+      expect(result.message).toMatch(/already taken/i);
+      expect(Array.isArray(result.data.suggestions)).toBe(true);
+    });
+
+    it('rejects invalid usernames', async () => {
+      const result = await service.checkUsernameAvailability('ab');
+      expect(result.success).toBe(false);
+      expect(result.message).toMatch(/between 3 and 30/i);
+    });
+  });
 
   describe('loginUser lockout', () => {
     it('locks the account after too many failed password attempts', async () => {
@@ -143,6 +182,34 @@ describe('UsersService auth hardening', () => {
       expect(user.refreshToken).toBeNull();
       expect(user.tokenVersion).toBe(3);
       expect(user.save).toHaveBeenCalled();
+    });
+  });
+
+  describe('updateOwnProfile', () => {
+    it('updates only provided fields without re-saving the whole user', async () => {
+      const updated = {
+        _id: '507f1f77bcf86cd799439011',
+        firstName: 'Ada',
+        lastName: 'Lovelace',
+      };
+      mockUserModel.findByIdAndUpdate.mockReturnValue({
+        select: jest.fn().mockReturnValue({
+          exec: jest.fn().mockResolvedValue(updated),
+        }),
+      });
+
+      const result = await service.updateOwnProfile('507f1f77bcf86cd799439011', {
+        firstName: 'Ada',
+        lastName: 'Lovelace',
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.data).toEqual(updated);
+      expect(mockUserModel.findByIdAndUpdate).toHaveBeenCalledWith(
+        '507f1f77bcf86cd799439011',
+        { $set: { firstName: 'Ada', lastName: 'Lovelace' } },
+        { new: true, runValidators: true },
+      );
     });
   });
 

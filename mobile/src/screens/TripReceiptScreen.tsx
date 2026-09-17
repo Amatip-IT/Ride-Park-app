@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,8 @@ import {
   ScrollView,
   Alert,
 } from 'react-native';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_WEIGHTS } from '@/constants/theme';
+import { SPACING, BORDER_RADIUS, FONT_WEIGHTS, ThemeColors } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { ridesApi, taxiBookingsApi, bookingsApi } from '@/api';
@@ -59,6 +60,8 @@ type ReceiptData = {
 };
 
 function ReceiptRow({ label, value }: { label: string; value: string }) {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <View style={styles.row}>
       <Text style={styles.rowLabel}>{label}</Text>
@@ -155,6 +158,8 @@ function buildReceiptHtml(receipt: ReceiptData, isBookingReceipt: boolean): stri
 }
 
 export function TripReceiptScreen() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const navigation = useNavigation<any>();
   const route = useRoute<RouteProp<ParamList, 'TripReceipt'>>();
   const { requestId, rideId, bookingId } = route.params;
@@ -235,7 +240,7 @@ export function TripReceiptScreen() {
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
+          <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{isBookingReceipt ? 'Booking receipt' : 'Trip receipt'}</Text>
         {receipt ? (
@@ -245,9 +250,9 @@ export function TripReceiptScreen() {
             disabled={downloading}
           >
             {downloading ? (
-              <ActivityIndicator size="small" color={COLORS.electricTeal} />
+              <ActivityIndicator size="small" color={colors.electricTeal} />
             ) : (
-              <Ionicons name="download-outline" size={24} color={COLORS.textPrimary} />
+              <Ionicons name="download-outline" size={24} color={colors.textPrimary} />
             )}
           </TouchableOpacity>
         ) : (
@@ -257,11 +262,11 @@ export function TripReceiptScreen() {
 
       {loading ? (
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color={COLORS.electricTeal} />
+          <ActivityIndicator size="large" color={colors.electricTeal} />
         </View>
       ) : error ? (
         <View style={styles.centered}>
-          <Ionicons name="alert-circle-outline" size={48} color={COLORS.coralRed} />
+          <Ionicons name="alert-circle-outline" size={48} color={colors.coralRed} />
           <Text style={styles.errorText}>{error}</Text>
         </View>
       ) : receipt ? (
@@ -373,8 +378,8 @@ export function TripReceiptScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: COLORS.background },
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -387,7 +392,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: FONT_WEIGHTS.bold,
-    color: COLORS.textPrimary,
+    color: colors.textPrimary,
   },
   centered: {
     flex: 1,
@@ -397,43 +402,43 @@ const styles = StyleSheet.create({
     gap: SPACING.md,
   },
   errorText: {
-    color: COLORS.textSecondary,
+    color: colors.textSecondary,
     textAlign: 'center',
     fontSize: 15,
   },
   scroll: { padding: SPACING.xl, paddingBottom: SPACING['2xl'] },
   totalCard: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.xl,
     alignItems: 'center',
     marginBottom: SPACING.lg,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
   },
-  totalLabel: { color: COLORS.textSecondary, fontSize: 14 },
+  totalLabel: { color: colors.textSecondary, fontSize: 14 },
   totalAmount: {
-    color: COLORS.electricTeal,
+    color: colors.electricTeal,
     fontSize: 36,
     fontWeight: FONT_WEIGHTS.bold,
     marginTop: SPACING.sm,
   },
   paymentNote: {
-    color: COLORS.textSecondary,
+    color: colors.textSecondary,
     fontSize: 13,
     textAlign: 'center',
     marginTop: SPACING.md,
   },
   section: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.lg,
     marginBottom: SPACING.md,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
   },
   sectionTitle: {
-    color: COLORS.textPrimary,
+    color: colors.textPrimary,
     fontSize: 16,
     fontWeight: FONT_WEIGHTS.bold,
     marginBottom: SPACING.md,
@@ -444,16 +449,16 @@ const styles = StyleSheet.create({
     gap: SPACING.md,
     marginBottom: SPACING.sm,
   },
-  rowLabel: { color: COLORS.textSecondary, fontSize: 14, flex: 1 },
+  rowLabel: { color: colors.textSecondary, fontSize: 14, flex: 1 },
   rowValue: {
-    color: COLORS.textPrimary,
+    color: colors.textPrimary,
     fontSize: 14,
     fontWeight: FONT_WEIGHTS.semibold,
     flex: 1.2,
     textAlign: 'right',
   },
   receiptId: {
-    color: COLORS.textSecondary,
+    color: colors.textSecondary,
     fontSize: 12,
     textAlign: 'center',
     marginTop: SPACING.lg,
@@ -463,7 +468,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: SPACING.sm,
-    backgroundColor: COLORS.electricTeal,
+    backgroundColor: colors.electricTeal,
     borderRadius: BORDER_RADIUS.lg,
     paddingVertical: SPACING.md,
     marginTop: SPACING.lg,

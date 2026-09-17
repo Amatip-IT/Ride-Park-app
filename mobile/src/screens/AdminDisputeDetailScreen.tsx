@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ActivityIndicator,
   Alert, TextInput,
 } from 'react-native';
 import { disputesApi } from '@/api';
-import { COLORS, SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '@/constants/theme';
+import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS, ThemeColors } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute } from '@react-navigation/native';
 import { AdminScreenLayout } from '@/components/admin/AdminScreenLayout';
@@ -20,6 +21,8 @@ const RESOLUTIONS = [
 ];
 
 export function AdminDisputeDetailScreen() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const route = useRoute<any>();
   const disputeId = route.params?.disputeId as string;
 
@@ -123,7 +126,7 @@ export function AdminDisputeDetailScreen() {
     return (
       <AdminScreenLayout title="Dispute Case" subtitle="Loading...">
         <View style={styles.center}>
-          <ActivityIndicator size="large" color={COLORS.electricTeal} />
+          <ActivityIndicator size="large" color={colors.electricTeal} />
         </View>
       </AdminScreenLayout>
     );
@@ -133,7 +136,7 @@ export function AdminDisputeDetailScreen() {
     return (
       <AdminScreenLayout title="Dispute Case" subtitle="Not found">
         <View style={styles.center}>
-          <Text style={{ color: COLORS.error }}>Dispute not found</Text>
+          <Text style={{ color: colors.error }}>Dispute not found</Text>
         </View>
       </AdminScreenLayout>
     );
@@ -146,8 +149,8 @@ export function AdminDisputeDetailScreen() {
     <>
     <AdminScreenLayout title="Dispute Case" subtitle={dispute.category?.replace(/_/g, ' ')} scroll contentContainerStyle={styles.scroll}>
         <View style={styles.badgeRow}>
-          <View style={[styles.badge, { backgroundColor: `${COLORS.amber}20` }]}>
-            <Text style={[styles.badgeText, { color: COLORS.amber }]}>{dispute.status}</Text>
+          <View style={[styles.badge, { backgroundColor: `${colors.amber}20` }]}>
+            <Text style={[styles.badgeText, { color: colors.amber }]}>{dispute.status}</Text>
           </View>
           <Text style={styles.category}>{dispute.category?.replace(/_/g, ' ')}</Text>
         </View>
@@ -175,7 +178,7 @@ export function AdminDisputeDetailScreen() {
         {dispute.resolution && (
           <>
             <Text style={styles.label}>Resolution</Text>
-            <Text style={[styles.value, { color: COLORS.success }]}>{dispute.resolution?.replace(/_/g, ' ')}</Text>
+            <Text style={[styles.value, { color: colors.success }]}>{dispute.resolution?.replace(/_/g, ' ')}</Text>
             {dispute.resolutionNotes && <Text style={styles.notes}>{dispute.resolutionNotes}</Text>}
           </>
         )}
@@ -186,7 +189,7 @@ export function AdminDisputeDetailScreen() {
           value={adminNotes}
           onChangeText={setAdminNotes}
           placeholder="Add investigation notes..."
-          placeholderTextColor={COLORS.textTertiary}
+          placeholderTextColor={colors.textTertiary}
           multiline
           textAlignVertical="top"
           blurOnSubmit
@@ -196,8 +199,8 @@ export function AdminDisputeDetailScreen() {
           <View style={styles.actions}>
             {dispute.status === 'open' && (
               <TouchableOpacity style={styles.investigateBtn} onPress={handleInvestigate} disabled={processing}>
-                <Ionicons name="search-outline" size={18} color={COLORS.info} />
-                <Text style={[styles.actionText, { color: COLORS.info }]}>Investigate</Text>
+                <Ionicons name="search-outline" size={18} color={colors.info} />
+                <Text style={[styles.actionText, { color: colors.info }]}>Investigate</Text>
               </TouchableOpacity>
             )}
             <TouchableOpacity style={styles.resolveBtn} onPress={() => setResolveModal(true)} disabled={processing}>
@@ -235,7 +238,7 @@ export function AdminDisputeDetailScreen() {
               value={refundAmount}
               onChangeText={setRefundAmount}
               keyboardType="decimal-pad"
-              placeholderTextColor={COLORS.textTertiary}
+              placeholderTextColor={colors.textTertiary}
             />
           </>
         )}
@@ -247,7 +250,7 @@ export function AdminDisputeDetailScreen() {
               style={styles.input}
               value={recordId}
               onChangeText={setRecordId}
-              placeholderTextColor={COLORS.textTertiary}
+              placeholderTextColor={colors.textTertiary}
               autoCapitalize="none"
             />
             <Text style={styles.label}>Provider Type</Text>
@@ -272,7 +275,7 @@ export function AdminDisputeDetailScreen() {
               style={styles.input}
               value={suspendReason}
               onChangeText={setSuspendReason}
-              placeholderTextColor={COLORS.textTertiary}
+              placeholderTextColor={colors.textTertiary}
             />
           </>
         )}
@@ -283,7 +286,7 @@ export function AdminDisputeDetailScreen() {
           value={notes}
           onChangeText={setNotes}
           multiline
-          placeholderTextColor={COLORS.textTertiary}
+          placeholderTextColor={colors.textTertiary}
           textAlignVertical="top"
         />
 
@@ -300,49 +303,49 @@ export function AdminDisputeDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: SPACING.xl },
   scroll: { paddingBottom: SPACING.xl },
   badgeRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginBottom: SPACING.lg },
   badge: { paddingHorizontal: SPACING.sm, paddingVertical: 4, borderRadius: BORDER_RADIUS.sm },
   badgeText: { fontSize: 12, fontWeight: FONT_WEIGHTS.bold, textTransform: 'capitalize' },
-  category: { color: COLORS.textSecondary, textTransform: 'capitalize' },
-  label: { color: COLORS.textTertiary, fontSize: FONT_SIZES.small, marginTop: SPACING.md, marginBottom: 4 },
-  value: { color: COLORS.textPrimary, lineHeight: 22 },
-  notes: { color: COLORS.textSecondary, fontStyle: 'italic', marginTop: SPACING.xs },
+  category: { color: colors.textSecondary, textTransform: 'capitalize' },
+  label: { color: colors.textTertiary, fontSize: FONT_SIZES.small, marginTop: SPACING.md, marginBottom: 4 },
+  value: { color: colors.textPrimary, lineHeight: 22 },
+  notes: { color: colors.textSecondary, fontStyle: 'italic', marginTop: SPACING.xs },
   input: {
-    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.md, color: COLORS.textPrimary,
-    borderWidth: 1, borderColor: COLORS.border,
+    backgroundColor: colors.surface, borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md, color: colors.textPrimary,
+    borderWidth: 1, borderColor: colors.border,
   },
   actions: { flexDirection: 'row', gap: SPACING.md, marginTop: SPACING.xl },
   investigateBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACING.xs,
     padding: SPACING.md, borderRadius: BORDER_RADIUS.md,
-    borderWidth: 1, borderColor: COLORS.info,
+    borderWidth: 1, borderColor: colors.info,
   },
   actionText: { fontWeight: FONT_WEIGHTS.semibold },
   resolveBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACING.xs,
-    backgroundColor: COLORS.electricTeal, padding: SPACING.md, borderRadius: BORDER_RADIUS.md,
+    backgroundColor: colors.electricTeal, padding: SPACING.md, borderRadius: BORDER_RADIUS.md,
   },
   resolveBtnText: { color: '#FFF', fontWeight: FONT_WEIGHTS.semibold },
   resOption: {
     padding: SPACING.md, borderRadius: BORDER_RADIUS.md,
-    borderWidth: 1, borderColor: COLORS.border, marginBottom: SPACING.xs,
+    borderWidth: 1, borderColor: colors.border, marginBottom: SPACING.xs,
   },
-  resOptionActive: { borderColor: COLORS.electricTeal, backgroundColor: `${COLORS.electricTeal}10` },
-  resOptionText: { color: COLORS.textPrimary },
-  resOptionTextActive: { color: COLORS.electricTeal, fontWeight: FONT_WEIGHTS.semibold },
+  resOptionActive: { borderColor: colors.electricTeal, backgroundColor: `${colors.electricTeal}10` },
+  resOptionText: { color: colors.textPrimary },
+  resOptionTextActive: { color: colors.electricTeal, fontWeight: FONT_WEIGHTS.semibold },
   typeRow: { flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.md },
   typeChip: {
     paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm,
-    borderRadius: BORDER_RADIUS.full, borderWidth: 1, borderColor: COLORS.border,
+    borderRadius: BORDER_RADIUS.full, borderWidth: 1, borderColor: colors.border,
   },
-  typeChipActive: { borderColor: COLORS.electricTeal, backgroundColor: `${COLORS.electricTeal}15` },
-  typeText: { color: COLORS.textSecondary, fontSize: FONT_SIZES.small },
-  typeTextActive: { color: COLORS.electricTeal },
+  typeChipActive: { borderColor: colors.electricTeal, backgroundColor: `${colors.electricTeal}15` },
+  typeText: { color: colors.textSecondary, fontSize: FONT_SIZES.small },
+  typeTextActive: { color: colors.electricTeal },
   modalActions: { flexDirection: 'row', gap: SPACING.md, marginTop: SPACING.lg },
   cancelBtn: { flex: 1, padding: SPACING.md, alignItems: 'center' },
-  cancelText: { color: COLORS.textSecondary },
+  cancelText: { color: colors.textSecondary },
 });

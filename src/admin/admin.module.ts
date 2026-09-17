@@ -23,6 +23,15 @@ import {
 } from 'src/schemas/platform-settings.schema';
 import { Chauffeur, ChauffeurSchema } from 'src/schemas/chauffeur.schema';
 import { Taxi, TaxiSchema } from 'src/schemas/taxi.schema';
+import {
+  BookingRequest,
+  BookingRequestSchema,
+} from 'src/schemas/booking-request.schema';
+import {
+  TaxiRideRequest,
+  TaxiRideRequestSchema,
+} from 'src/schemas/taxi-ride-request.schema';
+import { Dispute, DisputeSchema } from 'src/schemas/dispute.schema';
 import { UtilityModule } from 'src/utility/utility.module';
 import { NotificationsModule } from 'src/notifications/notifications.module';
 import { VerificationModule } from 'src/verification/verification.module';
@@ -45,6 +54,7 @@ import {
   WebhookEvent,
   WebhookEventSchema,
 } from '../schemas/webhook-event.schema';
+import { AdminUsersController } from './admin-users.controller';
 
 @Module({
   imports: [
@@ -57,6 +67,9 @@ import {
       { name: PlatformSettings.name, schema: PlatformSettingsSchema },
       { name: Chauffeur.name, schema: ChauffeurSchema },
       { name: Taxi.name, schema: TaxiSchema },
+      { name: BookingRequest.name, schema: BookingRequestSchema },
+      { name: TaxiRideRequest.name, schema: TaxiRideRequestSchema },
+      { name: Dispute.name, schema: DisputeSchema },
       { name: AdminAuditLog.name, schema: AdminAuditLogSchema },
       { name: AdminMessage.name, schema: AdminMessageSchema },
       { name: AdminMessageTemplate.name, schema: AdminMessageTemplateSchema },
@@ -71,6 +84,7 @@ import {
     AdminController,
     AdminMessagingController,
     AdminAnalyticsController,
+    AdminUsersController,
   ],
   providers: [
     AdminService,

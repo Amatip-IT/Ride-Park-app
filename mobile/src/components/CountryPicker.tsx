@@ -10,7 +10,8 @@ import {
   SafeAreaView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
+import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, ThemeColors } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import {
   CONTINENTS,
   COUNTRIES_BY_CONTINENT,
@@ -26,6 +27,8 @@ type CountryPickerProps = {
 };
 
 export function CountryPicker({ value, onChange, placeholder = 'Select country' }: CountryPickerProps) {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [visible, setVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -66,7 +69,7 @@ export function CountryPicker({ value, onChange, placeholder = 'Select country' 
         <Text style={[styles.triggerText, !value && styles.placeholder]}>
           {value || placeholder}
         </Text>
-        <Ionicons name="chevron-down" size={20} color={COLORS.textSecondary} />
+        <Ionicons name="chevron-down" size={20} color={colors.textSecondary} />
       </TouchableOpacity>
 
       <Modal visible={visible} animationType="slide" onRequestClose={() => setVisible(false)}>
@@ -74,23 +77,23 @@ export function CountryPicker({ value, onChange, placeholder = 'Select country' 
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Select country</Text>
             <TouchableOpacity onPress={() => setVisible(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Ionicons name="close" size={24} color={COLORS.textPrimary} />
+              <Ionicons name="close" size={24} color={colors.textPrimary} />
             </TouchableOpacity>
           </View>
 
           <View style={styles.searchBar}>
-            <Ionicons name="search" size={18} color={COLORS.textTertiary} />
+            <Ionicons name="search" size={18} color={colors.textTertiary} />
             <TextInput
               style={styles.searchInput}
               placeholder="Search countries..."
-              placeholderTextColor={COLORS.textTertiary}
+              placeholderTextColor={colors.textTertiary}
               value={searchQuery}
               onChangeText={setSearchQuery}
               autoFocus
             />
             {searchQuery.length > 0 && (
               <TouchableOpacity onPress={() => setSearchQuery('')}>
-                <Ionicons name="close-circle" size={18} color={COLORS.textTertiary} />
+                <Ionicons name="close-circle" size={18} color={colors.textTertiary} />
               </TouchableOpacity>
             )}
           </View>
@@ -121,7 +124,7 @@ export function CountryPicker({ value, onChange, placeholder = 'Select country' 
                     {item.country.name}
                   </Text>
                   {selected && (
-                    <Ionicons name="checkmark" size={20} color={COLORS.electricTeal} />
+                    <Ionicons name="checkmark" size={20} color={colors.electricTeal} />
                   )}
                 </TouchableOpacity>
               );
@@ -133,29 +136,29 @@ export function CountryPicker({ value, onChange, placeholder = 'Select country' 
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   trigger: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
     borderRadius: BORDER_RADIUS.md,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
     paddingHorizontal: SPACING.lg,
     height: 50,
   },
   triggerText: {
-    color: COLORS.textPrimary,
+    color: colors.textPrimary,
     fontSize: FONT_SIZES.body,
     flex: 1,
   },
   placeholder: {
-    color: COLORS.textTertiary,
+    color: colors.textTertiary,
   },
   modal: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: colors.background,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -164,12 +167,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: colors.border,
   },
   modalTitle: {
     fontSize: FONT_SIZES.section,
     fontWeight: FONT_WEIGHTS.bold as any,
-    color: COLORS.textPrimary,
+    color: colors.textPrimary,
   },
   searchBar: {
     flexDirection: 'row',
@@ -177,27 +180,27 @@ const styles = StyleSheet.create({
     gap: SPACING.sm,
     margin: SPACING.lg,
     paddingHorizontal: SPACING.md,
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
     borderRadius: BORDER_RADIUS.md,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
     height: 44,
   },
   searchInput: {
     flex: 1,
-    color: COLORS.textPrimary,
+    color: colors.textPrimary,
     fontSize: FONT_SIZES.body,
   },
   continentHeader: {
     paddingHorizontal: SPACING.lg,
     paddingTop: SPACING.lg,
     paddingBottom: SPACING.sm,
-    backgroundColor: COLORS.background,
+    backgroundColor: colors.background,
   },
   continentText: {
     fontSize: FONT_SIZES.small,
     fontWeight: FONT_WEIGHTS.semibold as any,
-    color: COLORS.textSecondary,
+    color: colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -208,17 +211,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: colors.border,
   },
   countryRowSelected: {
-    backgroundColor: `${COLORS.electricTeal}12`,
+    backgroundColor: `${colors.electricTeal}12`,
   },
   countryName: {
     fontSize: FONT_SIZES.body,
-    color: COLORS.textPrimary,
+    color: colors.textPrimary,
   },
   countryNameSelected: {
-    color: COLORS.electricTeal,
+    color: colors.electricTeal,
     fontWeight: FONT_WEIGHTS.semibold as any,
   },
 });

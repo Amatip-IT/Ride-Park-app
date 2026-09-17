@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { ReviewsService } from './reviews.service';
 import { AuthGuard } from 'src/guards/auth.guard';
+import { CreateReviewDto } from './dto/create-review.dto';
 
 @Controller('reviews')
 export class ReviewsController {
@@ -23,30 +24,13 @@ export class ReviewsController {
    */
   @Post()
   @UseGuards(AuthGuard)
-  async createReview(
-    @Req() req: any,
-    @Body()
-    body: {
-      serviceType: string;
-      serviceId: string;
-      bookingId?: string;
-      rating: number;
-      comment?: string;
-    },
-  ) {
+  async createReview(@Req() req: any, @Body() body: CreateReviewDto) {
     const userId = req.user._id || req.user.id;
 
-    if (!body.serviceType || !body.serviceId || !body.rating) {
-      throw new HttpException(
-        {
-          success: false,
-          message: 'serviceType, serviceId, and rating are required',
-        },
-        HttpStatus.BAD_REQUEST,
-      );
-    }
-
-    const result = await this.reviewsService.createReview(userId, body);
+    const result = await this.reviewsService.createReview(
+      String(userId),
+      body,
+    );
     if (!result.success) {
       throw new HttpException(result, HttpStatus.BAD_REQUEST);
     }

@@ -1,6 +1,8 @@
-import React, { useRef, useEffect, useMemo } from 'react';
+import React, { useRef, useEffect, useMemo, useState } from 'react';
 import { View, StyleSheet, ActivityIndicator } from 'react-native';
 import { WebView } from 'react-native-webview';
+import { useThemeColors } from '@/hooks/useThemeColors';
+import { fetchDrivingRoute } from '@/utils/routing';
 
 export type MapCoordinate = { lat: number; lng: number };
 
@@ -17,7 +19,38 @@ interface AmazonMapProps {
   locationLng?: number;
   /** Driving route polyline (ordered lat/lng points) */
   routeCoordinates?: MapCoordinate[];
+  /** Increment to re-fit the map to the current route / markers (in-app navigate). */
+  focusToken?: number;
 }
+
+/** Light, Google-like streets style with OSM raster fallback if vector tiles fail. */
+const MAP_STYLE_JSON = JSON.stringify({
+  version: 8,
+  name: 'Gleezip Streets',
+  glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
+  sources: {
+    carto: {
+      type: 'raster',
+      tiles: [
+        'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+        'https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+        'https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+      ],
+      tileSize: 256,
+      attribution: '© OpenStreetMap © CARTO',
+      maxzoom: 20,
+    },
+  },
+  layers: [
+    {
+      id: 'carto-voyager',
+      type: 'raster',
+      source: 'carto',
+      minzoom: 0,
+      maxzoom: 22,
+    },
+  ],
+});
 
 export function AmazonMap({
   pickupLat,
@@ -30,20 +63,61 @@ export function AmazonMap({
   locationLat,
   locationLng,
   routeCoordinates = [],
+  focusToken = 0,
 }: AmazonMapProps) {
+  const colors = useThemeColors();
   const webViewRef = useRef<WebView>(null);
+  const [resolvedRoute, setResolvedRoute] = useState<MapCoordinate[]>(routeCoordinates);
 
   const centerLng = driverLng || locationLng || pickupLng || -0.1276;
   const centerLat = driverLat || locationLat || pickupLat || 51.5072;
 
-  const routeJson = useMemo(
-    () => JSON.stringify(routeCoordinates.filter((p) => p.lat && p.lng)),
+  const routeKey = useMemo(
+    () =>
+      routeCoordinates.length >= 2
+        ? routeCoordinates.map((p) => `${p.lat},${p.lng}`).join('|')
+        : '',
     [routeCoordinates],
+  );
+
+  // Prefer caller-provided route; otherwise fetch a driving line when both ends exist
+  useEffect(() => {
+    let cancelled = false;
+
+    if (routeCoordinates.length >= 2) {
+      setResolvedRoute(routeCoordinates);
+      return;
+    }
+
+    const hasPickup = pickupLat != null && pickupLng != null;
+    const hasDest = destinationLat != null && destinationLng != null;
+    if (!hasPickup || !hasDest) {
+      setResolvedRoute([]);
+      return;
+    }
+
+    (async () => {
+      const coords = await fetchDrivingRoute(
+        { lat: pickupLat!, lng: pickupLng! },
+        { lat: destinationLat!, lng: destinationLng! },
+      );
+      if (!cancelled) setResolvedRoute(coords);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pickupLat, pickupLng, destinationLat, destinationLng, routeKey]);
+
+
+  const routeJson = useMemo(
+    () => JSON.stringify(resolvedRoute.filter((p) => p.lat && p.lng)),
+    [resolvedRoute],
   );
 
   const mapKey = useMemo(
     () =>
-      `map-${pickupLat}-${pickupLng}-${destinationLat}-${destinationLng}-${locationLat}-${locationLng}-${routeCoordinates.length}`,
+      `map-${pickupLat}-${pickupLng}-${destinationLat}-${destinationLng}-${locationLat}-${locationLng}-${resolvedRoute.length}`,
     [
       pickupLat,
       pickupLng,
@@ -51,7 +125,7 @@ export function AmazonMap({
       destinationLng,
       locationLat,
       locationLng,
-      routeCoordinates.length,
+      resolvedRoute.length,
     ],
   );
 
@@ -70,60 +144,56 @@ export function AmazonMap({
     }
   }, [driverLat, driverLng, driverRotation]);
 
+  useEffect(() => {
+    if (!focusToken || !webViewRef.current) return;
+    webViewRef.current.injectJavaScript(`
+      try {
+        if (window.fitJourney) { window.fitJourney(); }
+        else if (window.__gleezipMap) { window.__gleezipMap.resize(); }
+      } catch (e) {}
+      true;
+    `);
+  }, [focusToken]);
+
   const htmlContent = `
     <!DOCTYPE html>
     <html>
       <head>
+        <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-        <link href="https://unpkg.com/maplibre-gl@3.x/dist/maplibre-gl.css" rel="stylesheet" />
+        <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
         <style>
-          body { margin: 0; padding: 0; }
-          #map { width: 100vw; height: 100vh; }
+          html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #e8eef5; }
+          #map { position: absolute; inset: 0; background: #e8eef5; }
           .marker-pickup {
             background-color: #10B981;
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
+            width: 18px; height: 18px; border-radius: 50%;
             border: 3px solid white;
-            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+            box-shadow: 0 0 10px rgba(0,0,0,0.35);
           }
           .marker-destination {
             background-color: #EF4444;
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
+            width: 18px; height: 18px; border-radius: 50%;
             border: 3px solid white;
-            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+            box-shadow: 0 0 10px rgba(0,0,0,0.35);
           }
           .marker-location {
             background-color: #3B82F6;
-            width: 28px;
-            height: 28px;
-            border-radius: 50%;
+            width: 28px; height: 28px; border-radius: 50%;
             border: 3px solid white;
-            box-shadow: 0 0 10px rgba(0,0,0,0.5);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-weight: 700;
-            font-size: 14px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.35);
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-weight: 700; font-size: 14px;
             font-family: system-ui, sans-serif;
           }
           .marker-car {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            transition: transform 0.8s ease;
+            display: flex; justify-content: center; align-items: center;
           }
           .marker-car svg {
-            width: 36px;
-            height: 36px;
+            width: 36px; height: 36px;
             filter: drop-shadow(0px 4px 8px rgba(0,0,0,0.4));
           }
-          .marker-pickup {
-            animation: pulse-pickup 2s infinite;
-          }
+          .marker-pickup { animation: pulse-pickup 2s infinite; }
           @keyframes pulse-pickup {
             0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5); }
             70% { box-shadow: 0 0 0 12px rgba(16, 185, 129, 0); }
@@ -133,18 +203,20 @@ export function AmazonMap({
       </head>
       <body>
         <div id="map"></div>
-        <script src="https://unpkg.com/maplibre-gl@3.x/dist/maplibre-gl.js"></script>
+        <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
         <script>
           try {
+            const style = ${MAP_STYLE_JSON};
             const map = new maplibregl.Map({
               container: "map",
-              style: "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
+              style: style,
               center: [${centerLng}, ${centerLat}],
               zoom: 14,
-              pitch: 45,
-              bearing: -15,
+              pitch: 0,
+              bearing: 0,
               attributionControl: false
             });
+            window.__gleezipMap = map;
 
             map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
 
@@ -226,18 +298,59 @@ export function AmazonMap({
               } else {
                 map.addSource('route', { type: 'geojson', data: geojson });
                 map.addLayer({
+                  id: 'route-glow',
+                  type: 'line',
+                  source: 'route',
+                  layout: { 'line-join': 'round', 'line-cap': 'round' },
+                  paint: {
+                    'line-color': '#0EA5E9',
+                    'line-width': 10,
+                    'line-opacity': 0.25
+                  }
+                });
+                map.addLayer({
                   id: 'route-line',
                   type: 'line',
                   source: 'route',
                   layout: { 'line-join': 'round', 'line-cap': 'round' },
                   paint: {
-                    'line-color': '#00C2A8',
+                    'line-color': '#2563EB',
                     'line-width': 5,
-                    'line-opacity': 0.85
+                    'line-opacity': 0.95
                   }
                 });
               }
             };
+
+            const fitJourney = () => {
+              const bounds = new maplibregl.LngLatBounds();
+              let hasBounds = false;
+              const routeCoords = ${routeJson};
+              if (routeCoords.length >= 2) {
+                routeCoords.forEach(c => { bounds.extend([c.lng, c.lat]); hasBounds = true; });
+              }
+              if (${pickupLng ? 'true' : 'false'}) {
+                bounds.extend([${pickupLng ?? 0}, ${pickupLat ?? 0}]);
+                hasBounds = true;
+              }
+              if (${destinationLng ? 'true' : 'false'}) {
+                bounds.extend([${destinationLng ?? 0}, ${destinationLat ?? 0}]);
+                hasBounds = true;
+              }
+              if (${driverLng ? 'true' : 'false'} && ${driverLat ? 'true' : 'false'}) {
+                bounds.extend([${driverLng}, ${driverLat}]);
+                hasBounds = true;
+              }
+              if (hasBounds) {
+                map.fitBounds(bounds, {
+                  padding: { top: 80, bottom: 220, left: 56, right: 56 },
+                  maxZoom: 15,
+                  duration: 700
+                });
+              }
+              map.resize();
+            };
+            window.fitJourney = fitJourney;
 
             map.on('load', () => {
               const bounds = new maplibregl.LngLatBounds();
@@ -250,6 +363,12 @@ export function AmazonMap({
                   bounds.extend([c.lng, c.lat]);
                   hasBounds = true;
                 });
+              } else if (${pickupLng ? 'true' : 'false'} && ${destinationLng ? 'true' : 'false'}) {
+                // Straight fallback line until road route arrives / if OSRM fails
+                addRouteLine([
+                  { lng: ${pickupLng ?? 0}, lat: ${pickupLat ?? 0} },
+                  { lng: ${destinationLng ?? 0}, lat: ${destinationLat ?? 0} }
+                ]);
               }
 
               if (${pickupLng ? 'true' : 'false'}) {
@@ -289,17 +408,16 @@ export function AmazonMap({
                 hasBounds = true;
               }
 
-              if (hasBounds) {
-                map.fitBounds(bounds, {
-                  padding: 70,
-                  maxZoom: 16,
-                  pitch: 45,
-                  bearing: -15
-                });
-              }
+              fitJourney();
+              setTimeout(function() { map.resize(); fitJourney(); }, 250);
+            });
+
+            map.on('error', function(e) {
+              console.warn('MapLibre error', e && e.error);
             });
           } catch (e) {
             console.error('MapLibre init error:', e);
+            document.body.innerHTML = '<div style="padding:24px;font-family:system-ui;color:#111">Map failed to load.</div>';
           }
         </script>
       </body>
@@ -312,14 +430,27 @@ export function AmazonMap({
         key={mapKey}
         ref={webViewRef}
         originWhitelist={['*']}
-        source={{ html: htmlContent }}
+        source={{ html: htmlContent, baseUrl: 'https://localhost' }}
         style={styles.webview}
         scrollEnabled={false}
         bounces={false}
-        startInLoadingState={true}
+        javaScriptEnabled
+        domStorageEnabled
+        mixedContentMode="always"
+        allowsInlineMediaPlayback
+        setSupportMultipleWindows={false}
+        androidLayerType="hardware"
+        startInLoadingState
         renderLoading={() => (
-          <ActivityIndicator style={styles.loader} size="large" color="#00B4A0" />
+          <ActivityIndicator style={styles.loader} size="large" color={colors.electricTeal} />
         )}
+        onLoadEnd={() => {
+          webViewRef.current?.injectJavaScript(`
+            if (window.maplibre && false) {}
+            try { if (typeof map !== 'undefined') map.resize(); } catch (e) {}
+            true;
+          `);
+        }}
       />
     </View>
   );
@@ -329,10 +460,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     overflow: 'hidden',
+    backgroundColor: '#E8EEF5',
   },
   webview: {
     flex: 1,
-    backgroundColor: '#E2E8F0',
+    backgroundColor: '#E8EEF5',
   },
   loader: {
     position: 'absolute',

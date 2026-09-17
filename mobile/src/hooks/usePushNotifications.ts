@@ -1,35 +1,46 @@
-import React, { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
-import * as Device from 'expo-device';
-import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { usersApi } from '@/api';
+import { isExpoGo } from '@/utils/expoGo';
 import { handleNotificationNavigation } from '@/utils/notificationRouting';
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
+type NotificationResponse = {
+  notification: { request: { content: { data?: Record<string, unknown> } } };
+};
 
-function routeFromNotificationResponse(response: Notifications.NotificationResponse | null) {
+function routeFromNotificationResponse(response: NotificationResponse | null) {
   if (!response) return;
-  const content = response.notification.request.content;
-  const data = (content.data || {}) as Record<string, any>;
-  const type = (data.type as string) || undefined;
+  const data = (response.notification.request.content.data || {}) as Record<string, unknown>;
+  const type = typeof data.type === 'string' ? data.type : undefined;
   handleNotificationNavigation(type, data);
 }
 
+/**
+ * Remote push is not available in Expo Go on Android (SDK 53+).
+ * Do not import expo-notifications in Expo Go — the native module throws on load.
+ */
 export function usePushNotifications(isAuthenticated: boolean) {
-  const notificationListener = useRef<Notifications.Subscription | null>(null);
-  const responseListener = useRef<Notifications.Subscription | null>(null);
+  const notificationListener = useRef<{ remove: () => void } | null>(null);
+  const responseListener = useRef<{ remove: () => void } | null>(null);
 
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || isExpoGo()) {
+      return;
+    }
 
-    registerForPushNotificationsAsync().then((token) => {
+    const Notifications = require('expo-notifications') as typeof import('expo-notifications');
+    const Device = require('expo-device') as typeof import('expo-device');
+
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+      }),
+    });
+
+    registerForPushNotificationsAsync(Notifications, Device).then((token) => {
       if (token) {
         try {
           usersApi.updatePushToken(token);
@@ -60,8 +71,11 @@ export function usePushNotifications(isAuthenticated: boolean) {
   }, [isAuthenticated]);
 }
 
-async function registerForPushNotificationsAsync() {
-  let token;
+async function registerForPushNotificationsAsync(
+  Notifications: typeof import('expo-notifications'),
+  Device: typeof import('expo-device'),
+) {
+  let token: string | undefined;
 
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('default', {

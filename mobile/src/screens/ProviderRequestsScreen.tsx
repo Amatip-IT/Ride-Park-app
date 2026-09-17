@@ -1,10 +1,11 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   Platform, SafeAreaView, ActivityIndicator, Alert, RefreshControl,
   TextInput,
 } from 'react-native';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
+import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, ThemeColors } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { Ionicons } from '@expo/vector-icons';
 import { bookingsApi, providerApi } from '@/api';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -17,6 +18,8 @@ import {
 } from '@/utils/helpers';
 
 export function ProviderRequestsScreen() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { user } = useAuthStore();
   const navigation = useNavigation<any>();
   const isDriverOrTaxi = user?.role === 'driver' || user?.role === 'taxi_driver';
@@ -73,7 +76,7 @@ export function ProviderRequestsScreen() {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <ActivityIndicator size="large" color={COLORS.electricTeal} />
+          <ActivityIndicator size="large" color={colors.electricTeal} />
         </View>
       </SafeAreaView>
     );
@@ -83,15 +86,15 @@ export function ProviderRequestsScreen() {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: SPACING.xl }}>
-          <Ionicons name="shield-checkmark-outline" size={64} color={COLORS.amber} />
-          <Text style={{ color: COLORS.textPrimary, fontSize: 20, fontWeight: 'bold' as const, marginTop: SPACING.lg, textAlign: 'center' }}>
+          <Ionicons name="shield-checkmark-outline" size={64} color={colors.amber} />
+          <Text style={{ color: colors.textPrimary, fontSize: 20, fontWeight: 'bold' as const, marginTop: SPACING.lg, textAlign: 'center' }}>
             Verification Required
           </Text>
-          <Text style={{ color: COLORS.textSecondary, fontSize: 14, marginTop: SPACING.sm, textAlign: 'center', lineHeight: 20 }}>
+          <Text style={{ color: colors.textSecondary, fontSize: 14, marginTop: SPACING.sm, textAlign: 'center', lineHeight: 20 }}>
             Complete document verification and get approved before accepting work on Gleezip.
           </Text>
           <TouchableOpacity
-            style={{ backgroundColor: COLORS.electricTeal, paddingVertical: 14, paddingHorizontal: 32, borderRadius: 12, marginTop: SPACING.xl }}
+            style={{ backgroundColor: colors.electricTeal, paddingVertical: 14, paddingHorizontal: 32, borderRadius: 12, marginTop: SPACING.xl }}
             onPress={() => navigation.navigate('DriverVerification')}
           >
             <Text style={{ color: '#FFF', fontWeight: 'bold' as const, fontSize: 15 }}>Go to Verification</Text>
@@ -195,7 +198,7 @@ export function ProviderRequestsScreen() {
         {/* Header with service info */}
         <View style={styles.cardHeader}>
           <View style={styles.serviceTag}>
-            <Ionicons name="car-sport" size={16} color={COLORS.electricTeal} />
+            <Ionicons name="car-sport" size={16} color={colors.electricTeal} />
             <Text style={styles.serviceTagText}>
               {request.serviceType === 'parking' ? 'Parking' : request.serviceType === 'driver' ? 'Driver' : 'Taxi'}
             </Text>
@@ -203,17 +206,17 @@ export function ProviderRequestsScreen() {
           {!isPending && (
             <View style={[
               styles.statusBadge,
-              { backgroundColor: request.status === 'accepted' ? `${COLORS.success}20`
-                : request.status === 'awaiting_payment' ? `${COLORS.amber}20`
-                : request.status === 'completed' ? `${COLORS.info}20`
-                : `${COLORS.coralRed}20` },
+              { backgroundColor: request.status === 'accepted' ? `${colors.success}20`
+                : request.status === 'awaiting_payment' ? `${colors.amber}20`
+                : request.status === 'completed' ? `${colors.info}20`
+                : `${colors.coralRed}20` },
             ]}>
               <Text style={[
                 styles.statusText,
-                { color: request.status === 'accepted' ? COLORS.success
-                  : request.status === 'awaiting_payment' ? COLORS.amber
-                  : request.status === 'completed' ? COLORS.info
-                  : COLORS.coralRed },
+                { color: request.status === 'accepted' ? colors.success
+                  : request.status === 'awaiting_payment' ? colors.amber
+                  : request.status === 'completed' ? colors.info
+                  : colors.coralRed },
               ]}>
                 {request.status === 'accepted' ? 'Active'
                   : request.status === 'awaiting_payment' ? 'Awaiting Payment'
@@ -241,7 +244,7 @@ export function ProviderRequestsScreen() {
 
         {bookingWindow && (
           <View style={styles.dateWindow}>
-            <Ionicons name="time-outline" size={16} color={COLORS.electricTeal} />
+            <Ionicons name="time-outline" size={16} color={colors.electricTeal} />
             <View style={{ flex: 1 }}>
               <Text style={styles.dateWindowLabel}>Requested period</Text>
               <Text style={styles.dateWindowValue}>{bookingWindow}</Text>
@@ -255,12 +258,12 @@ export function ProviderRequestsScreen() {
         )}
 
         <View style={styles.detailRow}>
-          <Ionicons name="calendar-outline" size={14} color={COLORS.softSlate} />
+          <Ionicons name="calendar-outline" size={14} color={colors.softSlate} />
           <Text style={styles.detailText}>Submitted {date}</Text>
         </View>
         {estimatedTotal != null && (
           <View style={styles.detailRow}>
-            <Ionicons name="pricetag-outline" size={14} color={COLORS.softSlate} />
+            <Ionicons name="pricetag-outline" size={14} color={colors.softSlate} />
             <Text style={styles.detailText}>
               {formatCurrency(estimatedTotal)}
               {request.pricingUnit ? ` / ${request.pricingUnit === 'per_hour' ? 'hour' : request.pricingUnit === 'per_day' ? 'day' : 'trip'}` : ''}
@@ -269,7 +272,7 @@ export function ProviderRequestsScreen() {
         )}
         {request.pickupAddress || request.pickupPostcode ? (
           <View style={styles.detailRow}>
-            <Ionicons name="location-outline" size={14} color={COLORS.softSlate} />
+            <Ionicons name="location-outline" size={14} color={colors.softSlate} />
             <Text style={styles.detailText} numberOfLines={2}>
               Pickup: {request.pickupAddress || request.pickupPostcode}
             </Text>
@@ -293,7 +296,7 @@ export function ProviderRequestsScreen() {
                 <TextInput
                   style={styles.rejectInput}
                   placeholder="Reason for rejection (optional)"
-                  placeholderTextColor={COLORS.softSlate}
+                  placeholderTextColor={colors.softSlate}
                   value={rejectMessage}
                   onChangeText={setRejectMessage}
                   multiline
@@ -308,10 +311,10 @@ export function ProviderRequestsScreen() {
                 disabled={isResponding}
               >
                 {isResponding && respondingId === request._id ? (
-                  <ActivityIndicator size="small" color={COLORS.coralRed} />
+                  <ActivityIndicator size="small" color={colors.coralRed} />
                 ) : (
                   <>
-                    <Ionicons name="close" size={18} color={COLORS.coralRed} />
+                    <Ionicons name="close" size={18} color={colors.coralRed} />
                     <Text style={styles.rejectBtnText}>
                       {showRejectInput === request._id ? 'Confirm Reject' : 'Reject'}
                     </Text>
@@ -325,10 +328,10 @@ export function ProviderRequestsScreen() {
                 disabled={isResponding}
               >
                 {isResponding ? (
-                  <ActivityIndicator size="small" color={COLORS.deepNavy} />
+                  <ActivityIndicator size="small" color={colors.deepNavy} />
                 ) : (
                   <>
-                    <Ionicons name="checkmark" size={18} color={COLORS.deepNavy} />
+                    <Ionicons name="checkmark" size={18} color={colors.deepNavy} />
                     <Text style={styles.acceptBtnText}>Accept</Text>
                   </>
                 )}
@@ -410,7 +413,7 @@ export function ProviderRequestsScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={() => fetchRequests(true)} tintColor={COLORS.electricTeal} />
+            <RefreshControl refreshing={refreshing} onRefresh={() => fetchRequests(true)} tintColor={colors.electricTeal} />
           }
         >
           {isTaxiDriver && (
@@ -419,20 +422,20 @@ export function ProviderRequestsScreen() {
               onPress={() => navigation.navigate('DriverRideRequests')}
               activeOpacity={0.8}
             >
-              <Ionicons name="car-sport" size={22} color={COLORS.electricTeal} />
+              <Ionicons name="car-sport" size={22} color={colors.electricTeal} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.liveRidesTitle}>Live taxi ride requests</Text>
                 <Text style={styles.liveRidesSub}>
                   Point-to-point trips with map tracking — open the live queue
                 </Text>
               </View>
-              <Ionicons name="chevron-forward" size={20} color={COLORS.electricTeal} />
+              <Ionicons name="chevron-forward" size={20} color={colors.electricTeal} />
             </TouchableOpacity>
           )}
 
           {isChauffeur && (
             <View style={styles.infoBanner}>
-              <Ionicons name="information-circle-outline" size={18} color={COLORS.info} />
+              <Ionicons name="information-circle-outline" size={18} color={colors.info} />
               <Text style={styles.infoBannerText}>
                 These are scheduled chauffeur hires. Confirm the dates below before accepting. Live GPS tracking applies to taxi trips, not hourly hires.
               </Text>
@@ -441,18 +444,18 @@ export function ProviderRequestsScreen() {
 
           {fetchError && (
             <View style={styles.errorBanner}>
-              <Ionicons name="alert-circle" size={18} color={COLORS.coralRed} />
+              <Ionicons name="alert-circle" size={18} color={colors.coralRed} />
               <Text style={styles.errorBannerText}>{fetchError}</Text>
             </View>
           )}
 
           {loading ? (
             <View style={styles.emptyState}>
-              <ActivityIndicator size="large" color={COLORS.electricTeal} />
+              <ActivityIndicator size="large" color={colors.electricTeal} />
             </View>
           ) : displayRequests.length === 0 ? (
             <View style={styles.emptyState}>
-              <Ionicons name="mail-open-outline" size={64} color={COLORS.steelBlue} />
+              <Ionicons name="mail-open-outline" size={64} color={colors.steelBlue} />
               <Text style={styles.emptyTitle}>
                 {activeTab === 'pending' ? 'No pending requests' : 'No responded requests yet'}
               </Text>
@@ -473,8 +476,8 @@ export function ProviderRequestsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: COLORS.background },
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: colors.background },
   container: { flex: 1 },
   header: {
     flexDirection: 'row', alignItems: 'center',
@@ -482,9 +485,9 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'android' ? SPACING.xl : SPACING.sm,
     paddingBottom: SPACING.lg, gap: SPACING.sm,
   },
-  headerTitle: { color: COLORS.textPrimary, fontSize: FONT_SIZES.hero, fontWeight: FONT_WEIGHTS.bold },
+  headerTitle: { color: colors.textPrimary, fontSize: FONT_SIZES.hero, fontWeight: FONT_WEIGHTS.bold },
   pendingBadge: {
-    backgroundColor: COLORS.coralRed, borderRadius: 12,
+    backgroundColor: colors.coralRed, borderRadius: 12,
     minWidth: 24, height: 24, justifyContent: 'center', alignItems: 'center',
     paddingHorizontal: 8,
   },
@@ -493,21 +496,21 @@ const styles = StyleSheet.create({
   // Tabs
   tabContainer: {
     flexDirection: 'row', paddingHorizontal: SPACING.xl,
-    marginBottom: SPACING.md, borderBottomWidth: 1, borderBottomColor: COLORS.border,
+    marginBottom: SPACING.md, borderBottomWidth: 1, borderBottomColor: colors.border,
   },
   tab: {
     paddingBottom: SPACING.md, marginRight: SPACING.xl,
     borderBottomWidth: 2, borderBottomColor: 'transparent',
   },
-  activeTab: { borderBottomColor: COLORS.electricTeal },
-  tabText: { color: COLORS.textSecondary, fontSize: 16, fontWeight: FONT_WEIGHTS.medium },
-  activeTabText: { color: COLORS.electricTeal, fontWeight: FONT_WEIGHTS.bold },
+  activeTab: { borderBottomColor: colors.electricTeal },
+  tabText: { color: colors.textSecondary, fontSize: 16, fontWeight: FONT_WEIGHTS.medium },
+  activeTabText: { color: colors.electricTeal, fontWeight: FONT_WEIGHTS.bold },
   scrollContent: { padding: SPACING.lg, flexGrow: 1 },
 
   // Request Card
   requestCard: {
-    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.lg, marginBottom: SPACING.md, borderWidth: 1, borderColor: COLORS.border,
+    backgroundColor: colors.surface, borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.lg, marginBottom: SPACING.md, borderWidth: 1, borderColor: colors.border,
   },
   cardHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
@@ -515,7 +518,7 @@ const styles = StyleSheet.create({
   },
   serviceTag: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   serviceTagText: {
-    color: COLORS.electricTeal, fontSize: FONT_SIZES.small, fontWeight: FONT_WEIGHTS.bold,
+    color: colors.electricTeal, fontSize: FONT_SIZES.small, fontWeight: FONT_WEIGHTS.bold,
     textTransform: 'uppercase',
   },
   statusBadge: {
@@ -523,7 +526,7 @@ const styles = StyleSheet.create({
   },
   statusText: { fontSize: 12, fontWeight: FONT_WEIGHTS.bold },
   serviceName: {
-    color: COLORS.textPrimary, fontSize: 17, fontWeight: FONT_WEIGHTS.bold,
+    color: colors.textPrimary, fontSize: 17, fontWeight: FONT_WEIGHTS.bold,
     marginBottom: SPACING.md,
   },
 
@@ -534,51 +537,51 @@ const styles = StyleSheet.create({
   },
   avatarCircle: {
     width: 40, height: 40, borderRadius: 20,
-    backgroundColor: COLORS.electricTeal,
+    backgroundColor: colors.electricTeal,
     justifyContent: 'center', alignItems: 'center',
   },
   avatarLetter: { color: '#FFF', fontSize: 16, fontWeight: FONT_WEIGHTS.bold },
   requesterDetails: { flex: 1 },
-  requesterName: { color: COLORS.textPrimary, fontSize: FONT_SIZES.body, fontWeight: FONT_WEIGHTS.bold },
-  requesterContact: { color: COLORS.textSecondary, fontSize: FONT_SIZES.small },
+  requesterName: { color: colors.textPrimary, fontSize: FONT_SIZES.body, fontWeight: FONT_WEIGHTS.bold },
+  requesterContact: { color: colors.textSecondary, fontSize: FONT_SIZES.small },
 
   // Details
   detailRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
-  detailText: { color: COLORS.textSecondary, fontSize: FONT_SIZES.label },
+  detailText: { color: colors.textSecondary, fontSize: FONT_SIZES.label },
 
   // Message
   messageBox: {
-    backgroundColor: COLORS.surfaceAlt, borderRadius: BORDER_RADIUS.sm,
+    backgroundColor: colors.surfaceAlt, borderRadius: BORDER_RADIUS.sm,
     padding: SPACING.sm, marginTop: SPACING.sm,
   },
-  messageLabel: { color: COLORS.textSecondary, fontSize: 11, marginBottom: 2 },
-  messageText: { color: COLORS.textPrimary, fontSize: FONT_SIZES.label },
+  messageLabel: { color: colors.textSecondary, fontSize: 11, marginBottom: 2 },
+  messageText: { color: colors.textPrimary, fontSize: FONT_SIZES.label },
 
   // Actions
   actionsContainer: { marginTop: SPACING.md },
   rejectInputWrapper: { marginBottom: SPACING.sm },
   rejectInput: {
-    backgroundColor: COLORS.background, borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.md, color: COLORS.textPrimary, fontSize: FONT_SIZES.label,
-    borderWidth: 1, borderColor: COLORS.border, minHeight: 60,
+    backgroundColor: colors.background, borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md, color: colors.textPrimary, fontSize: FONT_SIZES.label,
+    borderWidth: 1, borderColor: colors.border, minHeight: 60,
   },
   buttonRow: { flexDirection: 'row', gap: SPACING.sm },
   rejectBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    paddingVertical: SPACING.md, borderWidth: 1, borderColor: COLORS.coralRed,
-    borderRadius: BORDER_RADIUS.md, backgroundColor: COLORS.background,
+    paddingVertical: SPACING.md, borderWidth: 1, borderColor: colors.coralRed,
+    borderRadius: BORDER_RADIUS.md, backgroundColor: colors.background,
   },
-  rejectBtnText: { color: COLORS.coralRed, fontSize: FONT_SIZES.label, fontWeight: FONT_WEIGHTS.bold },
+  rejectBtnText: { color: colors.coralRed, fontSize: FONT_SIZES.label, fontWeight: FONT_WEIGHTS.bold },
   acceptBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    paddingVertical: SPACING.md, backgroundColor: COLORS.electricTeal,
+    paddingVertical: SPACING.md, backgroundColor: colors.electricTeal,
     borderRadius: BORDER_RADIUS.md,
   },
   acceptBtnText: { color: '#FFF', fontSize: FONT_SIZES.label, fontWeight: FONT_WEIGHTS.bold },
   btnDisabled: { opacity: 0.5 },
   completeBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    paddingVertical: SPACING.md, backgroundColor: COLORS.success,
+    paddingVertical: SPACING.md, backgroundColor: colors.success,
     borderRadius: BORDER_RADIUS.md,
   },
   completeBtnText: { color: '#FFF', fontSize: FONT_SIZES.label, fontWeight: FONT_WEIGHTS.bold },
@@ -594,22 +597,22 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(0, 194, 168, 0.25)',
   },
-  dateWindowLabel: { color: COLORS.textSecondary, fontSize: 11, fontWeight: FONT_WEIGHTS.semibold },
-  dateWindowValue: { color: COLORS.textPrimary, fontSize: 14, fontWeight: FONT_WEIGHTS.medium, marginTop: 2 },
-  dateWindowSub: { color: COLORS.textSecondary, fontSize: 12, marginTop: 4 },
+  dateWindowLabel: { color: colors.textSecondary, fontSize: 11, fontWeight: FONT_WEIGHTS.semibold },
+  dateWindowValue: { color: colors.textPrimary, fontSize: 14, fontWeight: FONT_WEIGHTS.medium, marginTop: 2 },
+  dateWindowSub: { color: colors.textSecondary, fontSize: 12, marginTop: 4 },
   liveRidesCta: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.md,
     padding: SPACING.lg,
     marginBottom: SPACING.md,
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
     borderRadius: BORDER_RADIUS.lg,
     borderWidth: 1,
-    borderColor: COLORS.electricTeal,
+    borderColor: colors.electricTeal,
   },
-  liveRidesTitle: { color: COLORS.textPrimary, fontSize: 16, fontWeight: FONT_WEIGHTS.bold },
-  liveRidesSub: { color: COLORS.textSecondary, fontSize: 13, marginTop: 2 },
+  liveRidesTitle: { color: colors.textPrimary, fontSize: 16, fontWeight: FONT_WEIGHTS.bold },
+  liveRidesSub: { color: colors.textSecondary, fontSize: 13, marginTop: 2 },
   infoBanner: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -619,7 +622,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(59, 130, 246, 0.1)',
     borderRadius: BORDER_RADIUS.md,
   },
-  infoBannerText: { flex: 1, color: COLORS.textSecondary, fontSize: 13, lineHeight: 18 },
+  infoBannerText: { flex: 1, color: colors.textSecondary, fontSize: 13, lineHeight: 18 },
   errorBanner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -629,15 +632,15 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 107, 107, 0.12)',
     borderRadius: BORDER_RADIUS.md,
   },
-  errorBannerText: { flex: 1, color: COLORS.coralRed, fontSize: 13, lineHeight: 18 },
+  errorBannerText: { flex: 1, color: colors.coralRed, fontSize: 13, lineHeight: 18 },
 
   // Empty
   emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 60 },
   emptyTitle: {
-    color: COLORS.textPrimary, fontSize: 20, fontWeight: FONT_WEIGHTS.bold,
+    color: colors.textPrimary, fontSize: 20, fontWeight: FONT_WEIGHTS.bold,
     marginTop: SPACING.lg, marginBottom: SPACING.sm,
   },
   emptySubtext: {
-    color: COLORS.textSecondary, fontSize: 14, textAlign: 'center', maxWidth: '80%', lineHeight: 20,
+    color: colors.textSecondary, fontSize: 14, textAlign: 'center', maxWidth: '80%', lineHeight: 20,
   },
 });

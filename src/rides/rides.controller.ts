@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { RidesService } from './rides.service';
 import { AuthGuard } from 'src/guards/auth.guard';
+import { getRequestUserId } from 'src/common/request.util';
 
 @Controller('rides')
 export class RidesController {
@@ -222,7 +223,7 @@ export class RidesController {
   @Get(':id/receipt')
   @UseGuards(AuthGuard)
   async getRideReceipt(@Param('id') id: string, @Req() req: any) {
-    const userId = req.user._id || req.user.id;
+    const userId = getRequestUserId(req);
     const result = await this.ridesService.getRideReceipt(id, userId);
     if (!result.success) {
       throw new HttpException(result, HttpStatus.BAD_REQUEST);

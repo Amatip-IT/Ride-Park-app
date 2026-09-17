@@ -1,11 +1,15 @@
 import axios from 'axios';
 
 const AWS_API_KEY = process.env.EXPO_PUBLIC_AWS_LOCATION_KEY;
-const AWS_REGION = process.env.EXPO_PUBLIC_AWS_REGION || 'eu-west-2';
-const AWS_PLACE_INDEX = process.env.EXPO_PUBLIC_AWS_PLACE_INDEX || 'AmatipPlaceIndex';
+/** Places API keys are regional — this project key is authorized in us-east-1. */
+const AWS_REGION = process.env.EXPO_PUBLIC_AWS_REGION || 'us-east-1';
+
+/** Fallback bias when GPS is unavailable (central London). Suggest/search-text require a bias. */
+const DEFAULT_BIAS: [number, number] = [-0.1278, 51.5074];
 
 export interface PlaceSuggestion {
   label: string;
+  placeId?: string;
   addressNumber?: string;
   street?: string;
   neighborhood?: string;
@@ -23,8 +27,53 @@ export interface LocationSearchOptions {
   maxResults?: number;
 }
 
+function placesBaseUrl() {
+  return `https://places.geo.${AWS_REGION}.amazonaws.com`;
+}
+
+function biasLngLat(options: LocationSearchOptions): [number, number] {
+  if (options.biasPosition?.lat != null && options.biasPosition?.lng != null) {
+    return [options.biasPosition.lng, options.biasPosition.lat];
+  }
+  return DEFAULT_BIAS;
+}
+
+function mapResultItem(item: any): PlaceSuggestion {
+  const address = item.Address || {};
+  const position = item.Position; // [lng, lat]
+  return {
+    label: address.Label || item.Title || '',
+    placeId: item.PlaceId,
+    addressNumber: address.AddressNumber,
+    street: address.Street,
+    neighborhood: address.District || address.Neighborhood,
+    municipality: address.Locality || address.Municipality,
+    postalCode: address.PostalCode,
+    country: address.Country?.Name || address.Country?.Code3 || address.Country,
+    point:
+      Array.isArray(position) && position.length >= 2
+        ? { lng: position[0], lat: position[1] }
+        : undefined,
+  };
+}
+
 /**
- * Searches for places by text using Amazon Location Service.
+ * Resolve full place details (including coordinates) by PlaceId.
+ */
+export const getPlaceById = async (placeId: string): Promise<PlaceSuggestion | null> => {
+  if (!AWS_API_KEY || !placeId) return null;
+  try {
+    const endpoint = `${placesBaseUrl()}/v2/place/${encodeURIComponent(placeId)}?key=${AWS_API_KEY}`;
+    const response = await axios.get(endpoint);
+    return mapResultItem(response.data);
+  } catch (error: any) {
+    console.error('Amazon Location getPlace failed:', error.response?.data || error.message);
+    return null;
+  }
+};
+
+/**
+ * Searches for places by text using Amazon Location Places API v2.
  * Results are biased toward the user's position when provided.
  */
 export const searchLocationByText = async (
@@ -39,19 +88,15 @@ export const searchLocationByText = async (
   const trimmed = query.trim();
   if (trimmed.length < 2) return [];
 
-  const endpoint = `https://places.geo.${AWS_REGION}.amazonaws.com/places/v0/indexes/${AWS_PLACE_INDEX}/search/text?key=${AWS_API_KEY}`;
-
+  const endpoint = `${placesBaseUrl()}/v2/search-text?key=${AWS_API_KEY}`;
   const body: Record<string, unknown> = {
-    Text: trimmed,
+    QueryText: trimmed,
     MaxResults: options.maxResults ?? 8,
+    BiasPosition: biasLngLat(options),
   };
 
-  if (options.biasPosition) {
-    body.BiasPosition = [options.biasPosition.lng, options.biasPosition.lat];
-  }
-
   if (options.filterCountries?.length) {
-    body.FilterCountries = options.filterCountries;
+    body.Filter = { IncludeCountries: options.filterCountries };
   }
 
   try {
@@ -59,25 +104,15 @@ export const searchLocationByText = async (
       headers: { 'Content-Type': 'application/json' },
     });
 
-    if (response.data?.Results) {
-      return response.data.Results.map((result: any) => ({
-        label: result.Place.Label,
-        addressNumber: result.Place.AddressNumber,
-        street: result.Place.Street,
-        neighborhood: result.Place.Neighborhood,
-        municipality: result.Place.Municipality,
-        postalCode: result.Place.PostalCode,
-        country: result.Place.Country,
-        point: {
-          lng: result.Place.Geometry?.Point?.[0],
-          lat: result.Place.Geometry?.Point?.[1],
-        },
-      }));
-    }
-    return [];
+    const items = response.data?.ResultItems;
+    if (!Array.isArray(items)) return [];
+    return items.map(mapResultItem).filter((p: PlaceSuggestion) => !!p.label);
   } catch (error: any) {
-    if (error.response?.status === 403) {
-      console.warn('Amazon Location Service: Forbidden. Check API key and Place Index name.');
+    const status = error.response?.status;
+    if (status === 403 || status === 401) {
+      console.warn(
+        'Amazon Location Service: unauthorized. Check API key, region (us-east-1), and Places API v2 permissions.',
+      );
     } else {
       console.error('Amazon Location search failed:', error.response?.data || error.message);
     }
@@ -87,6 +122,7 @@ export const searchLocationByText = async (
 
 export interface ReverseGeocodeResult {
   label: string;
+  placeId?: string;
   addressNumber?: string;
   street?: string;
   neighborhood?: string;
@@ -97,39 +133,35 @@ export interface ReverseGeocodeResult {
 }
 
 /**
- * Reverse geocodes coordinates using Amazon Location Service,
+ * Reverse geocodes coordinates using Amazon Location Places API v2,
  * with automatic fallback to expo-location's device geocoder.
  */
-export const searchLocationByPosition = async (lat: number, lng: number): Promise<ReverseGeocodeResult | null> => {
-  // Try Amazon Location first (if configured)
+export const searchLocationByPosition = async (
+  lat: number,
+  lng: number,
+): Promise<ReverseGeocodeResult | null> => {
   if (AWS_API_KEY) {
     try {
-      const endpoint = `https://places.geo.${AWS_REGION}.amazonaws.com/places/v0/indexes/${AWS_PLACE_INDEX}/search/position?key=${AWS_API_KEY}`;
+      const endpoint = `${placesBaseUrl()}/v2/reverse-geocode?key=${AWS_API_KEY}`;
       const response = await axios.post(
         endpoint,
-        { Position: [lng, lat], MaxResults: 1 },
+        { QueryPosition: [lng, lat], MaxResults: 1 },
         { headers: { 'Content-Type': 'application/json' } },
       );
 
-      if (response.data?.Results?.length > 0) {
-        const place = response.data.Results[0].Place;
-        return {
-          label: place.Label,
-          addressNumber: place.AddressNumber,
-          street: place.Street,
-          neighborhood: place.Neighborhood,
-          municipality: place.Municipality,
-          postalCode: place.PostalCode,
-          country: place.Country,
-          point: { lat, lng },
-        };
+      const item = response.data?.ResultItems?.[0];
+      if (item) {
+        const mapped = mapResultItem(item);
+        return { ...mapped, point: mapped.point || { lat, lng } };
       }
     } catch (error: any) {
-      console.warn('Amazon Location reverse-geocode failed, trying device geocoder:', error.message);
+      console.warn(
+        'Amazon Location reverse-geocode failed, trying device geocoder:',
+        error.response?.data || error.message,
+      );
     }
   }
 
-  // Fallback: use device's native reverse geocoder (Apple Maps / Google)
   try {
     const Location = await import('expo-location');
     const results = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });

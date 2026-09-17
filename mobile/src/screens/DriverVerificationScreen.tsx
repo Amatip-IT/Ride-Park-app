@@ -1,9 +1,10 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, SafeAreaView,
   ActivityIndicator
 } from 'react-native';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
+import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, ThemeColors } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useAuthStore } from '@/store/authStore';
@@ -41,6 +42,8 @@ const VEHICLE_DOCS = [
 ];
 
 export function DriverVerificationScreen() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const navigation = useNavigation<any>();
   const { user } = useAuthStore();
 
@@ -111,11 +114,11 @@ export function DriverVerificationScreen() {
   );
 
   const getStatusColor = (status: string | undefined, optional: boolean) => {
-    if (status === 'Verified') return COLORS.success;
-    if (status === 'Uploaded, Await Review' || status === 'Uploaded') return COLORS.amber;
-    if (status === 'Rejected' || status === 'Expired') return COLORS.error;
-    if (optional) return COLORS.textSecondary;
-    return COLORS.textTertiary; // Not submitted — neutral grey
+    if (status === 'Verified') return colors.success;
+    if (status === 'Uploaded, Await Review' || status === 'Uploaded') return colors.amber;
+    if (status === 'Rejected' || status === 'Expired') return colors.error;
+    if (optional) return colors.textSecondary;
+    return colors.textTertiary; // Not submitted — neutral grey
   };
 
   const getStatusText = (status: string | undefined, optional: boolean) => {
@@ -150,7 +153,7 @@ export function DriverVerificationScreen() {
             </Text>
           )}
         </View>
-        <Ionicons name="chevron-forward" size={20} color={COLORS.textTertiary} />
+        <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
       </TouchableOpacity>
     );
   };
@@ -159,7 +162,7 @@ export function DriverVerificationScreen() {
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
+          <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Verification</Text>
         <TouchableOpacity style={styles.helpBtn} onPress={() => navigation.navigate('LegalDocument', { documentType: 'help' })}>
@@ -170,34 +173,34 @@ export function DriverVerificationScreen() {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* Overall status banner */}
         {overallStatus === 'approved' && (
-          <View style={[styles.alertBox, { backgroundColor: '#F0FFF4', borderColor: COLORS.success }]}>
-            <Ionicons name="checkmark-circle" size={24} color={COLORS.success} />
-            <Text style={[styles.alertText, { color: COLORS.success }]}>
+          <View style={[styles.alertBox, { backgroundColor: '#F0FFF4', borderColor: colors.success }]}>
+            <Ionicons name="checkmark-circle" size={24} color={colors.success} />
+            <Text style={[styles.alertText, { color: colors.success }]}>
               Your documents have been verified! You are approved to accept rides.
             </Text>
           </View>
         )}
         {(overallStatus === 'pending_admin_review' || overallStatus === 'pending_auto_check') && (
-          <View style={[styles.alertBox, { backgroundColor: '#FFFBEB', borderColor: COLORS.amber }]}>
-            <Ionicons name="time" size={24} color={COLORS.amber} />
+          <View style={[styles.alertBox, { backgroundColor: '#FFFBEB', borderColor: colors.amber }]}>
+            <Ionicons name="time" size={24} color={colors.amber} />
             <Text style={[styles.alertText, { color: '#92400E' }]}>
               Your documents have been submitted and are under review. You will be notified once approved.
             </Text>
           </View>
         )}
         {overallStatus === 'rejected' && (
-          <View style={[styles.alertBox, { backgroundColor: '#FEF2F2', borderColor: COLORS.error }]}>
-            <Ionicons name="warning" size={24} color={COLORS.error} />
+          <View style={[styles.alertBox, { backgroundColor: '#FEF2F2', borderColor: colors.error }]}>
+            <Ionicons name="warning" size={24} color={colors.error} />
             <View style={{ flex: 1, marginLeft: SPACING.sm }}>
-              <Text style={[styles.alertText, { color: COLORS.error }]}>
+              <Text style={[styles.alertText, { color: colors.error }]}>
                 Your documents were rejected.
               </Text>
               {rejectionReason && (
-                <Text style={[styles.rejectionReasonText, { color: COLORS.error }]}>
+                <Text style={[styles.rejectionReasonText, { color: colors.error }]}>
                   Reason: {rejectionReason}
                 </Text>
               )}
-              <Text style={[styles.alertText, { color: COLORS.error, marginTop: SPACING.sm }]}>
+              <Text style={[styles.alertText, { color: colors.error, marginTop: SPACING.sm }]}>
                 Please review the feedback and resubmit your documents.
               </Text>
               <TouchableOpacity
@@ -222,7 +225,7 @@ export function DriverVerificationScreen() {
         )}
         {overallStatus === 'not_applied' && (
           <View style={styles.alertBox}>
-            <Ionicons name="information-circle" size={24} color={COLORS.info} />
+            <Ionicons name="information-circle" size={24} color={colors.info} />
             <Text style={styles.alertText}>
               Documents expire every 6 months. You will be notified 1 month before expiry to upload new ones.
             </Text>
@@ -246,24 +249,24 @@ export function DriverVerificationScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: COLORS.background },
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: SPACING.lg,
     paddingTop: Platform.OS === 'android' ? SPACING.xl : SPACING.md,
     paddingBottom: SPACING.md,
-    backgroundColor: COLORS.background,
+    backgroundColor: colors.background,
   },
   backBtn: { padding: SPACING.xs },
   headerTitle: {
-    color: COLORS.textPrimary, fontSize: 18, fontWeight: FONT_WEIGHTS.bold, flex: 1, textAlign: 'center',
+    color: colors.textPrimary, fontSize: 18, fontWeight: FONT_WEIGHTS.bold, flex: 1, textAlign: 'center',
   },
   helpBtn: {
     backgroundColor: '#F1F5F9', paddingHorizontal: SPACING.md, paddingVertical: 6,
     borderRadius: 20,
   },
-  helpText: { color: COLORS.textPrimary, fontSize: 13, fontWeight: FONT_WEIGHTS.medium },
+  helpText: { color: colors.textPrimary, fontSize: 13, fontWeight: FONT_WEIGHTS.medium },
   content: { padding: SPACING.lg, paddingBottom: 60 },
   alertBox: {
     flexDirection: 'row', backgroundColor: '#F0F9FF', padding: SPACING.md,
@@ -274,26 +277,26 @@ const styles = StyleSheet.create({
     flex: 1, color: '#0369A1', fontSize: 13, marginLeft: SPACING.sm, lineHeight: 18,
   },
   sectionTitle: {
-    color: COLORS.textPrimary, fontSize: 20, fontWeight: FONT_WEIGHTS.bold,
+    color: colors.textPrimary, fontSize: 20, fontWeight: FONT_WEIGHTS.bold,
     marginBottom: SPACING.md,
   },
   listContainer: {
-    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.md,
-    borderWidth: 1, borderColor: COLORS.border,
+    backgroundColor: colors.surface, borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1, borderColor: colors.border,
     overflow: 'hidden',
   },
   docItem: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    padding: SPACING.md, borderBottomWidth: 1, borderBottomColor: COLORS.border,
-    backgroundColor: COLORS.surface,
+    padding: SPACING.md, borderBottomWidth: 1, borderBottomColor: colors.border,
+    backgroundColor: colors.surface,
   },
   docInfo: { flex: 1, marginRight: SPACING.sm },
-  docTitle: { color: COLORS.textPrimary, fontSize: 15, marginBottom: 4 },
+  docTitle: { color: colors.textPrimary, fontSize: 15, marginBottom: 4 },
   docStatus: { fontSize: 13, fontWeight: FONT_WEIGHTS.medium },
   rejectionReason: {
     fontSize: 12,
     fontWeight: FONT_WEIGHTS.medium,
-    color: COLORS.error,
+    color: colors.error,
     marginTop: 4,
     fontStyle: 'italic',
   },
@@ -305,7 +308,7 @@ const styles = StyleSheet.create({
   },
   appealBtn: {
     marginTop: SPACING.md,
-    backgroundColor: COLORS.coralRed,
+    backgroundColor: colors.coralRed,
     paddingVertical: SPACING.sm,
     paddingHorizontal: SPACING.md,
     borderRadius: BORDER_RADIUS.md,

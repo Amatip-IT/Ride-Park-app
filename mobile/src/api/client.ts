@@ -95,10 +95,17 @@ class ApiClient {
           }
         }
 
+        const responseData = error.response?.data as {
+          data?: unknown;
+          retryAfter?: number;
+        } | undefined;
+
         return Promise.reject({
           message,
           status,
           code: error.code,
+          data: responseData?.data,
+          retryAfter: responseData?.retryAfter,
         });
       }
     );

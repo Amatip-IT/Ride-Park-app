@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Image, Platform,
   SafeAreaView, ActivityIndicator, Alert, ScrollView
 } from 'react-native';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
+import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, ThemeColors } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
@@ -35,6 +36,8 @@ const DOC_FIELD_MAPPING: Record<string, string> = {
 };
 
 export function DocumentUploadScreen() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const navigation = useNavigation<any>();
   const route = useRoute<RouteProp<ParamList, 'DocumentUpload'>>();
   const { docId, docTitle, docStatus } = route.params;
@@ -116,14 +119,11 @@ export function DocumentUploadScreen() {
       }
 
       // 1. Upload the file to S3
-      const formData = new FormData();
-      formData.append('file', {
-        uri: Platform.OS === 'ios' ? documentUri.replace('file://', '') : documentUri,
+      const uploadRes = await providerApi.uploadDocument({
+        uri: documentUri,
         name: documentName || 'upload.jpg',
         type: documentName?.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg',
-      } as any);
-
-      const uploadRes = await providerApi.uploadDocument(formData);
+      });
       
       if (!uploadRes.data?.success || !uploadRes.data.url) {
         throw new Error(uploadRes.data?.message || 'Failed to upload document to storage');
@@ -175,7 +175,7 @@ export function DocumentUploadScreen() {
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
+          <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>{docTitle}</Text>
         <View style={{ width: 32 }} />
@@ -183,51 +183,51 @@ export function DocumentUploadScreen() {
 
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.instructionsBox}>
-          <Ionicons name="information-circle" size={24} color={COLORS.info} />
+          <Ionicons name="information-circle" size={24} color={colors.info} />
           <Text style={styles.instructionsText}>
             Please upload a clear, legible copy of your {docTitle}. Ensure all corners are visible and the text is readable. Supported formats: JPEG, PNG, PDF.
           </Text>
         </View>
 
         {docStatus === 'Verified' && (
-          <View style={[styles.statusBox, { backgroundColor: '#F0FFF4', borderColor: COLORS.success }]}>
-            <Ionicons name="checkmark-circle" size={20} color={COLORS.success} style={{ marginRight: 8 }} />
-            <Text style={[styles.statusText, { color: COLORS.success }]}>This document has been verified. You can upload a new one to replace it.</Text>
+          <View style={[styles.statusBox, { backgroundColor: '#F0FFF4', borderColor: colors.success }]}>
+            <Ionicons name="checkmark-circle" size={20} color={colors.success} style={{ marginRight: 8 }} />
+            <Text style={[styles.statusText, { color: colors.success }]}>This document has been verified. You can upload a new one to replace it.</Text>
           </View>
         )}
 
         {docStatus === 'Uploaded, Await Review' && (
-          <View style={[styles.statusBox, { backgroundColor: '#FFFBEB', borderColor: COLORS.amber }]}>
-            <Ionicons name="time" size={20} color={COLORS.amber} style={{ marginRight: 8 }} />
+          <View style={[styles.statusBox, { backgroundColor: '#FFFBEB', borderColor: colors.amber }]}>
+            <Ionicons name="time" size={20} color={colors.amber} style={{ marginRight: 8 }} />
             <Text style={[styles.statusText, { color: '#92400E' }]}>Document uploaded and awaiting admin review. You can upload a new one to replace it.</Text>
           </View>
         )}
 
         {docStatus === 'Rejected' && (
-          <View style={[styles.statusBox, { backgroundColor: '#FEF2F2', borderColor: COLORS.error }]}>
-            <Ionicons name="warning" size={20} color={COLORS.error} style={{ marginRight: 8 }} />
-            <Text style={[styles.statusText, { color: COLORS.error }]}>This document was rejected. Please upload a new, valid document.</Text>
+          <View style={[styles.statusBox, { backgroundColor: '#FEF2F2', borderColor: colors.error }]}>
+            <Ionicons name="warning" size={20} color={colors.error} style={{ marginRight: 8 }} />
+            <Text style={[styles.statusText, { color: colors.error }]}>This document was rejected. Please upload a new, valid document.</Text>
           </View>
         )}
 
         {docStatus === 'Completed' && (
           <View style={styles.statusBox}>
-            <Ionicons name="checkmark-circle" size={20} color={COLORS.success} style={{ marginRight: 8 }} />
+            <Ionicons name="checkmark-circle" size={20} color={colors.success} style={{ marginRight: 8 }} />
             <Text style={styles.statusText}>You have previously uploaded this document. You can upload a new one to replace it.</Text>
           </View>
         )}
 
         <View style={styles.uploadOptions}>
           <TouchableOpacity style={styles.optionBtn} onPress={handleTakePhoto} activeOpacity={0.7}>
-            <Ionicons name="camera-outline" size={28} color={COLORS.electricTeal} />
+            <Ionicons name="camera-outline" size={28} color={colors.electricTeal} />
             <Text style={styles.optionText}>Take Photo</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.optionBtn} onPress={handlePickImage} activeOpacity={0.7}>
-            <Ionicons name="image-outline" size={28} color={COLORS.electricTeal} />
+            <Ionicons name="image-outline" size={28} color={colors.electricTeal} />
             <Text style={styles.optionText}>Photo Library</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.optionBtn} onPress={handlePickDocument} activeOpacity={0.7}>
-            <Ionicons name="document-text-outline" size={28} color={COLORS.electricTeal} />
+            <Ionicons name="document-text-outline" size={28} color={colors.electricTeal} />
             <Text style={styles.optionText}>Choose File</Text>
           </TouchableOpacity>
         </View>
@@ -235,17 +235,17 @@ export function DocumentUploadScreen() {
         {documentUri && (
           <View style={styles.previewContainer}>
             <View style={styles.previewHeader}>
-              <Ionicons name="document-attach" size={20} color={COLORS.textPrimary} />
+              <Ionicons name="document-attach" size={20} color={colors.textPrimary} />
               <Text style={styles.previewName} numberOfLines={1}>{documentName}</Text>
               <TouchableOpacity onPress={() => { setDocumentUri(null); setDocumentName(null); }}>
-                <Ionicons name="close-circle" size={22} color={COLORS.error} />
+                <Ionicons name="close-circle" size={22} color={colors.error} />
               </TouchableOpacity>
             </View>
             {isImageFile() ? (
               <Image source={{ uri: documentUri }} style={styles.imagePreview} />
             ) : (
               <View style={styles.docPreview}>
-                <Ionicons name="document-text" size={64} color={COLORS.electricTeal} />
+                <Ionicons name="document-text" size={64} color={colors.electricTeal} />
                 <Text style={styles.docPreviewText}>PDF Document</Text>
               </View>
             )}
@@ -274,19 +274,19 @@ export function DocumentUploadScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: COLORS.background },
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: SPACING.lg,
     paddingTop: Platform.OS === 'android' ? SPACING.xl : SPACING.md,
     paddingBottom: SPACING.md,
-    borderBottomWidth: 1, borderBottomColor: COLORS.border,
-    backgroundColor: COLORS.background,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
+    backgroundColor: colors.background,
   },
   backBtn: { padding: SPACING.xs },
   headerTitle: {
-    color: COLORS.textPrimary, fontSize: 18, fontWeight: FONT_WEIGHTS.bold, flex: 1, textAlign: 'center', marginHorizontal: SPACING.md,
+    color: colors.textPrimary, fontSize: 18, fontWeight: FONT_WEIGHTS.bold, flex: 1, textAlign: 'center', marginHorizontal: SPACING.md,
   },
   content: { padding: SPACING.lg },
   instructionsBox: {
@@ -298,38 +298,38 @@ const styles = StyleSheet.create({
     flex: 1, color: '#0369A1', fontSize: 14, marginLeft: SPACING.sm, lineHeight: 20,
   },
   statusBox: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: `${COLORS.success}10`,
-    padding: SPACING.md, borderRadius: BORDER_RADIUS.md, borderWidth: 1, borderColor: COLORS.success,
+    flexDirection: 'row', alignItems: 'center', backgroundColor: `${colors.success}10`,
+    padding: SPACING.md, borderRadius: BORDER_RADIUS.md, borderWidth: 1, borderColor: colors.success,
     marginBottom: SPACING.lg,
   },
-  statusText: { flex: 1, color: COLORS.success, fontSize: 13, lineHeight: 18 },
+  statusText: { flex: 1, color: colors.success, fontSize: 13, lineHeight: 18 },
   uploadOptions: {
     flexDirection: 'row', justifyContent: 'space-between', gap: SPACING.sm, marginBottom: SPACING.xl,
   },
   optionBtn: {
-    flex: 1, backgroundColor: COLORS.surfaceAlt, alignItems: 'center', paddingVertical: SPACING.lg,
-    borderRadius: BORDER_RADIUS.md, borderWidth: 1, borderColor: COLORS.border,
+    flex: 1, backgroundColor: colors.surfaceAlt, alignItems: 'center', paddingVertical: SPACING.lg,
+    borderRadius: BORDER_RADIUS.md, borderWidth: 1, borderColor: colors.border,
   },
-  optionText: { color: COLORS.textPrimary, fontSize: 13, fontWeight: FONT_WEIGHTS.medium, marginTop: SPACING.sm },
+  optionText: { color: colors.textPrimary, fontSize: 13, fontWeight: FONT_WEIGHTS.medium, marginTop: SPACING.sm },
   previewContainer: {
-    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.lg, padding: SPACING.md,
-    borderWidth: 1, borderColor: COLORS.electricTeal,
+    backgroundColor: colors.surface, borderRadius: BORDER_RADIUS.lg, padding: SPACING.md,
+    borderWidth: 1, borderColor: colors.electricTeal,
   },
   previewHeader: {
-    flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: COLORS.border,
+    flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: colors.border,
     paddingBottom: SPACING.sm, marginBottom: SPACING.sm,
   },
-  previewName: { flex: 1, color: COLORS.textPrimary, fontSize: 14, marginHorizontal: SPACING.sm },
+  previewName: { flex: 1, color: colors.textPrimary, fontSize: 14, marginHorizontal: SPACING.sm },
   imagePreview: { width: '100%', height: 250, borderRadius: BORDER_RADIUS.md, resizeMode: 'cover' },
-  docPreview: { width: '100%', height: 250, borderRadius: BORDER_RADIUS.md, backgroundColor: COLORS.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
-  docPreviewText: { color: COLORS.textSecondary, marginTop: SPACING.sm, fontSize: 16 },
+  docPreview: { width: '100%', height: 250, borderRadius: BORDER_RADIUS.md, backgroundColor: colors.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
+  docPreviewText: { color: colors.textSecondary, marginTop: SPACING.sm, fontSize: 16 },
   footer: {
-    padding: SPACING.lg, borderTopWidth: 1, borderTopColor: COLORS.border, backgroundColor: COLORS.background,
+    padding: SPACING.lg, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.background,
   },
   submitBtn: {
-    backgroundColor: COLORS.electricTeal, paddingVertical: SPACING.lg,
+    backgroundColor: colors.electricTeal, paddingVertical: SPACING.lg,
     borderRadius: BORDER_RADIUS.md, alignItems: 'center',
   },
-  submitBtnDisabled: { backgroundColor: COLORS.textTertiary },
+  submitBtnDisabled: { backgroundColor: colors.textTertiary },
   submitBtnText: { color: '#FFF', fontSize: 16, fontWeight: FONT_WEIGHTS.bold },
 });

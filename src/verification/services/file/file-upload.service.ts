@@ -156,15 +156,29 @@ export class FileUploadService {
     let key: string;
     try {
       const parsed = new URL(url);
-      if (parsed.hostname.startsWith('s3.')) {
-        const pathParts = parsed.pathname.substring(1).split('/');
-        pathParts.shift();
+      // Drop any existing query/signature before extracting the object key
+      const pathname = decodeURIComponent(parsed.pathname.replace(/^\/+/, ''));
+
+      if (
+        parsed.hostname.startsWith('s3.') ||
+        parsed.hostname.startsWith('s3-')
+      ) {
+        // Path-style: s3.region.amazonaws.com/bucket/key
+        const pathParts = pathname.split('/');
+        pathParts.shift(); // bucket
         key = pathParts.join('/');
+      } else if (parsed.hostname.includes('.s3.')) {
+        // Virtual-hosted: bucket.s3.region.amazonaws.com/key
+        key = pathname;
       } else {
-        key = parsed.pathname.substring(1);
+        key = pathname;
       }
     } catch {
       key = url;
+    }
+
+    if (!key) {
+      throw new Error('Could not derive S3 object key from URL');
     }
 
     const command = new GetObjectCommand({

@@ -1,9 +1,10 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Platform, SafeAreaView, RefreshControl, Alert, ActivityIndicator, Image,
+  Platform, SafeAreaView, RefreshControl, Alert, ActivityIndicator,
 } from 'react-native';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
+import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, ThemeColors } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/store/authStore';
 import { useNavigation, NavigationProp, useFocusEffect } from '@react-navigation/native';
@@ -11,8 +12,11 @@ import { bookingsApi, providerApi, taxiBookingsApi } from '@/api';
 import { getApiErrorMessage, getCurrentCoords } from '@/utils/helpers';
 import { useProviderRideAlerts } from '@/hooks/useProviderRideAlerts';
 import { useDriverLocationSync } from '@/hooks/useDriverLocationSync';
+import { ProfileAvatar } from '@/components/ProfileAvatar';
 
 export function ProviderHomeScreen() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { user } = useAuthStore();
   const navigation = useNavigation<NavigationProp<any>>();
   const [stats, setStats] = useState({ pending: 0, accepted: 0, total: 0 });
@@ -168,8 +172,8 @@ export function ProviderHomeScreen() {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <ActivityIndicator size="large" color={COLORS.electricTeal} />
-          <Text style={{ color: COLORS.textSecondary, marginTop: SPACING.md }}>Checking verification...</Text>
+          <ActivityIndicator size="large" color={colors.electricTeal} />
+          <Text style={{ color: colors.textSecondary, marginTop: SPACING.md }}>Checking verification...</Text>
         </View>
       </SafeAreaView>
     );
@@ -185,7 +189,7 @@ export function ProviderHomeScreen() {
             icon: 'time-outline' as const,
             title: 'Verification Under Review',
             description: 'Your documents have been submitted and are currently being reviewed. You will be notified once your account is approved.',
-            iconColor: COLORS.amber,
+            iconColor: colors.amber,
             showButton: false,
           };
         case 'rejected':
@@ -193,7 +197,7 @@ export function ProviderHomeScreen() {
             icon: 'close-circle-outline' as const,
             title: 'Verification Rejected',
             description: 'Your documents were rejected. Please review the feedback and resubmit your documents.',
-            iconColor: COLORS.error,
+            iconColor: colors.error,
             showButton: true,
           };
         default:
@@ -201,7 +205,7 @@ export function ProviderHomeScreen() {
             icon: 'shield-checkmark-outline' as const,
             title: 'Complete Your Verification',
             description: 'You need to submit your documents for verification before you can access your dashboard and start accepting rides.',
-            iconColor: COLORS.electricTeal,
+            iconColor: colors.electricTeal,
             showButton: true,
           };
       }
@@ -220,11 +224,11 @@ export function ProviderHomeScreen() {
             </View>
             <TouchableOpacity onPress={() => navigation.navigate('ProviderProfile')} style={styles.profileBtn}>
               <View style={styles.avatarCircle}>
-                {user?.profileImageUrl ? (
-                  <Image source={{ uri: user.profileImageUrl }} style={{ width: 40, height: 40, borderRadius: 20 }} />
-                ) : (
-                  <Text style={styles.avatarText}>{user?.firstName?.charAt(0) || 'P'}</Text>
-                )}
+                <ProfileAvatar
+                  uri={user?.profileImageUrl}
+                  size={40}
+                  initials={user?.firstName?.charAt(0) || 'P'}
+                />
               </View>
             </TouchableOpacity>
           </View>
@@ -249,7 +253,7 @@ export function ProviderHomeScreen() {
 
             {verificationStatus === 'pending_admin_review' || verificationStatus === 'pending_auto_check' ? (
               <View style={styles.gatePendingBadge}>
-                <ActivityIndicator size="small" color={COLORS.amber} style={{ marginRight: 8 }} />
+                <ActivityIndicator size="small" color={colors.amber} style={{ marginRight: 8 }} />
                 <Text style={styles.gatePendingText}>Waiting for admin approval...</Text>
               </View>
             ) : null}
@@ -273,15 +277,15 @@ export function ProviderHomeScreen() {
               style={styles.headerBtn}
               onPress={() => navigation.navigate('ChatList')}
             >
-              <Ionicons name="chatbubble-ellipses-outline" size={24} color={COLORS.textPrimary} />
+              <Ionicons name="chatbubble-ellipses-outline" size={24} color={colors.textPrimary} />
             </TouchableOpacity>
             <TouchableOpacity onPress={() => navigation.navigate('ProviderProfile')} style={styles.profileBtn}>
               <View style={styles.avatarCircle}>
-                {user?.profileImageUrl ? (
-                  <Image source={{ uri: user.profileImageUrl }} style={{ width: 40, height: 40, borderRadius: 20 }} />
-                ) : (
-                  <Text style={styles.avatarText}>{user?.firstName?.charAt(0) || 'P'}</Text>
-                )}
+                <ProfileAvatar
+                  uri={user?.profileImageUrl}
+                  size={40}
+                  initials={user?.firstName?.charAt(0) || 'P'}
+                />
               </View>
             </TouchableOpacity>
           </View>
@@ -291,12 +295,12 @@ export function ProviderHomeScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={() => fetchStats(true)} tintColor={COLORS.electricTeal} />
+            <RefreshControl refreshing={refreshing} onRefresh={() => fetchStats(true)} tintColor={colors.electricTeal} />
           }
         >
           {fetchError && (
             <View style={styles.errorBanner}>
-              <Ionicons name="alert-circle" size={18} color={COLORS.coralRed} />
+              <Ionicons name="alert-circle" size={18} color={colors.coralRed} />
               <Text style={styles.errorBannerText}>{fetchError}</Text>
               <TouchableOpacity onPress={() => fetchStats(true)}>
                 <Text style={styles.retryLink}>Retry</Text>
@@ -306,7 +310,7 @@ export function ProviderHomeScreen() {
 
           {isDriverOrTaxi && user?.role === 'driver' && (
             <View style={styles.infoBanner}>
-              <Ionicons name="information-circle-outline" size={20} color={COLORS.info} />
+              <Ionicons name="information-circle-outline" size={20} color={colors.info} />
               <Text style={styles.infoBannerText}>
                 Chauffeur hires are scheduled bookings under View Requests. Live map tracking is used for taxi trips only.
               </Text>
@@ -315,7 +319,7 @@ export function ProviderHomeScreen() {
 
           {isDriverOrTaxi && user?.role === 'taxi_driver' && (
             <View style={styles.infoBanner}>
-              <Ionicons name="information-circle-outline" size={20} color={COLORS.electricTeal} />
+              <Ionicons name="information-circle-outline" size={20} color={colors.electricTeal} />
               <Text style={styles.infoBannerText}>
                 Go online to receive live ride requests. Passengers track you on the map during active trips.
               </Text>
@@ -347,12 +351,12 @@ export function ProviderHomeScreen() {
                 activeOpacity={0.7}
               >
                 {togglingStatus ? (
-                  <ActivityIndicator size="small" color={driverStatus === 'online' ? COLORS.error : COLORS.success} />
+                  <ActivityIndicator size="small" color={driverStatus === 'online' ? colors.error : colors.success} />
                 ) : (
                   <Text style={[
                     styles.toggleBtnText,
-                    driverStatus === 'online' && { color: COLORS.error },
-                    driverStatus === 'busy' && { color: COLORS.textTertiary },
+                    driverStatus === 'online' && { color: colors.error },
+                    driverStatus === 'busy' && { color: colors.textTertiary },
                   ]}>
                     {driverStatus === 'online' ? 'Go Offline' : driverStatus === 'busy' ? 'On Trip' : 'Go Online'}
                   </Text>
@@ -364,35 +368,35 @@ export function ProviderHomeScreen() {
           {/* Active Journey Banner */}
           {activeJourneyId && (
             <TouchableOpacity
-              style={[styles.alertCard, { backgroundColor: '#E0F2FE', borderColor: COLORS.electricTeal, marginBottom: SPACING.xl }]}
+              style={[styles.alertCard, { backgroundColor: '#E0F2FE', borderColor: colors.electricTeal, marginBottom: SPACING.xl }]}
               onPress={() => navigation.navigate('ProviderActiveJourney', { requestId: activeJourneyId, serviceType: user?.role === 'taxi_driver' ? 'taxi' : 'driver' })}
               activeOpacity={0.7}
             >
               <View style={styles.alertIcon}>
-                <Ionicons name="car-sport" size={32} color={COLORS.electricTeal} />
+                <Ionicons name="car-sport" size={32} color={colors.electricTeal} />
               </View>
               <View style={styles.alertContent}>
-                <Text style={[styles.alertTitle, { color: COLORS.electricTeal, fontSize: 18 }]}>
+                <Text style={[styles.alertTitle, { color: colors.electricTeal, fontSize: 18 }]}>
                   Active Journey
                 </Text>
                 <Text style={styles.alertSubtext}>Tap to open map and continue</Text>
               </View>
-              <Ionicons name="chevron-forward" size={24} color={COLORS.electricTeal} />
+              <Ionicons name="chevron-forward" size={24} color={colors.electricTeal} />
             </TouchableOpacity>
           )}
 
           {/* Quick Stats */}
           <View style={styles.statsRow}>
             <View style={styles.statCard}>
-              <Text style={[styles.statNumber, { color: COLORS.amber }]}>{stats.pending}</Text>
+              <Text style={[styles.statNumber, { color: colors.amber }]}>{stats.pending}</Text>
               <Text style={styles.statLabel}>Pending</Text>
             </View>
             <View style={styles.statCard}>
-              <Text style={[styles.statNumber, { color: COLORS.success }]}>{stats.accepted}</Text>
+              <Text style={[styles.statNumber, { color: colors.success }]}>{stats.accepted}</Text>
               <Text style={styles.statLabel}>Accepted</Text>
             </View>
             <View style={styles.statCard}>
-              <Text style={[styles.statNumber, { color: COLORS.electricTeal }]}>{stats.total}</Text>
+              <Text style={[styles.statNumber, { color: colors.electricTeal }]}>{stats.total}</Text>
               <Text style={styles.statLabel}>Total</Text>
             </View>
           </View>
@@ -405,7 +409,7 @@ export function ProviderHomeScreen() {
               activeOpacity={0.7}
             >
               <View style={styles.alertIcon}>
-                <Ionicons name="notifications" size={22} color={COLORS.amber} />
+                <Ionicons name="notifications" size={22} color={colors.amber} />
               </View>
               <View style={styles.alertContent}>
                 <Text style={styles.alertTitle}>
@@ -413,7 +417,7 @@ export function ProviderHomeScreen() {
                 </Text>
                 <Text style={styles.alertSubtext}>Tap to review and respond</Text>
               </View>
-              <Ionicons name="chevron-forward" size={20} color={COLORS.textTertiary} />
+              <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
             </TouchableOpacity>
           )}
 
@@ -425,14 +429,14 @@ export function ProviderHomeScreen() {
             onPress={() => navigation.navigate('ProviderRequests')}
             activeOpacity={0.7}
           >
-            <View style={[styles.actionIcon, { backgroundColor: `${COLORS.info}12` }]}>
-              <Ionicons name="mail-open" size={24} color={COLORS.info} />
+            <View style={[styles.actionIcon, { backgroundColor: `${colors.info}12` }]}>
+              <Ionicons name="mail-open" size={24} color={colors.info} />
             </View>
             <View style={styles.actionContent}>
               <Text style={styles.actionTitle}>View Requests</Text>
               <Text style={styles.actionSubtext}>Review and respond to booking requests</Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color={COLORS.textTertiary} />
+            <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
           </TouchableOpacity>
 
           {/* Manage Spaces (parking provider only) */}
@@ -442,14 +446,14 @@ export function ProviderHomeScreen() {
               onPress={() => navigation.navigate('ProviderSpaceManagement')}
               activeOpacity={0.7}
             >
-              <View style={[styles.actionIcon, { backgroundColor: `${COLORS.electricTeal}12` }]}>
-                <Ionicons name="business" size={24} color={COLORS.electricTeal} />
+              <View style={[styles.actionIcon, { backgroundColor: `${colors.electricTeal}12` }]}>
+                <Ionicons name="business" size={24} color={colors.electricTeal} />
               </View>
               <View style={styles.actionContent}>
                 <Text style={styles.actionTitle}>Manage My Spaces</Text>
                 <Text style={styles.actionSubtext}>Edit pricing, capacity, and availability</Text>
               </View>
-              <Ionicons name="chevron-forward" size={20} color={COLORS.textTertiary} />
+              <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
             </TouchableOpacity>
           )}
 
@@ -469,8 +473,8 @@ export function ProviderHomeScreen() {
               }}
               activeOpacity={0.7}
             >
-              <View style={[styles.actionIcon, { backgroundColor: `${COLORS.amber}12` }]}>
-                <Ionicons name="car" size={24} color={COLORS.amber} />
+              <View style={[styles.actionIcon, { backgroundColor: `${colors.amber}12` }]}>
+                <Ionicons name="car" size={24} color={colors.amber} />
               </View>
               <View style={styles.actionContent}>
                 <Text style={styles.actionTitle}>Live Ride Requests</Text>
@@ -487,7 +491,7 @@ export function ProviderHomeScreen() {
                   <Text style={styles.liveBadgeText}>{liveRideCount}</Text>
                 </View>
               ) : (
-                <Ionicons name="chevron-forward" size={20} color={COLORS.textTertiary} />
+                <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
               )}
             </TouchableOpacity>
           )}
@@ -498,14 +502,14 @@ export function ProviderHomeScreen() {
               onPress={() => navigation.navigate('ProviderPastRides')}
               activeOpacity={0.7}
             >
-              <View style={[styles.actionIcon, { backgroundColor: `${COLORS.info}12` }]}>
-                <Ionicons name="time" size={24} color={COLORS.info} />
+              <View style={[styles.actionIcon, { backgroundColor: `${colors.info}12` }]}>
+                <Ionicons name="time" size={24} color={colors.info} />
               </View>
               <View style={styles.actionContent}>
                 <Text style={styles.actionTitle}>Past Rides</Text>
                 <Text style={styles.actionSubtext}>Trip history, miles, and ride analytics</Text>
               </View>
-              <Ionicons name="chevron-forward" size={20} color={COLORS.textTertiary} />
+              <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
             </TouchableOpacity>
           )}
 
@@ -514,14 +518,14 @@ export function ProviderHomeScreen() {
             onPress={() => navigation.navigate('ProviderEarnings')}
             activeOpacity={0.7}
           >
-            <View style={[styles.actionIcon, { backgroundColor: `${COLORS.success}12` }]}>
-              <Ionicons name="wallet" size={24} color={COLORS.success} />
+            <View style={[styles.actionIcon, { backgroundColor: `${colors.success}12` }]}>
+              <Ionicons name="wallet" size={24} color={colors.success} />
             </View>
             <View style={styles.actionContent}>
               <Text style={styles.actionTitle}>Earnings</Text>
               <Text style={styles.actionSubtext}>View your earnings and payment history</Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color={COLORS.textTertiary} />
+            <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
           </TouchableOpacity>
 
           {user?.role === 'parking_provider' && (
@@ -530,14 +534,14 @@ export function ProviderHomeScreen() {
               onPress={() => navigation.navigate('ProviderVerification')}
               activeOpacity={0.7}
             >
-              <View style={[styles.actionIcon, { backgroundColor: `${COLORS.amber}12` }]}>
-                <Ionicons name="shield-checkmark" size={24} color={COLORS.amber} />
+              <View style={[styles.actionIcon, { backgroundColor: `${colors.amber}12` }]}>
+                <Ionicons name="shield-checkmark" size={24} color={colors.amber} />
               </View>
               <View style={styles.actionContent}>
                 <Text style={styles.actionTitle}>Create a Park</Text>
                 <Text style={styles.actionSubtext}>Submit your parking space for approval</Text>
               </View>
-              <Ionicons name="chevron-forward" size={20} color={COLORS.textTertiary} />
+              <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
             </TouchableOpacity>
           )}
         </ScrollView>
@@ -546,8 +550,8 @@ export function ProviderHomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: COLORS.background },
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: colors.background },
   container: { flex: 1 },
 
   // Header
@@ -556,19 +560,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.xl,
     paddingTop: Platform.OS === 'ios' ? 10 : 40,
     paddingBottom: SPACING.lg,
-    backgroundColor: COLORS.background,
+    backgroundColor: colors.background,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: colors.border,
   },
   greeting: {
-    color: COLORS.textPrimary, fontSize: FONT_SIZES.section, fontWeight: FONT_WEIGHTS.bold,
+    color: colors.textPrimary, fontSize: FONT_SIZES.section, fontWeight: FONT_WEIGHTS.bold,
   },
-  roleTag: { color: COLORS.electricTeal, fontSize: FONT_SIZES.label, marginTop: 4 },
+  roleTag: { color: colors.electricTeal, fontSize: FONT_SIZES.label, marginTop: 4 },
   headerBtn: { padding: SPACING.sm, marginRight: SPACING.sm },
   profileBtn: { padding: SPACING.xs },
   avatarCircle: {
     width: 40, height: 40, borderRadius: 20,
-    backgroundColor: COLORS.electricTeal,
+    backgroundColor: colors.electricTeal,
     justifyContent: 'center', alignItems: 'center',
   },
   avatarText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
@@ -578,50 +582,50 @@ const styles = StyleSheet.create({
   // Status toggle card (driver/taxi)
   statusCard: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.lg,
+    backgroundColor: colors.surface, borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.lg, marginBottom: SPACING.lg,
-    borderWidth: 1, borderColor: COLORS.border,
+    borderWidth: 1, borderColor: colors.border,
   },
   statusInfo: {
     flexDirection: 'row', alignItems: 'center', gap: SPACING.md,
   },
   statusDotLarge: {
     width: 14, height: 14, borderRadius: 7,
-    backgroundColor: COLORS.textTertiary,
+    backgroundColor: colors.textTertiary,
   },
   statusDotOnline: {
-    backgroundColor: COLORS.success,
+    backgroundColor: colors.success,
   },
   statusTitle: {
-    color: COLORS.textPrimary, fontSize: FONT_SIZES.body, fontWeight: FONT_WEIGHTS.semibold,
+    color: colors.textPrimary, fontSize: FONT_SIZES.body, fontWeight: FONT_WEIGHTS.semibold,
   },
   driverNumberText: {
-    color: COLORS.textSecondary, fontSize: FONT_SIZES.small, marginTop: 2,
+    color: colors.textSecondary, fontSize: FONT_SIZES.small, marginTop: 2,
   },
   toggleBtn: {
     paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm,
     borderRadius: BORDER_RADIUS.md, borderWidth: 1.5,
-    borderColor: COLORS.success, backgroundColor: `${COLORS.success}10`,
+    borderColor: colors.success, backgroundColor: `${colors.success}10`,
   },
   toggleBtnOnline: {
-    borderColor: COLORS.error, backgroundColor: `${COLORS.error}10`,
+    borderColor: colors.error, backgroundColor: `${colors.error}10`,
   },
   toggleBtnBusy: {
-    borderColor: COLORS.textTertiary, backgroundColor: COLORS.surfaceAlt, opacity: 0.6,
+    borderColor: colors.textTertiary, backgroundColor: colors.surfaceAlt, opacity: 0.6,
   },
   toggleBtnText: {
-    color: COLORS.success, fontSize: FONT_SIZES.label, fontWeight: FONT_WEIGHTS.bold,
+    color: colors.success, fontSize: FONT_SIZES.label, fontWeight: FONT_WEIGHTS.bold,
   },
 
   // Stats
   statsRow: { flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.xl },
   statCard: {
-    flex: 1, backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.lg,
+    flex: 1, backgroundColor: colors.surface, borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.lg, alignItems: 'center',
-    borderWidth: 1, borderColor: COLORS.border,
+    borderWidth: 1, borderColor: colors.border,
   },
   statNumber: { fontSize: 28, fontWeight: FONT_WEIGHTS.bold, marginBottom: 4 },
-  statLabel: { color: COLORS.textSecondary, fontSize: FONT_SIZES.small },
+  statLabel: { color: colors.textSecondary, fontSize: FONT_SIZES.small },
 
   // Alert
   alertCard: {
@@ -632,12 +636,12 @@ const styles = StyleSheet.create({
   },
   alertIcon: { marginRight: SPACING.md },
   alertContent: { flex: 1 },
-  alertTitle: { color: COLORS.amber, fontSize: FONT_SIZES.body, fontWeight: FONT_WEIGHTS.semibold },
-  alertSubtext: { color: COLORS.textSecondary, fontSize: FONT_SIZES.small, marginTop: 2 },
+  alertTitle: { color: colors.amber, fontSize: FONT_SIZES.body, fontWeight: FONT_WEIGHTS.semibold },
+  alertSubtext: { color: colors.textSecondary, fontSize: FONT_SIZES.small, marginTop: 2 },
 
   // Section
   sectionTitle: {
-    color: COLORS.textPrimary, fontSize: FONT_SIZES.body,
+    color: colors.textPrimary, fontSize: FONT_SIZES.body,
     fontWeight: FONT_WEIGHTS.semibold, marginBottom: SPACING.md,
   },
 
@@ -650,8 +654,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 107, 107, 0.12)',
     borderRadius: BORDER_RADIUS.md,
   },
-  errorBannerText: { flex: 1, color: COLORS.coralRed, fontSize: 13, lineHeight: 18 },
-  retryLink: { color: COLORS.electricTeal, fontWeight: FONT_WEIGHTS.bold, fontSize: 13 },
+  errorBannerText: { flex: 1, color: colors.coralRed, fontSize: 13, lineHeight: 18 },
+  retryLink: { color: colors.electricTeal, fontWeight: FONT_WEIGHTS.bold, fontSize: 13 },
   infoBanner: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -661,9 +665,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(59, 130, 246, 0.1)',
     borderRadius: BORDER_RADIUS.md,
   },
-  infoBannerText: { flex: 1, color: COLORS.textSecondary, fontSize: 13, lineHeight: 18 },
+  infoBannerText: { flex: 1, color: colors.textSecondary, fontSize: 13, lineHeight: 18 },
   liveBadge: {
-    backgroundColor: COLORS.coralRed,
+    backgroundColor: colors.coralRed,
     minWidth: 26,
     height: 26,
     borderRadius: 13,
@@ -676,17 +680,17 @@ const styles = StyleSheet.create({
   // Action cards
   actionCard: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.lg,
+    backgroundColor: colors.surface, borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.lg, marginBottom: SPACING.md,
-    borderWidth: 1, borderColor: COLORS.border,
+    borderWidth: 1, borderColor: colors.border,
   },
   actionIcon: {
     width: 48, height: 48, borderRadius: 24,
     justifyContent: 'center', alignItems: 'center', marginRight: SPACING.md,
   },
   actionContent: { flex: 1 },
-  actionTitle: { color: COLORS.textPrimary, fontSize: 16, fontWeight: FONT_WEIGHTS.semibold },
-  actionSubtext: { color: COLORS.textSecondary, fontSize: 13, marginTop: 2 },
+  actionTitle: { color: colors.textPrimary, fontSize: 16, fontWeight: FONT_WEIGHTS.semibold },
+  actionSubtext: { color: colors.textSecondary, fontSize: 13, marginTop: 2 },
 
   // Verification Gate
   verificationGate: {
@@ -704,14 +708,14 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.xl,
   },
   gateTitle: {
-    color: COLORS.textPrimary,
+    color: colors.textPrimary,
     fontSize: 24,
     fontWeight: FONT_WEIGHTS.bold,
     textAlign: 'center',
     marginBottom: SPACING.md,
   },
   gateDescription: {
-    color: COLORS.textSecondary,
+    color: colors.textSecondary,
     fontSize: 16,
     textAlign: 'center',
     lineHeight: 24,
@@ -720,13 +724,13 @@ const styles = StyleSheet.create({
   },
   gateButton: {
     flexDirection: 'row',
-    backgroundColor: COLORS.electricTeal,
+    backgroundColor: colors.electricTeal,
     paddingVertical: SPACING.lg,
     paddingHorizontal: SPACING['2xl'],
     borderRadius: BORDER_RADIUS.lg,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: COLORS.electricTeal,
+    shadowColor: colors.electricTeal,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -741,15 +745,15 @@ const styles = StyleSheet.create({
   gatePendingBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: `${COLORS.amber}10`,
+    backgroundColor: `${colors.amber}10`,
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
     borderRadius: BORDER_RADIUS.md,
     borderWidth: 1,
-    borderColor: `${COLORS.amber}30`,
+    borderColor: `${colors.amber}30`,
   },
   gatePendingText: {
-    color: COLORS.amber,
+    color: colors.amber,
     fontSize: 14,
     fontWeight: FONT_WEIGHTS.medium,
   },

@@ -25,11 +25,19 @@ import {
   getStripeWebhookSecret,
 } from './stripe-config';
 
+/** Temporary test mode — set MOCK_PAYMENTS=true in .env (blocked in production). */
+function isMockPaymentsEnabled(): boolean {
+  if (process.env.NODE_ENV === 'production') return false;
+  const flag = (process.env.MOCK_PAYMENTS || '').trim().toLowerCase();
+  return flag === 'true' || flag === '1' || flag === 'yes';
+}
+
 @Injectable()
 export class PaymentsService {
-  private stripe: Stripe;
+  private stripe: Stripe | null = null;
   private readonly publishableKey: string;
   private readonly webhookSecret: string;
+  private readonly mockPayments: boolean;
   private readonly logger = new Logger(PaymentsService.name);
 
   constructor(
@@ -43,6 +51,17 @@ export class PaymentsService {
     @Inject(forwardRef(() => BookingsService))
     private readonly bookingsService: BookingsService,
   ) {
+    this.mockPayments = isMockPaymentsEnabled();
+
+    if (this.mockPayments) {
+      this.publishableKey = process.env.STRIPE_PUBLISHABLE_KEY || 'pk_test_mock';
+      this.webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || 'whsec_mock';
+      this.logger.warn(
+        'MOCK_PAYMENTS=true — Stripe charges and card checks are bypassed. Turn this off before shipping.',
+      );
+      return;
+    }
+
     const key = getStripeServerKey('payments')!;
     this.publishableKey = getStripePublishableKey(key);
     this.webhookSecret = getStripeWebhookSecret('payments')!;
@@ -51,7 +70,31 @@ export class PaymentsService {
     });
   }
 
+  private requireStripe(): Stripe {
+    if (!this.stripe) {
+      throw new HttpException(
+        'Stripe is not configured (mock payments mode or missing keys)',
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+    return this.stripe;
+  }
+
+  private mockPaymentMethod(userId: string) {
+    return {
+      id: `pm_mock_${userId}`,
+      brand: 'visa',
+      last4: '4242',
+      expMonth: 12,
+      expYear: 2030,
+    };
+  }
+
   async getOrCreateCustomer(userId: string): Promise<string> {
+    if (this.mockPayments) {
+      return `cus_mock_${userId}`;
+    }
+
     const user = await this.userModel
       .findById(userId)
       .select('+stripeCustomerId');
@@ -61,7 +104,7 @@ export class PaymentsService {
       return user.stripeCustomerId;
     }
 
-    const customer = await this.stripe.customers.create({
+    const customer = await this.requireStripe().customers.create({
       email: user.email,
       name: `${user.firstName} ${user.lastName}`,
       metadata: { userId: user._id.toString() },
@@ -74,15 +117,27 @@ export class PaymentsService {
   }
 
   async createSetupIntent(userId: string) {
+    if (this.mockPayments) {
+      return {
+        setupIntent: `seti_mock_${userId}_secret_mock`,
+        ephemeralKey: `ek_mock_${userId}`,
+        customer: `cus_mock_${userId}`,
+        publishableKey: this.publishableKey,
+        mockPayments: true,
+        message:
+          'Mock payments enabled — a test card is already available. You do not need to add a real card.',
+      };
+    }
+
     try {
       const customerId = await this.getOrCreateCustomer(userId);
 
-      const ephemeralKey = await this.stripe.ephemeralKeys.create(
+      const ephemeralKey = await this.requireStripe().ephemeralKeys.create(
         { customer: customerId },
         { apiVersion: '2022-11-15' as any },
       );
 
-      const setupIntent = await this.stripe.setupIntents.create({
+      const setupIntent = await this.requireStripe().setupIntents.create({
         customer: customerId,
         payment_method_types: ['card'],
       });
@@ -99,9 +154,13 @@ export class PaymentsService {
   }
 
   async getPaymentMethods(userId: string) {
+    if (this.mockPayments) {
+      return [this.mockPaymentMethod(userId)];
+    }
+
     try {
       const customerId = await this.getOrCreateCustomer(userId);
-      const paymentMethods = await this.stripe.paymentMethods.list({
+      const paymentMethods = await this.requireStripe().paymentMethods.list({
         customer: customerId,
         type: 'card',
       });
@@ -130,10 +189,27 @@ export class PaymentsService {
     metadata?: Record<string, string>,
     idempotencyKey?: string,
   ) {
+    if (this.mockPayments) {
+      const id = `pi_mock_${idempotencyKey || `${userId}_${Date.now()}`}`
+        .replace(/[^a-zA-Z0-9_]/g, '_')
+        .slice(0, 64);
+      this.logger.log(
+        `MOCK charge £${amount.toFixed(2)} for user ${userId}: ${description}`,
+      );
+      return {
+        id,
+        status: 'succeeded',
+        amount: Math.round(amount * 100),
+        currency: 'gbp',
+        description,
+        metadata: { userId: String(userId), mock: 'true', ...metadata },
+      } as unknown as Stripe.PaymentIntent;
+    }
+
     try {
       const customerId = await this.getOrCreateCustomer(userId);
 
-      const paymentMethods = await this.stripe.paymentMethods.list({
+      const paymentMethods = await this.requireStripe().paymentMethods.list({
         customer: customerId,
         type: 'card',
       });
@@ -147,7 +223,7 @@ export class PaymentsService {
 
       const userIdStr = typeof userId === 'string' ? userId : String(userId);
 
-      const paymentIntent = await this.stripe.paymentIntents.create(
+      const paymentIntent = await this.requireStripe().paymentIntents.create(
         {
           amount: Math.round(amount * 100),
           currency: 'gbp',
@@ -185,8 +261,13 @@ export class PaymentsService {
     payload: string | Buffer,
     signature: string,
   ): Stripe.Event {
+    if (this.mockPayments) {
+      throw new InternalServerErrorException(
+        'Payment webhooks are disabled while MOCK_PAYMENTS=true',
+      );
+    }
     try {
-      return this.stripe.webhooks.constructEvent(
+      return this.requireStripe().webhooks.constructEvent(
         payload,
         signature,
         this.webhookSecret,
@@ -324,8 +405,19 @@ export class PaymentsService {
     amount?: number,
     idempotencyKey?: string,
   ): Promise<Stripe.Refund> {
+    if (this.mockPayments) {
+      return {
+        id: `re_mock_${Date.now()}`,
+        object: 'refund',
+        amount: amount !== undefined ? Math.round(amount * 100) : 0,
+        currency: 'gbp',
+        payment_intent: paymentIntentId,
+        status: 'succeeded',
+      } as unknown as Stripe.Refund;
+    }
+
     try {
-      const refund = await this.stripe.refunds.create(
+      const refund = await this.requireStripe().refunds.create(
         {
           payment_intent: paymentIntentId,
           ...(amount !== undefined ? { amount: Math.round(amount * 100) } : {}),

@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, SafeAreaView, Platform,
 } from 'react-native';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
+import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, ThemeColors } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, NavigationProp, useRoute, RouteProp } from '@react-navigation/native';
 
@@ -12,7 +13,7 @@ type Params = {
   ServiceChoice: { mode: ServiceMode };
 };
 
-const CONFIG: Record<ServiceMode, {
+const getConfig = (colors: ThemeColors): Record<ServiceMode, {
   title: string;
   searchTitle: string;
   searchDesc: string;
@@ -21,7 +22,7 @@ const CONFIG: Record<ServiceMode, {
   requestDesc: string;
   requestIcon: keyof typeof Ionicons.glyphMap;
   color: string;
-}> = {
+}> => ({
   driver: {
     title: 'Book a Driver',
     searchTitle: 'Search for a Driver',
@@ -30,7 +31,7 @@ const CONFIG: Record<ServiceMode, {
     requestTitle: 'Submit a Request',
     requestDesc: 'Tell us your location, duration, and timing — we\'ll match you with a driver.',
     requestIcon: 'paper-plane',
-    color: COLORS.info,
+    color: colors.info,
   },
   taxi: {
     title: 'Hire a Taxi',
@@ -40,15 +41,17 @@ const CONFIG: Record<ServiceMode, {
     requestTitle: 'Request a Taxi',
     requestDesc: 'Enter your pickup and destination — nearby drivers will be notified instantly.',
     requestIcon: 'navigate',
-    color: COLORS.amber,
+    color: colors.amber,
   },
-};
+});
 
 export function ServiceChoiceScreen() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const navigation = useNavigation<NavigationProp<any>>();
   const route = useRoute<RouteProp<Params, 'ServiceChoice'>>();
   const mode = route.params?.mode || 'driver';
-  const config = CONFIG[mode];
+  const config = getConfig(colors)[mode];
 
   const handleSearch = () => {
     navigation.navigate('ConsumerTabs', {
@@ -71,7 +74,7 @@ export function ServiceChoiceScreen() {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
+            <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>{config.title}</Text>
           <View style={{ width: 32 }} />
@@ -113,22 +116,22 @@ export function ServiceChoiceScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: COLORS.background },
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: colors.background },
   container: { flex: 1 },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: SPACING.lg,
     paddingTop: Platform.OS === 'android' ? SPACING.xl : SPACING.sm,
     paddingBottom: SPACING.md,
-    borderBottomWidth: 1, borderBottomColor: COLORS.border,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
   },
   backBtn: { padding: SPACING.xs },
   headerTitle: {
-    color: COLORS.textPrimary, fontSize: FONT_SIZES.section, fontWeight: FONT_WEIGHTS.bold,
+    color: colors.textPrimary, fontSize: FONT_SIZES.section, fontWeight: FONT_WEIGHTS.bold,
   },
   subtitle: {
-    color: COLORS.textSecondary, fontSize: FONT_SIZES.body,
+    color: colors.textSecondary, fontSize: FONT_SIZES.body,
     textAlign: 'center', marginTop: SPACING.xl, marginBottom: SPACING.lg,
     paddingHorizontal: SPACING.xl,
   },
@@ -136,9 +139,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg, gap: SPACING.lg,
   },
   choiceCard: {
-    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.xl,
+    backgroundColor: colors.surface, borderRadius: BORDER_RADIUS.xl,
     padding: SPACING.xl, alignItems: 'center',
-    borderWidth: 1, borderColor: COLORS.border,
+    borderWidth: 1, borderColor: colors.border,
     shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 8, shadowOffset: { width: 0, height: 2 },
     elevation: 2,
   },
@@ -147,11 +150,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center', marginBottom: SPACING.lg,
   },
   choiceTitle: {
-    color: COLORS.textPrimary, fontSize: 18, fontWeight: FONT_WEIGHTS.bold,
+    color: colors.textPrimary, fontSize: 18, fontWeight: FONT_WEIGHTS.bold,
     marginBottom: SPACING.xs, textAlign: 'center',
   },
   choiceDesc: {
-    color: COLORS.textSecondary, fontSize: FONT_SIZES.label, textAlign: 'center',
+    color: colors.textSecondary, fontSize: FONT_SIZES.label, textAlign: 'center',
     lineHeight: 20, marginBottom: SPACING.lg, paddingHorizontal: SPACING.md,
   },
   actionPill: {

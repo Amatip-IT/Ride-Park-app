@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator,
   RefreshControl, TextInput, Alert,
 } from 'react-native';
 import { adminApi } from '@/api';
-import { COLORS, SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '@/constants/theme';
+import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS, ThemeColors } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { Ionicons } from '@expo/vector-icons';
 import { AdminScreenLayout } from '@/components/admin/AdminScreenLayout';
 import { AdminFormModal } from '@/components/admin/AdminFormModal';
@@ -30,11 +31,11 @@ const FILTER_TABS = [
   { id: 'expired', label: 'Expired' },
 ];
 
-const ALERT_COLORS: Record<string, string> = {
-  '30_day': COLORS.amber,
-  '7_day': COLORS.error,
-  expired: COLORS.error,
-};
+const getAlertColors = (colors: ThemeColors): Record<string, string> => ({
+  '30_day': colors.amber,
+  '7_day': colors.error,
+  expired: colors.error,
+});
 
 type ExpiringRecord = {
   _id: string;
@@ -57,6 +58,9 @@ type RenewModal = {
 } | null;
 
 export function AdminExpiringDocumentsScreen() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const ALERT_COLORS = getAlertColors(colors);
   const [records, setRecords] = useState<ExpiringRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -148,7 +152,7 @@ export function AdminExpiringDocumentsScreen() {
         </View>
 
         {item.expiringDocuments.map((doc) => {
-          const color = ALERT_COLORS[doc.alertLevel] || COLORS.textSecondary;
+          const color = ALERT_COLORS[doc.alertLevel] || colors.textSecondary;
           return (
             <View key={doc.docField} style={styles.docRow}>
               <View style={{ flex: 1 }}>
@@ -212,7 +216,7 @@ export function AdminExpiringDocumentsScreen() {
       >
         {loading ? (
           <View style={styles.centered}>
-            <ActivityIndicator size="large" color={COLORS.electricTeal} />
+            <ActivityIndicator size="large" color={colors.electricTeal} />
           </View>
         ) : (
           <FlatList
@@ -222,11 +226,11 @@ export function AdminExpiringDocumentsScreen() {
             contentContainerStyle={styles.listContent}
             keyboardDismissMode="on-drag"
             refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.electricTeal} />
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.electricTeal} />
             }
             ListEmptyComponent={
               <View style={styles.centered}>
-                <Ionicons name="document-text-outline" size={48} color={COLORS.textTertiary} />
+                <Ionicons name="document-text-outline" size={48} color={colors.textTertiary} />
                 <Text style={styles.emptyText}>No expiring documents in this category.</Text>
               </View>
             }
@@ -247,7 +251,7 @@ export function AdminExpiringDocumentsScreen() {
         <TextInput
           style={styles.modalInput}
           placeholder="New expiry date (YYYY-MM-DD)"
-          placeholderTextColor={COLORS.textTertiary}
+          placeholderTextColor={colors.textTertiary}
           value={newExpiryDate}
           onChangeText={setNewExpiryDate}
           returnKeyType="done"
@@ -272,59 +276,59 @@ export function AdminExpiringDocumentsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   tabsRow: {
     flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm,
     padding: SPACING.md,
   },
   filterTab: {
     paddingHorizontal: SPACING.md, paddingVertical: 6, borderRadius: 16,
-    borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surface,
+    borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface,
   },
-  filterTabActive: { backgroundColor: COLORS.electricTeal, borderColor: COLORS.electricTeal },
-  filterTabText: { fontSize: 13, color: COLORS.textSecondary, fontWeight: FONT_WEIGHTS.medium },
+  filterTabActive: { backgroundColor: colors.electricTeal, borderColor: colors.electricTeal },
+  filterTabText: { fontSize: 13, color: colors.textSecondary, fontWeight: FONT_WEIGHTS.medium },
   filterTabTextActive: { color: '#FFF' },
   listContent: { padding: SPACING.md },
   card: {
-    backgroundColor: '#FFF', borderRadius: BORDER_RADIUS.lg, padding: SPACING.lg,
-    marginBottom: SPACING.md, borderWidth: 1, borderColor: COLORS.border,
+    backgroundColor: colors.surface, borderRadius: BORDER_RADIUS.lg, padding: SPACING.lg,
+    marginBottom: SPACING.md, borderWidth: 1, borderColor: colors.border,
   },
   cardHeader: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: SPACING.md },
-  driverName: { fontSize: 16, fontWeight: FONT_WEIGHTS.bold, color: COLORS.textPrimary },
-  driverEmail: { fontSize: 13, color: COLORS.textSecondary, marginTop: 2 },
-  providerType: { fontSize: 12, color: COLORS.textTertiary, marginTop: 2 },
+  driverName: { fontSize: 16, fontWeight: FONT_WEIGHTS.bold, color: colors.textPrimary },
+  driverEmail: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
+  providerType: { fontSize: 12, color: colors.textTertiary, marginTop: 2 },
   disabledBadge: {
-    backgroundColor: `${COLORS.error}15`, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8,
+    backgroundColor: `${colors.error}15`, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8,
   },
-  disabledBadgeText: { fontSize: 11, color: COLORS.error, fontWeight: FONT_WEIGHTS.bold },
+  disabledBadgeText: { fontSize: 11, color: colors.error, fontWeight: FONT_WEIGHTS.bold },
   docRow: {
     flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
-    paddingVertical: SPACING.sm, borderTopWidth: 1, borderTopColor: COLORS.divider,
+    paddingVertical: SPACING.sm, borderTopWidth: 1, borderTopColor: colors.divider,
   },
-  docName: { fontSize: 14, fontWeight: FONT_WEIGHTS.medium, color: COLORS.textPrimary },
-  docMeta: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
+  docName: { fontSize: 14, fontWeight: FONT_WEIGHTS.medium, color: colors.textPrimary },
+  docMeta: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
   alertPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
   alertPillText: { fontSize: 11, fontWeight: FONT_WEIGHTS.bold },
   renewBtn: {
     paddingHorizontal: SPACING.sm, paddingVertical: 6,
-    borderRadius: BORDER_RADIUS.sm, backgroundColor: COLORS.electricTeal,
+    borderRadius: BORDER_RADIUS.sm, backgroundColor: colors.electricTeal,
   },
   renewBtnText: { color: '#FFF', fontSize: 12, fontWeight: FONT_WEIGHTS.bold },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: SPACING.xl },
-  emptyText: { marginTop: SPACING.md, fontSize: 15, color: COLORS.textSecondary, textAlign: 'center' },
+  emptyText: { marginTop: SPACING.md, fontSize: 15, color: colors.textSecondary, textAlign: 'center' },
   modalInput: {
-    backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border,
-    borderRadius: BORDER_RADIUS.lg, padding: SPACING.md, color: COLORS.textPrimary, fontSize: 14,
+    backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border,
+    borderRadius: BORDER_RADIUS.lg, padding: SPACING.md, color: colors.textPrimary, fontSize: 14,
   },
   modalActions: { flexDirection: 'row', gap: SPACING.md, marginTop: SPACING.lg },
   modalCancel: {
     flex: 1, paddingVertical: SPACING.md, borderRadius: BORDER_RADIUS.lg,
-    borderWidth: 1, borderColor: COLORS.border, alignItems: 'center',
+    borderWidth: 1, borderColor: colors.border, alignItems: 'center',
   },
-  modalCancelText: { color: COLORS.textSecondary, fontWeight: FONT_WEIGHTS.bold },
+  modalCancelText: { color: colors.textSecondary, fontWeight: FONT_WEIGHTS.bold },
   modalConfirm: {
     flex: 1, paddingVertical: SPACING.md, borderRadius: BORDER_RADIUS.lg,
-    backgroundColor: COLORS.electricTeal, alignItems: 'center',
+    backgroundColor: colors.electricTeal, alignItems: 'center',
   },
   modalConfirmText: { color: '#FFF', fontWeight: FONT_WEIGHTS.bold },
 });

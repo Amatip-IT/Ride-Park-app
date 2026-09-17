@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,8 @@ import {
   Platform,
   Alert,
 } from 'react-native';
-import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS, FONT_WEIGHTS } from '@/constants/theme';
+import { SPACING, FONT_SIZES, BORDER_RADIUS, FONT_WEIGHTS, ThemeColors } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { authService } from '@/api/authService';
 import { isStrongPassword, PASSWORD_STRENGTH_MESSAGE } from '@/utils/helpers';
 import { useNavigation, NavigationProp } from '@react-navigation/native';
@@ -20,6 +21,8 @@ import { Ionicons } from '@expo/vector-icons';
 type ForgotPasswordStep = 'email' | 'reset';
 
 export function ForgotPasswordScreen() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   
   const [step, setStep] = useState<ForgotPasswordStep>('email');
@@ -76,7 +79,7 @@ export function ForgotPasswordScreen() {
       const res = await authService.resetPassword(email, otp, newPassword);
       if (res.success || res.message?.toLowerCase().includes('successfully')) {
         Alert.alert('Success', 'Your password has been reset successfully. You can now login.', [
-          { text: 'OK', onPress: () => navigation.navigate('Auth', { isLogin: true }) }
+          { text: 'OK', onPress: () => navigation.navigate('Auth', { isLogin: true, role: 'user' }, { merge: false }) }
         ]);
       } else {
         setError(res.message || 'Failed to reset password');
@@ -95,7 +98,7 @@ export function ForgotPasswordScreen() {
     >
       <View style={styles.header}>
         <TouchableOpacity onPress={() => step === 'reset' ? setStep('email') : navigation.goBack()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
+          <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Forgot Password</Text>
         <View style={{ width: 40 }} />
@@ -112,7 +115,7 @@ export function ForgotPasswordScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="Email Address"
-                placeholderTextColor={COLORS.textTertiary}
+                placeholderTextColor={colors.textTertiary}
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
@@ -129,7 +132,7 @@ export function ForgotPasswordScreen() {
               disabled={loading}
             >
               {loading ? (
-                <ActivityIndicator color={COLORS.background} />
+                <ActivityIndicator color={colors.background} />
               ) : (
                 <Text style={styles.buttonText}>Send Code</Text>
               )}
@@ -145,7 +148,7 @@ export function ForgotPasswordScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="6-Digit OTP Code"
-                placeholderTextColor={COLORS.textTertiary}
+                placeholderTextColor={colors.textTertiary}
                 value={otp}
                 onChangeText={(text) => setOtp(text.replace(/[^0-9]/g, '').slice(0, 6))}
                 keyboardType="numeric"
@@ -158,7 +161,7 @@ export function ForgotPasswordScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="New Password (min 8 chars)"
-                placeholderTextColor={COLORS.textTertiary}
+                placeholderTextColor={colors.textTertiary}
                 value={newPassword}
                 onChangeText={setNewPassword}
                 secureTextEntry={!showNewPassword}
@@ -168,7 +171,7 @@ export function ForgotPasswordScreen() {
                 style={styles.eyeIcon} 
                 onPress={() => setShowNewPassword(!showNewPassword)}
               >
-                <Ionicons name={showNewPassword ? "eye-off-outline" : "eye-outline"} size={20} color={COLORS.textTertiary} />
+                <Ionicons name={showNewPassword ? "eye-off-outline" : "eye-outline"} size={20} color={colors.textTertiary} />
               </TouchableOpacity>
             </View>
 
@@ -176,7 +179,7 @@ export function ForgotPasswordScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="Confirm New Password"
-                placeholderTextColor={COLORS.textTertiary}
+                placeholderTextColor={colors.textTertiary}
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
                 secureTextEntry={!showConfirmPassword}
@@ -186,7 +189,7 @@ export function ForgotPasswordScreen() {
                 style={styles.eyeIcon} 
                 onPress={() => setShowConfirmPassword(!showConfirmPassword)}
               >
-                <Ionicons name={showConfirmPassword ? "eye-off-outline" : "eye-outline"} size={20} color={COLORS.textTertiary} />
+                <Ionicons name={showConfirmPassword ? "eye-off-outline" : "eye-outline"} size={20} color={colors.textTertiary} />
               </TouchableOpacity>
             </View>
 
@@ -198,7 +201,7 @@ export function ForgotPasswordScreen() {
               disabled={loading}
             >
               {loading ? (
-                <ActivityIndicator color={COLORS.background} />
+                <ActivityIndicator color={colors.background} />
               ) : (
                 <Text style={styles.buttonText}>Reset Password</Text>
               )}
@@ -218,10 +221,10 @@ export function ForgotPasswordScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -231,7 +234,7 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'ios' ? 60 : 30,
     paddingBottom: SPACING.md,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: colors.border,
   },
   backBtn: {
     padding: SPACING.xs,
@@ -239,7 +242,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: FONT_SIZES.section,
     fontWeight: FONT_WEIGHTS.bold,
-    color: COLORS.textPrimary,
+    color: colors.textPrimary,
   },
   content: {
     flex: 1,
@@ -248,7 +251,7 @@ const styles = StyleSheet.create({
   },
   instruction: {
     fontSize: FONT_SIZES.body,
-    color: COLORS.textSecondary,
+    color: colors.textSecondary,
     marginBottom: SPACING.xl,
     lineHeight: 22,
     textAlign: 'center',
@@ -257,13 +260,13 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.lg,
   },
   input: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
     borderRadius: BORDER_RADIUS.md,
     padding: SPACING.md,
-    color: COLORS.textPrimary,
+    color: colors.textPrimary,
     fontSize: FONT_SIZES.body,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
     height: 50,
   },
   eyeIcon: {
@@ -272,7 +275,7 @@ const styles = StyleSheet.create({
     top: 15,
   },
   button: {
-    backgroundColor: COLORS.electricTeal,
+    backgroundColor: colors.electricTeal,
     borderRadius: BORDER_RADIUS.md,
     padding: SPACING.lg,
     alignItems: 'center',
@@ -287,7 +290,7 @@ const styles = StyleSheet.create({
     fontWeight: FONT_WEIGHTS.bold,
   },
   error: {
-    color: COLORS.error,
+    color: colors.error,
     fontSize: FONT_SIZES.small,
     marginBottom: SPACING.lg,
     textAlign: 'center',
@@ -297,7 +300,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   resendText: {
-    color: COLORS.electricTeal,
+    color: colors.electricTeal,
     fontSize: FONT_SIZES.body,
     fontWeight: FONT_WEIGHTS.medium,
   },

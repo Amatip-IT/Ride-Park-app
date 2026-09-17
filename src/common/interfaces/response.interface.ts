@@ -7,6 +7,7 @@ export interface Response {
   requiresOTP?: boolean;
   isVerified?: boolean;
   expiresIn?: string;
+  retryAfter?: number;
   meta?: {
     total?: number;
     page?: number;

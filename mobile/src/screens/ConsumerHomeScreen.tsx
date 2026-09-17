@@ -183,7 +183,7 @@ const makeStyles = (colors: ThemeColors) =>
       width: 36,
       height: 36,
       borderRadius: 18,
-      backgroundColor: colors.deepNavy,
+      backgroundColor: colors.electricTeal,
       justifyContent: 'center',
       alignItems: 'center',
       marginRight: SPACING.md,

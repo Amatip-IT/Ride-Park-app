@@ -34,7 +34,14 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   isOnboarded: false,
   error: null,
 
-  setUser: (user: User | null) => set({ user, isAuthenticated: !!user }),
+  setUser: (user: User | null) => {
+    set({ user, isAuthenticated: !!user });
+    if (user) {
+      secureStorage.setItem(AUTH_USER_KEY, JSON.stringify(user)).catch(() => {});
+    } else {
+      secureStorage.removeItem(AUTH_USER_KEY).catch(() => {});
+    }
+  },
   setToken: (token: string | null) => set({ token }),
   setIsLoading: (loading: boolean) => set({ isLoading: loading }),
   setIsOnboarded: (onboarded: boolean) => set({ isOnboarded: onboarded }),

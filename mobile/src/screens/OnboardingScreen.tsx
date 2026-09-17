@@ -1,15 +1,18 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, Image } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '@/navigation/RootNavigator';
-import { COLORS, SPACING, FONT_SIZES, BORDER_RADIUS } from '@/constants/theme';
+import { SPACING, FONT_SIZES, BORDER_RADIUS, ThemeColors } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { useAuthStore } from '@/store/authStore';
 import { secureStorage } from '@/utils/secureStorage';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Onboarding'>;
 
 export function OnboardingScreen() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const navigation = useNavigation<NavigationProp>();
   const { setIsOnboarded } = useAuthStore();
   const [showProviderOptions, setShowProviderOptions] = useState(false);
@@ -20,16 +23,19 @@ export function OnboardingScreen() {
     }, []),
   );
 
-  const navigateToAuth = async (isLogin: boolean, role?: 'user' | 'parking_provider' | 'driver' | 'taxi_driver') => {
+  const navigateToAuth = async (
+    isLogin: boolean,
+    role: 'user' | 'parking_provider' | 'driver' | 'taxi_driver' = 'user',
+  ) => {
     try {
       // Mark as onboarded
       await secureStorage.setItem('onboarded', 'true');
       setIsOnboarded(true);
-      navigation.navigate('Auth', { isLogin, role });
+      // Always pass an explicit role so React Navigation does not keep a stale provider role
+      navigation.navigate('Auth', { isLogin, role }, { merge: false });
     } catch (error) {
       console.log('Error marking onboarding complete:', error);
-      // Still navigate even if storage fails
-      navigation.navigate('Auth', { isLogin, role });
+      navigation.navigate('Auth', { isLogin, role }, { merge: false });
     }
   };
 
@@ -65,7 +71,7 @@ export function OnboardingScreen() {
 
             <TouchableOpacity
               style={styles.loginContainer}
-              onPress={() => navigateToAuth(true)}
+              onPress={() => navigateToAuth(true, 'user')}
             >
               <Text style={styles.loginText}>Already have an account? <Text style={styles.loginLink}>Log In</Text></Text>
             </TouchableOpacity>
@@ -78,14 +84,14 @@ export function OnboardingScreen() {
               style={[styles.button, styles.providerButton]}
               onPress={() => navigateToAuth(false, 'parking_provider')}
             >
-              <Text style={styles.providerButtonText}>Register Parking Space</Text>
+              <Text style={styles.providerButtonText}>Register as Park Owner</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={[styles.button, styles.providerButton]}
               onPress={() => navigateToAuth(false, 'driver')}
             >
-              <Text style={styles.providerButtonText}>Register as Driver (Hire)</Text>
+              <Text style={styles.providerButtonText}>Register as Driver</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -108,10 +114,10 @@ export function OnboardingScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: colors.background,
   },
   content: {
     flex: 1,
@@ -129,7 +135,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: FONT_SIZES.body,
-    color: COLORS.textSecondary,
+    color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: 24,
     paddingHorizontal: SPACING.lg,
@@ -140,7 +146,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: FONT_SIZES.section,
-    color: COLORS.textPrimary,
+    color: colors.textPrimary,
     fontWeight: '600',
     marginBottom: SPACING.xl,
     textAlign: 'center',
@@ -153,7 +159,7 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
   },
   primaryButton: {
-    backgroundColor: COLORS.electricTeal,
+    backgroundColor: colors.electricTeal,
   },
   primaryButtonText: {
     color: '#FFF',
@@ -163,18 +169,18 @@ const styles = StyleSheet.create({
   secondaryButton: {
     backgroundColor: 'transparent',
     borderWidth: 2,
-    borderColor: COLORS.electricTeal,
+    borderColor: colors.electricTeal,
   },
   secondaryButtonText: {
-    color: COLORS.electricTeal,
+    color: colors.electricTeal,
     fontSize: FONT_SIZES.body,
     fontWeight: '700',
   },
   providerButton: {
-    backgroundColor: COLORS.surfaceAlt,
+    backgroundColor: colors.surfaceAlt,
   },
   providerButtonText: {
-    color: COLORS.textPrimary,
+    color: colors.textPrimary,
     fontSize: FONT_SIZES.body,
     fontWeight: '600',
   },
@@ -183,11 +189,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loginText: {
-    color: COLORS.textSecondary,
+    color: colors.textSecondary,
     fontSize: FONT_SIZES.body,
   },
   loginLink: {
-    color: COLORS.electricTeal,
+    color: colors.electricTeal,
     fontWeight: '600',
   },
   backButton: {
@@ -196,7 +202,7 @@ const styles = StyleSheet.create({
     padding: SPACING.sm,
   },
   backButtonText: {
-    color: COLORS.textSecondary,
+    color: colors.textSecondary,
     fontSize: FONT_SIZES.body,
     fontWeight: '600',
   },

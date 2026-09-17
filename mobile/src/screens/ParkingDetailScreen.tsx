@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Platform, SafeAreaView, ActivityIndicator, Alert, Image, TextInput,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
+import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, ThemeColors } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute, RouteProp, useNavigation } from '@react-navigation/native';
 import { searchApi, bookingsApi } from '@/api';
@@ -17,6 +18,8 @@ type ParkingDetailParams = {
 };
 
 export function ParkingDetailScreen() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const route = useRoute<RouteProp<ParkingDetailParams, 'ParkingDetail'>>();
   const navigation = useNavigation();
   const { spaceId, space: passedSpace } = route.params || {};
@@ -174,7 +177,7 @@ export function ParkingDetailScreen() {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.electricTeal} />
+          <ActivityIndicator size="large" color={colors.electricTeal} />
         </View>
       </SafeAreaView>
     );
@@ -184,7 +187,7 @@ export function ParkingDetailScreen() {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.loadingContainer}>
-          <Ionicons name="alert-circle-outline" size={64} color={COLORS.softSlate} />
+          <Ionicons name="alert-circle-outline" size={64} color={colors.softSlate} />
           <Text style={styles.errorText}>Parking space not found</Text>
         </View>
       </SafeAreaView>
@@ -202,7 +205,7 @@ export function ParkingDetailScreen() {
       {/* Back button */}
       <View style={styles.topBar}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={24} color={COLORS.cloudWhite} />
+          <Ionicons name="arrow-back" size={24} color={colors.cloudWhite} />
         </TouchableOpacity>
         <Text style={styles.topBarTitle}>Parking Details</Text>
         <View style={{ width: 40 }} />
@@ -218,7 +221,7 @@ export function ParkingDetailScreen() {
           </ScrollView>
         ) : (
           <View style={styles.noPhotoContainer}>
-            <Ionicons name="image-outline" size={48} color={COLORS.softSlate} />
+            <Ionicons name="image-outline" size={48} color={colors.softSlate} />
             <Text style={styles.noPhotoText}>No photos available</Text>
           </View>
         )}
@@ -227,8 +230,8 @@ export function ParkingDetailScreen() {
         {space.cctvPhotos && space.cctvPhotos.length > 0 && (
           <View style={{ paddingHorizontal: SPACING.lg, marginTop: SPACING.md }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: SPACING.sm }}>
-              <Ionicons name="videocam-outline" size={18} color={COLORS.electricTeal} />
-              <Text style={{ color: COLORS.textPrimary, fontSize: 15, fontWeight: FONT_WEIGHTS.bold, marginLeft: SPACING.xs }}>
+              <Ionicons name="videocam-outline" size={18} color={colors.electricTeal} />
+              <Text style={{ color: colors.textPrimary, fontSize: 15, fontWeight: FONT_WEIGHTS.bold, marginLeft: SPACING.xs }}>
                 CCTV & Security
               </Text>
             </View>
@@ -237,7 +240,7 @@ export function ParkingDetailScreen() {
                 <Image
                   key={`cctv-${index}`}
                   source={{ uri: photo }}
-                  style={{ width: 140, height: 100, borderRadius: BORDER_RADIUS.md, marginRight: SPACING.sm, borderWidth: 1, borderColor: COLORS.border }}
+                  style={{ width: 140, height: 100, borderRadius: BORDER_RADIUS.md, marginRight: SPACING.sm, borderWidth: 1, borderColor: colors.border }}
                   resizeMode="cover"
                 />
               ))}
@@ -252,19 +255,19 @@ export function ParkingDetailScreen() {
           {/* Quick Metrics Grid */}
           <View style={styles.metricsGrid}>
             <View style={styles.metricItem}>
-              <Ionicons name="time-outline" size={24} color={COLORS.electricTeal} />
+              <Ionicons name="time-outline" size={24} color={colors.electricTeal} />
               <Text style={styles.metricText}>{space.openingTimes?.['Everyday'] || space.openingTimes?.['Monday'] || 'Not specified'}</Text>
             </View>
             <View style={styles.metricItem}>
-              <Ionicons name="car-outline" size={24} color={COLORS.electricTeal} />
+              <Ionicons name="car-outline" size={24} color={colors.electricTeal} />
               <Text style={styles.metricText}>{space.totalSpots ? `${space.totalSpots} spaces` : 'Capacity not specified'}</Text>
             </View>
             <View style={styles.metricItem}>
-              <Ionicons name="stopwatch-outline" size={24} color={COLORS.electricTeal} />
+              <Ionicons name="stopwatch-outline" size={24} color={colors.electricTeal} />
               <Text style={styles.metricText}>{space.parkingType || 'Not specified'}</Text>
             </View>
             <View style={styles.metricItem}>
-              <Ionicons name="phone-portrait-outline" size={24} color={COLORS.electricTeal} />
+              <Ionicons name="phone-portrait-outline" size={24} color={colors.electricTeal} />
               <Text style={styles.metricText}>{space.bookingMethods?.length ? space.bookingMethods.join(', ') : 'Not specified'}</Text>
             </View>
           </View>
@@ -277,7 +280,7 @@ export function ParkingDetailScreen() {
             </Text>
             <TouchableOpacity style={styles.linkButton} onPress={openDirections} activeOpacity={0.7}>
               <Text style={styles.linkText}>Get directions to this car park</Text>
-              <Ionicons name="open-outline" size={14} color={COLORS.electricTeal} style={{ marginLeft: 4 }} />
+              <Ionicons name="open-outline" size={14} color={colors.electricTeal} style={{ marginLeft: 4 }} />
             </TouchableOpacity>
             <Text style={styles.blockSubText}>Location ID: {space.locationId || 'Not set'}</Text>
 
@@ -291,7 +294,7 @@ export function ParkingDetailScreen() {
               </View>
             ) : (
               <View style={styles.mapPlaceholder}>
-                <Ionicons name="map-outline" size={32} color={COLORS.softSlate} />
+                <Ionicons name="map-outline" size={32} color={colors.softSlate} />
                 <Text style={styles.noPhotoText}>Map preview not available</Text>
               </View>
             )}
@@ -327,7 +330,7 @@ export function ParkingDetailScreen() {
           <View style={styles.blockContainer}>
             <Text style={styles.blockTitle}>Capacity</Text>
             <Text style={styles.blockText}>Maximum spaces: {space.totalSpots} (max)</Text>
-            <Text style={[styles.blockText, { marginTop: 8, color: availableSpots > 0 ? COLORS.success : COLORS.coralRed }]}>
+            <Text style={[styles.blockText, { marginTop: 8, color: availableSpots > 0 ? colors.success : colors.coralRed }]}>
               {availableSpots > 0 ? `${availableSpots} currently available` : 'Full'}
             </Text>
           </View>
@@ -344,7 +347,7 @@ export function ParkingDetailScreen() {
           
           {/* Owner details */}
           <View style={styles.infoRow}>
-            <Ionicons name="shield-checkmark" size={20} color={COLORS.electricTeal} />
+            <Ionicons name="shield-checkmark" size={20} color={colors.electricTeal} />
             <Text style={styles.infoText}>Verified by Gleezip. Managed by {ownerName}</Text>
           </View>
 
@@ -359,9 +362,9 @@ export function ParkingDetailScreen() {
             }
             activeOpacity={0.7}
           >
-            <Ionicons name="star-outline" size={18} color={COLORS.electricTeal} />
+            <Ionicons name="star-outline" size={18} color={colors.electricTeal} />
             <Text style={styles.reviewsLinkText}>Browse reviews</Text>
-            <Ionicons name="chevron-forward" size={16} color={COLORS.textTertiary} />
+            <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
           </TouchableOpacity>
         </View>
 
@@ -370,7 +373,7 @@ export function ParkingDetailScreen() {
           <Text style={styles.sectionTitle}>When do you need parking?</Text>
 
           <TouchableOpacity style={styles.dateRow} onPress={() => setShowStartPicker(true)} activeOpacity={0.7}>
-            <Ionicons name="calendar-outline" size={20} color={COLORS.electricTeal} />
+            <Ionicons name="calendar-outline" size={20} color={colors.electricTeal} />
             <View style={styles.dateRowText}>
               <Text style={styles.dateLabel}>Start</Text>
               <Text style={styles.dateValue}>
@@ -378,11 +381,11 @@ export function ParkingDetailScreen() {
                 · {startDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
               </Text>
             </View>
-            <Ionicons name="chevron-forward" size={18} color={COLORS.textTertiary} />
+            <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.dateRow} onPress={() => setShowEndPicker(true)} activeOpacity={0.7}>
-            <Ionicons name="calendar-outline" size={20} color={COLORS.electricTeal} />
+            <Ionicons name="calendar-outline" size={20} color={colors.electricTeal} />
             <View style={styles.dateRowText}>
               <Text style={styles.dateLabel}>End</Text>
               <Text style={styles.dateValue}>
@@ -390,7 +393,7 @@ export function ParkingDetailScreen() {
                 · {endDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
               </Text>
             </View>
-            <Ionicons name="chevron-forward" size={18} color={COLORS.textTertiary} />
+            <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
           </TouchableOpacity>
 
           {endDate <= startDate && (
@@ -426,7 +429,7 @@ export function ParkingDetailScreen() {
           <TextInput
             style={styles.messageInput}
             placeholder="Any questions or special requests?"
-            placeholderTextColor={COLORS.softSlate}
+            placeholderTextColor={colors.softSlate}
             value={message}
             onChangeText={setMessage}
             multiline
@@ -460,7 +463,7 @@ export function ParkingDetailScreen() {
           onPress={handleChat}
           activeOpacity={0.8}
         >
-          <Ionicons name="chatbubble-ellipses" size={24} color={COLORS.electricTeal} />
+          <Ionicons name="chatbubble-ellipses" size={24} color={colors.electricTeal} />
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -470,10 +473,10 @@ export function ParkingDetailScreen() {
           activeOpacity={0.8}
         >
           {sendingRequest ? (
-            <ActivityIndicator color={COLORS.deepNavy} />
+            <ActivityIndicator color={colors.deepNavy} />
           ) : (
             <>
-              <Ionicons name="send" size={20} color={COLORS.deepNavy} style={{ marginRight: 8 }} />
+              <Ionicons name="send" size={20} color={colors.deepNavy} style={{ marginRight: 8 }} />
               <Text style={styles.ctaText}>
                 {availableSpots === 0 ? 'No Spots Available' : 'Send Request'}
               </Text>
@@ -485,10 +488,10 @@ export function ParkingDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: COLORS.background },
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: colors.background },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  errorText: { color: COLORS.textSecondary, fontSize: 16, marginTop: SPACING.md },
+  errorText: { color: colors.textSecondary, fontSize: 16, marginTop: SPACING.md },
 
   // Top bar
   topBar: {
@@ -496,95 +499,95 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
     paddingTop: Platform.OS === 'android' ? SPACING.xl : SPACING.sm,
     paddingBottom: SPACING.md,
-    backgroundColor: COLORS.background,
+    backgroundColor: colors.background,
   },
   backBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
-  topBarTitle: { color: COLORS.textPrimary, fontSize: FONT_SIZES.body, fontWeight: FONT_WEIGHTS.bold },
+  topBarTitle: { color: colors.textPrimary, fontSize: FONT_SIZES.body, fontWeight: FONT_WEIGHTS.bold },
 
   // Photos
   photoContainer: { paddingHorizontal: SPACING.lg, marginBottom: SPACING.lg },
   photo: {
     width: 280, height: 180, borderRadius: BORDER_RADIUS.lg,
-    marginRight: SPACING.md, backgroundColor: COLORS.surfaceAlt,
+    marginRight: SPACING.md, backgroundColor: colors.surfaceAlt,
   },
   noPhotoContainer: {
     height: 180, marginHorizontal: SPACING.lg, borderRadius: BORDER_RADIUS.lg,
-    backgroundColor: COLORS.surface, justifyContent: 'center', alignItems: 'center',
-    marginBottom: SPACING.lg, borderWidth: 1, borderColor: COLORS.border,
+    backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center',
+    marginBottom: SPACING.lg, borderWidth: 1, borderColor: colors.border,
   },
-  noPhotoText: { color: COLORS.textSecondary, marginTop: SPACING.sm, fontSize: 14 },
+  noPhotoText: { color: colors.textSecondary, marginTop: SPACING.sm, fontSize: 14 },
 
   scrollContent: { paddingBottom: 100 },
 
   // Details
   detailSection: { paddingHorizontal: SPACING.lg, marginBottom: SPACING.xl },
   sectionHeader: {
-    color: COLORS.textPrimary, fontSize: 24,
+    color: colors.textPrimary, fontSize: 24,
     fontWeight: FONT_WEIGHTS.bold, marginBottom: SPACING.xl,
   },
   metricsGrid: {
     flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.md, marginBottom: SPACING.xl,
   },
   metricItem: {
-    width: '47%', backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.md, borderWidth: 1, borderColor: COLORS.border,
+    width: '47%', backgroundColor: colors.surface, borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md, borderWidth: 1, borderColor: colors.border,
   },
   metricText: {
-    color: COLORS.textPrimary, fontSize: FONT_SIZES.body, fontWeight: FONT_WEIGHTS.semibold,
+    color: colors.textPrimary, fontSize: FONT_SIZES.body, fontWeight: FONT_WEIGHTS.semibold,
     marginTop: 8,
   },
   
   blockContainer: { marginBottom: SPACING.xl },
   blockTitle: {
-    color: COLORS.textPrimary, fontSize: 20, fontWeight: FONT_WEIGHTS.bold,
+    color: colors.textPrimary, fontSize: 20, fontWeight: FONT_WEIGHTS.bold,
     marginBottom: SPACING.sm,
   },
-  blockText: { color: COLORS.textPrimary, fontSize: FONT_SIZES.body, lineHeight: 22 },
-  blockSubText: { color: COLORS.textSecondary, fontSize: FONT_SIZES.small, marginTop: 4 },
+  blockText: { color: colors.textPrimary, fontSize: FONT_SIZES.body, lineHeight: 22 },
+  blockSubText: { color: colors.textSecondary, fontSize: FONT_SIZES.small, marginTop: 4 },
   
   linkButton: { flexDirection: 'row', alignItems: 'center', marginVertical: 8 },
-  linkText: { color: COLORS.electricTeal, fontSize: FONT_SIZES.body, textDecorationLine: 'underline', fontWeight: FONT_WEIGHTS.medium },
+  linkText: { color: colors.electricTeal, fontSize: FONT_SIZES.body, textDecorationLine: 'underline', fontWeight: FONT_WEIGHTS.medium },
 
   mapContainer: {
     width: '100%', height: 220, borderRadius: BORDER_RADIUS.lg, overflow: 'hidden',
-    marginTop: SPACING.md, borderWidth: 1, borderColor: COLORS.border,
+    marginTop: SPACING.md, borderWidth: 1, borderColor: colors.border,
   },
   mapPlaceholder: {
     width: '100%', height: 200, borderRadius: BORDER_RADIUS.lg,
-    backgroundColor: COLORS.surface, justifyContent: 'center', alignItems: 'center',
-    marginTop: SPACING.md, borderWidth: 1, borderColor: COLORS.border,
+    backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center',
+    marginTop: SPACING.md, borderWidth: 1, borderColor: colors.border,
   },
 
   chargesList: { marginTop: SPACING.sm },
-  chargeItem: { color: COLORS.textPrimary, fontSize: FONT_SIZES.body, marginBottom: 4 },
+  chargeItem: { color: colors.textPrimary, fontSize: FONT_SIZES.body, marginBottom: 4 },
 
   openingTimeRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
-  dayText: { color: COLORS.textSecondary, fontSize: FONT_SIZES.body, flex: 1 },
-  timeText: { color: COLORS.textPrimary, fontSize: FONT_SIZES.body, fontWeight: FONT_WEIGHTS.medium },
+  dayText: { color: colors.textSecondary, fontSize: FONT_SIZES.body, flex: 1 },
+  timeText: { color: colors.textPrimary, fontSize: FONT_SIZES.body, fontWeight: FONT_WEIGHTS.medium },
 
-  vehicleType: { color: COLORS.textPrimary, fontSize: FONT_SIZES.body, marginBottom: 4 },
+  vehicleType: { color: colors.textPrimary, fontSize: FONT_SIZES.body, marginBottom: 4 },
   
-  divider: { height: 1, backgroundColor: COLORS.border, marginVertical: SPACING.lg },
+  divider: { height: 1, backgroundColor: colors.border, marginVertical: SPACING.lg },
 
   infoRow: {
     flexDirection: 'row', alignItems: 'center',
     marginBottom: SPACING.sm, gap: SPACING.sm,
   },
-  infoText: { color: COLORS.textPrimary, fontSize: FONT_SIZES.label, flex: 1 },
+  infoText: { color: colors.textPrimary, fontSize: FONT_SIZES.label, flex: 1 },
   reviewsLink: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.sm,
     marginTop: SPACING.md,
     padding: SPACING.md,
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
     borderRadius: BORDER_RADIUS.md,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
   },
   reviewsLinkText: {
     flex: 1,
-    color: COLORS.electricTeal,
+    color: colors.electricTeal,
     fontSize: FONT_SIZES.label,
     fontWeight: FONT_WEIGHTS.semibold,
   },
@@ -592,38 +595,38 @@ const styles = StyleSheet.create({
   // Pricing
   pricingSection: { paddingHorizontal: SPACING.lg, marginBottom: SPACING.xl },
   sectionTitle: {
-    color: COLORS.textPrimary, fontSize: FONT_SIZES.body,
+    color: colors.textPrimary, fontSize: FONT_SIZES.body,
     fontWeight: FONT_WEIGHTS.bold, marginBottom: SPACING.md,
   },
   priceRow: { flexDirection: 'row', gap: SPACING.md },
   priceCard: {
-    flex: 1, backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.lg, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border,
+    flex: 1, backgroundColor: colors.surface, borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.lg, alignItems: 'center', borderWidth: 1, borderColor: colors.border,
   },
-  priceLabel: { color: COLORS.textSecondary, fontSize: FONT_SIZES.small, marginBottom: 4 },
-  priceValue: { color: COLORS.electricTeal, fontSize: FONT_SIZES.section, fontWeight: FONT_WEIGHTS.bold },
+  priceLabel: { color: colors.textSecondary, fontSize: FONT_SIZES.small, marginBottom: 4 },
+  priceValue: { color: colors.electricTeal, fontSize: FONT_SIZES.section, fontWeight: FONT_WEIGHTS.bold },
 
   // Message Input
   messageInput: {
-    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.md, color: COLORS.textPrimary, fontSize: FONT_SIZES.body,
-    minHeight: 80, textAlignVertical: 'top', borderWidth: 1, borderColor: COLORS.border,
+    backgroundColor: colors.surface, borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md, color: colors.textPrimary, fontSize: FONT_SIZES.body,
+    minHeight: 80, textAlignVertical: 'top', borderWidth: 1, borderColor: colors.border,
   },
   dateRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
     borderRadius: BORDER_RADIUS.md,
     padding: SPACING.md,
     marginBottom: SPACING.sm,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
     gap: SPACING.sm,
   },
   dateRowText: { flex: 1 },
-  dateLabel: { color: COLORS.textSecondary, fontSize: 12, marginBottom: 2 },
-  dateValue: { color: COLORS.textPrimary, fontSize: FONT_SIZES.body, fontWeight: FONT_WEIGHTS.medium },
-  dateError: { color: COLORS.coralRed, fontSize: 13, marginBottom: SPACING.sm },
+  dateLabel: { color: colors.textSecondary, fontSize: 12, marginBottom: 2 },
+  dateValue: { color: colors.textPrimary, fontSize: FONT_SIZES.body, fontWeight: FONT_WEIGHTS.medium },
+  dateError: { color: colors.coralRed, fontSize: 13, marginBottom: SPACING.sm },
   estimateRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -633,28 +636,28 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 194, 168, 0.1)',
     borderRadius: BORDER_RADIUS.md,
   },
-  estimateLabel: { color: COLORS.textSecondary, fontSize: 14 },
-  estimateValue: { color: COLORS.electricTeal, fontSize: 18, fontWeight: FONT_WEIGHTS.bold },
+  estimateLabel: { color: colors.textSecondary, fontSize: 14 },
+  estimateValue: { color: colors.electricTeal, fontSize: 18, fontWeight: FONT_WEIGHTS.bold },
 
   // CTA
   ctaContainer: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
     flexDirection: 'row', alignItems: 'center', gap: SPACING.md,
     paddingHorizontal: SPACING.lg, paddingVertical: SPACING.lg,
-    backgroundColor: COLORS.background,
-    borderTopWidth: 1, borderTopColor: COLORS.border,
+    backgroundColor: colors.background,
+    borderTopWidth: 1, borderTopColor: colors.border,
   },
   ctaButton: {
     flex: 1,
-    backgroundColor: COLORS.electricTeal, borderRadius: BORDER_RADIUS.md,
+    backgroundColor: colors.electricTeal, borderRadius: BORDER_RADIUS.md,
     paddingVertical: SPACING.lg, flexDirection: 'row',
     justifyContent: 'center', alignItems: 'center',
   },
   chatButton: {
     width: 56, height: 56, borderRadius: BORDER_RADIUS.md,
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
     justifyContent: 'center', alignItems: 'center',
-    borderWidth: 1, borderColor: COLORS.border,
+    borderWidth: 1, borderColor: colors.border,
   },
   ctaDisabled: { opacity: 0.5 },
   ctaText: { color: '#FFF', fontSize: FONT_SIZES.body, fontWeight: FONT_WEIGHTS.bold },

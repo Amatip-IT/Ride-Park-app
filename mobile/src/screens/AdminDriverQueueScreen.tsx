@@ -1,13 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
-  ActivityIndicator, Alert, SafeAreaView, Platform, Linking,
+  ActivityIndicator, Alert, SafeAreaView, Platform,
   Modal, TextInput, useWindowDimensions,
 } from 'react-native';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
+import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, ThemeColors } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { adminApi } from '@/api';
 import { Ionicons } from '@expo/vector-icons';
 import { useAdminDashboardBack } from '@/components/admin/AdminScreenLayout';
+import { DocumentViewerModal } from '@/components/admin/PresignedDocumentImage';
 
 // Human-readable labels for each doc field
 const DOC_LABELS: Record<string, string> = {
@@ -43,6 +45,8 @@ const SORT_OPTIONS = [
 const selectionKey = (id: string, providerType: string) => `${id}:${providerType}`;
 
 export function AdminDriverQueueScreen() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const goToDashboard = useAdminDashboardBack();
   const { width: screenWidth } = useWindowDimensions();
   const cardWidth = screenWidth - SPACING.md * 2;
@@ -60,6 +64,7 @@ export function AdminDriverQueueScreen() {
   const [messageModal, setMessageModal] = useState(false);
   const [bulkMessage, setBulkMessage] = useState('');
   const [bulkProcessing, setBulkProcessing] = useState(false);
+  const [viewer, setViewer] = useState<{ url: string; title: string } | null>(null);
 
   useEffect(() => {
     fetchRecords();
@@ -264,15 +269,9 @@ export function AdminDriverQueueScreen() {
     }
   };
 
-  const openDocument = async (url: string) => {
+  const openDocument = (url: string, title?: string) => {
     if (!url) return;
-    try {
-      const res = await adminApi.getPresignedUrl(url);
-      const presigned = res.data?.url || url;
-      await Linking.openURL(presigned);
-    } catch {
-      Alert.alert('Error', 'Cannot open document');
-    }
+    setViewer({ url, title: title || 'Document' });
   };
 
   const toggleExpanded = (id: string) => {
@@ -328,18 +327,18 @@ export function AdminDriverQueueScreen() {
               <Ionicons
                 name={isExpanded ? 'chevron-up' : 'chevron-down'}
                 size={22}
-                color={COLORS.textTertiary}
+                color={colors.textTertiary}
               />
             </View>
           </View>
 
           <View style={styles.detailRow}>
-            <Ionicons name="mail-outline" size={15} color={COLORS.textTertiary} />
+            <Ionicons name="mail-outline" size={15} color={colors.textTertiary} />
             <Text style={styles.detailText} numberOfLines={1}>{userData.email || 'No email'}</Text>
           </View>
 
           <View style={styles.progressRow}>
-            <Ionicons name="documents-outline" size={16} color={COLORS.electricTeal} />
+            <Ionicons name="documents-outline" size={16} color={colors.electricTeal} />
             <Text style={styles.progressText}>
               {uploadedDocs.length} of {totalDocs} documents uploaded
             </Text>
@@ -354,7 +353,7 @@ export function AdminDriverQueueScreen() {
           <View style={styles.expandedBody}>
             {userData.phoneNumber && (
               <View style={styles.detailRow}>
-                <Ionicons name="call-outline" size={15} color={COLORS.textTertiary} />
+                <Ionicons name="call-outline" size={15} color={colors.textTertiary} />
                 <Text style={styles.detailText}>{userData.phoneNumber}</Text>
               </View>
             )}
@@ -384,9 +383,9 @@ export function AdminDriverQueueScreen() {
                 {docStatus?.status && (
                   <Text style={[
                     styles.docStatusText,
-                    docStatus.status === 'verified' && { color: COLORS.success },
-                    docStatus.status === 'rejected' && { color: COLORS.error },
-                    docStatus.status === 'uploaded' && { color: COLORS.amber },
+                    docStatus.status === 'verified' && { color: colors.success },
+                    docStatus.status === 'rejected' && { color: colors.error },
+                    docStatus.status === 'uploaded' && { color: colors.amber },
                   ]}>
                     Status: {docStatus.status}
                   </Text>
@@ -399,23 +398,23 @@ export function AdminDriverQueueScreen() {
               </View>
               <TouchableOpacity
                 style={[styles.docViewBtn, isProcessingDoc && styles.btnDisabled]}
-                onPress={() => openDocument(item[field])}
+                onPress={() => openDocument(item[field], label)}
               >
-                <Ionicons name="eye-outline" size={16} color={COLORS.info} />
+                <Ionicons name="eye-outline" size={16} color={colors.info} />
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.docApproveBtn, isProcessingDoc && styles.btnDisabled]}
                 disabled={isProcessingDoc}
                 onPress={() => handleApproveDoc(item._id, providerType, field, label)}
               >
-                <Ionicons name="checkmark" size={16} color={COLORS.success} />
+                <Ionicons name="checkmark" size={16} color={colors.success} />
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.docRejectBtn, isProcessingDoc && styles.btnDisabled]}
                 disabled={isProcessingDoc}
                 onPress={() => handleRejectDoc(item._id, providerType, field, label)}
               >
-                <Ionicons name="close" size={16} color={COLORS.error} />
+                <Ionicons name="close" size={16} color={colors.error} />
               </TouchableOpacity>
             </View>
           );
@@ -436,7 +435,7 @@ export function AdminDriverQueueScreen() {
                 disabled={isProcessing}
                 onPress={() => handleReject(item._id, providerType, fullName)}
               >
-                <Ionicons name="close" size={18} color={COLORS.error} />
+                <Ionicons name="close" size={18} color={colors.error} />
                 <Text style={styles.rejectBtnText}>Reject All</Text>
               </TouchableOpacity>
 
@@ -465,7 +464,7 @@ export function AdminDriverQueueScreen() {
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={goToDashboard}>
-          <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
+          <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>Driver Verifications</Text>
@@ -485,11 +484,11 @@ export function AdminDriverQueueScreen() {
 
       <View style={styles.searchRow}>
         <View style={styles.searchInputWrap}>
-          <Ionicons name="search-outline" size={18} color={COLORS.textTertiary} />
+          <Ionicons name="search-outline" size={18} color={colors.textTertiary} />
           <TextInput
             style={styles.searchInput}
             placeholder="Search name, email, phone..."
-            placeholderTextColor={COLORS.textTertiary}
+            placeholderTextColor={colors.textTertiary}
             value={searchQuery}
             onChangeText={setSearchQuery}
             onSubmitEditing={() => fetchRecords()}
@@ -536,12 +535,12 @@ export function AdminDriverQueueScreen() {
 
       {loading ? (
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={COLORS.electricTeal} />
+          <ActivityIndicator size="large" color={colors.electricTeal} />
           <Text style={styles.loadingText}>Loading submissions...</Text>
         </View>
       ) : records.length === 0 ? (
         <View style={styles.centerContainer}>
-          <Ionicons name="checkmark-done-circle-outline" size={64} color={COLORS.success} />
+          <Ionicons name="checkmark-done-circle-outline" size={64} color={colors.success} />
           <Text style={styles.emptyTitle}>All Clear!</Text>
           <Text style={styles.emptySub}>No pending driver verifications to review.</Text>
         </View>
@@ -558,15 +557,15 @@ export function AdminDriverQueueScreen() {
       {selectedKeys.size > 0 && (
         <View style={styles.bulkBar}>
           <TouchableOpacity style={styles.bulkBtn} onPress={handleBulkApprove} disabled={bulkProcessing}>
-            <Ionicons name="checkmark-circle-outline" size={18} color={COLORS.success} />
+            <Ionicons name="checkmark-circle-outline" size={18} color={colors.success} />
             <Text style={styles.bulkBtnText}>Approve</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.bulkBtn} onPress={handleBulkReject} disabled={bulkProcessing}>
-            <Ionicons name="close-circle-outline" size={18} color={COLORS.error} />
+            <Ionicons name="close-circle-outline" size={18} color={colors.error} />
             <Text style={styles.bulkBtnText}>Reject</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.bulkBtn} onPress={() => setMessageModal(true)} disabled={bulkProcessing}>
-            <Ionicons name="mail-outline" size={18} color={COLORS.info} />
+            <Ionicons name="mail-outline" size={18} color={colors.info} />
             <Text style={styles.bulkBtnText}>Message</Text>
           </TouchableOpacity>
         </View>
@@ -579,7 +578,7 @@ export function AdminDriverQueueScreen() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Bulk Message</Text>
               <TouchableOpacity onPress={() => setMessageModal(false)}>
-                <Ionicons name="close" size={24} color={COLORS.textPrimary} />
+                <Ionicons name="close" size={24} color={colors.textPrimary} />
               </TouchableOpacity>
             </View>
             <Text style={styles.modalSubtitle}>
@@ -588,7 +587,7 @@ export function AdminDriverQueueScreen() {
             <TextInput
               style={styles.reasonInput}
               placeholder="Enter your message..."
-              placeholderTextColor={COLORS.textTertiary}
+              placeholderTextColor={colors.textTertiary}
               value={bulkMessage}
               onChangeText={setBulkMessage}
               multiline
@@ -618,7 +617,7 @@ export function AdminDriverQueueScreen() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Rejection Reason</Text>
               <TouchableOpacity onPress={() => setRejectModal(null)}>
-                <Ionicons name="close" size={24} color={COLORS.textPrimary} />
+                <Ionicons name="close" size={24} color={colors.textPrimary} />
               </TouchableOpacity>
             </View>
 
@@ -630,7 +629,7 @@ export function AdminDriverQueueScreen() {
             <TextInput
               style={styles.reasonInput}
               placeholder="e.g., DVLA license is expired, photo quality is poor, documents don't match..."
-              placeholderTextColor={COLORS.textTertiary}
+              placeholderTextColor={colors.textTertiary}
               value={rejectionReason}
               onChangeText={setRejectionReason}
               multiline
@@ -656,12 +655,19 @@ export function AdminDriverQueueScreen() {
           </View>
         </View>
       </Modal>
+
+      <DocumentViewerModal
+        visible={!!viewer}
+        sourceUrl={viewer?.url ?? null}
+        title={viewer?.title}
+        onClose={() => setViewer(null)}
+      />
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: COLORS.background },
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -669,29 +675,29 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'android' ? SPACING.xl : SPACING.sm,
     paddingBottom: SPACING.md,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: colors.border,
   },
   backBtn: { padding: SPACING.xs, marginRight: SPACING.sm },
   headerTitle: {
-    color: COLORS.textPrimary, fontSize: FONT_SIZES.section, fontWeight: FONT_WEIGHTS.bold,
+    color: colors.textPrimary, fontSize: FONT_SIZES.section, fontWeight: FONT_WEIGHTS.bold,
   },
   headerSub: {
-    color: COLORS.textSecondary, fontSize: FONT_SIZES.small, marginTop: 2,
+    color: colors.textSecondary, fontSize: FONT_SIZES.small, marginTop: 2,
   },
   selectAllBtn: { paddingHorizontal: SPACING.sm, paddingVertical: SPACING.xs },
-  selectAllText: { color: COLORS.electricTeal, fontSize: FONT_SIZES.small, fontWeight: FONT_WEIGHTS.medium },
+  selectAllText: { color: colors.electricTeal, fontSize: FONT_SIZES.small, fontWeight: FONT_WEIGHTS.medium },
   searchRow: {
     flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
     paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm,
   },
   searchInputWrap: {
     flex: 1, flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
-    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.md,
-    paddingHorizontal: SPACING.md, borderWidth: 1, borderColor: COLORS.border,
+    backgroundColor: colors.surface, borderRadius: BORDER_RADIUS.md,
+    paddingHorizontal: SPACING.md, borderWidth: 1, borderColor: colors.border,
   },
-  searchInput: { flex: 1, color: COLORS.textPrimary, fontSize: FONT_SIZES.body, paddingVertical: SPACING.sm },
+  searchInput: { flex: 1, color: colors.textPrimary, fontSize: FONT_SIZES.body, paddingVertical: SPACING.sm },
   searchBtn: {
-    backgroundColor: COLORS.electricTeal, borderRadius: BORDER_RADIUS.md,
+    backgroundColor: colors.electricTeal, borderRadius: BORDER_RADIUS.md,
     padding: SPACING.sm + 2,
   },
   filterScroll: {
@@ -700,38 +706,38 @@ const styles = StyleSheet.create({
   },
   filterChip: {
     paddingHorizontal: SPACING.sm, paddingVertical: 4,
-    borderRadius: BORDER_RADIUS.full, borderWidth: 1, borderColor: COLORS.border,
-    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.full, borderWidth: 1, borderColor: colors.border,
+    backgroundColor: colors.surface,
   },
-  filterChipActive: { backgroundColor: `${COLORS.electricTeal}15`, borderColor: COLORS.electricTeal },
-  filterChipText: { color: COLORS.textSecondary, fontSize: 11, fontWeight: FONT_WEIGHTS.medium },
-  filterChipTextActive: { color: COLORS.electricTeal },
+  filterChipActive: { backgroundColor: `${colors.electricTeal}15`, borderColor: colors.electricTeal },
+  filterChipText: { color: colors.textSecondary, fontSize: 11, fontWeight: FONT_WEIGHTS.medium },
+  filterChipTextActive: { color: colors.electricTeal },
   checkbox: {
-    width: 22, height: 22, borderRadius: 4, borderWidth: 2, borderColor: COLORS.border,
+    width: 22, height: 22, borderRadius: 4, borderWidth: 2, borderColor: colors.border,
     marginRight: SPACING.sm, justifyContent: 'center', alignItems: 'center',
   },
-  checkboxSelected: { backgroundColor: COLORS.electricTeal, borderColor: COLORS.electricTeal },
+  checkboxSelected: { backgroundColor: colors.electricTeal, borderColor: colors.electricTeal },
   bulkBar: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
     flexDirection: 'row', justifyContent: 'space-around',
-    backgroundColor: COLORS.surface, borderTopWidth: 1, borderTopColor: COLORS.border,
+    backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border,
     paddingVertical: SPACING.md, paddingHorizontal: SPACING.lg,
   },
   bulkBtn: { alignItems: 'center', gap: 4 },
-  bulkBtnText: { color: COLORS.textPrimary, fontSize: 11, fontWeight: FONT_WEIGHTS.medium },
+  bulkBtnText: { color: colors.textPrimary, fontSize: 11, fontWeight: FONT_WEIGHTS.medium },
   listContainer: { paddingHorizontal: SPACING.md, paddingVertical: SPACING.md, alignItems: 'center' },
   centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  loadingText: { color: COLORS.textSecondary, marginTop: SPACING.md },
+  loadingText: { color: colors.textSecondary, marginTop: SPACING.md },
   emptyTitle: {
-    color: COLORS.textPrimary, fontSize: 20, fontWeight: FONT_WEIGHTS.bold, marginTop: SPACING.md,
+    color: colors.textPrimary, fontSize: 20, fontWeight: FONT_WEIGHTS.bold, marginTop: SPACING.md,
   },
-  emptySub: { color: COLORS.textSecondary, marginTop: 4 },
+  emptySub: { color: colors.textSecondary, marginTop: 4 },
 
   // Card
   card: {
-    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.lg,
+    backgroundColor: colors.surface, borderRadius: BORDER_RADIUS.lg,
     marginBottom: SPACING.md,
-    borderWidth: 1, borderColor: COLORS.border,
+    borderWidth: 1, borderColor: colors.border,
     overflow: 'hidden',
     alignSelf: 'center',
   },
@@ -746,7 +752,7 @@ const styles = StyleSheet.create({
     gap: SPACING.xs,
   },
   expandHint: {
-    color: COLORS.electricTeal,
+    color: colors.electricTeal,
     fontSize: 12,
     marginTop: SPACING.xs,
     fontWeight: FONT_WEIGHTS.medium,
@@ -755,34 +761,34 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
     paddingBottom: SPACING.md,
     borderTopWidth: 1,
-    borderTopColor: COLORS.border,
+    borderTopColor: colors.border,
   },
   avatarCircle: {
     width: 44, height: 44, borderRadius: 22,
-    backgroundColor: `${COLORS.electricTeal}18`,
+    backgroundColor: `${colors.electricTeal}18`,
     justifyContent: 'center', alignItems: 'center', marginRight: SPACING.md,
   },
   avatarText: {
-    color: COLORS.electricTeal, fontSize: 16, fontWeight: FONT_WEIGHTS.bold,
+    color: colors.electricTeal, fontSize: 16, fontWeight: FONT_WEIGHTS.bold,
   },
   nameText: {
-    color: COLORS.textPrimary, fontSize: FONT_SIZES.body, fontWeight: FONT_WEIGHTS.semibold,
+    color: colors.textPrimary, fontSize: FONT_SIZES.body, fontWeight: FONT_WEIGHTS.semibold,
   },
   roleText: {
-    color: COLORS.textSecondary, fontSize: FONT_SIZES.small, marginTop: 1,
+    color: colors.textSecondary, fontSize: FONT_SIZES.small, marginTop: 1,
   },
   pendingBadge: {
-    backgroundColor: `${COLORS.amber}18`, paddingHorizontal: 8, paddingVertical: 3,
+    backgroundColor: `${colors.amber}18`, paddingHorizontal: 8, paddingVertical: 3,
     borderRadius: BORDER_RADIUS.sm,
   },
   pendingBadgeText: {
-    color: COLORS.amber, fontSize: 10, fontWeight: 'bold',
+    color: colors.amber, fontSize: 10, fontWeight: 'bold',
   },
   detailRow: {
     flexDirection: 'row', alignItems: 'center', marginBottom: 5,
   },
   detailText: {
-    color: COLORS.textSecondary, fontSize: 13, marginLeft: 6,
+    color: colors.textSecondary, fontSize: 13, marginLeft: 6,
   },
 
   // Progress
@@ -790,37 +796,37 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', marginTop: SPACING.sm, marginBottom: SPACING.sm,
   },
   progressText: {
-    color: COLORS.electricTeal, fontSize: 13, fontWeight: FONT_WEIGHTS.medium, marginLeft: 6,
+    color: colors.electricTeal, fontSize: 13, fontWeight: FONT_WEIGHTS.medium, marginLeft: 6,
   },
 
   // Documents section
   documentsSectionTitle: {
-    fontSize: 13, fontWeight: FONT_WEIGHTS.semibold, color: COLORS.textPrimary,
+    fontSize: 13, fontWeight: FONT_WEIGHTS.semibold, color: colors.textPrimary,
     marginTop: SPACING.md, marginBottom: SPACING.sm,
   },
   docRow: {
     flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
     paddingVertical: SPACING.sm, paddingHorizontal: SPACING.sm,
     marginBottom: 4, borderRadius: BORDER_RADIUS.sm,
-    borderWidth: 1, borderColor: COLORS.border,
+    borderWidth: 1, borderColor: colors.border,
   },
   docRowUploaded: {
-    backgroundColor: `${COLORS.info}08`, borderColor: COLORS.info,
+    backgroundColor: `${colors.info}08`, borderColor: colors.info,
   },
   docRowMissing: {
-    backgroundColor: COLORS.surfaceAlt, borderColor: COLORS.border, opacity: 0.6,
+    backgroundColor: colors.surfaceAlt, borderColor: colors.border, opacity: 0.6,
   },
   docLabel: {
-    fontSize: 13, fontWeight: FONT_WEIGHTS.medium, color: COLORS.textPrimary,
+    fontSize: 13, fontWeight: FONT_WEIGHTS.medium, color: colors.textPrimary,
   },
   docStatusText: {
     fontSize: 11, fontWeight: FONT_WEIGHTS.medium, marginTop: 2,
   },
   docMissingText: {
-    fontSize: 11, color: COLORS.textTertiary, marginTop: 2,
+    fontSize: 11, color: colors.textTertiary, marginTop: 2,
   },
   docRejectionText: {
-    fontSize: 10, color: COLORS.error, fontStyle: 'italic', marginTop: 2,
+    fontSize: 10, color: colors.error, fontStyle: 'italic', marginTop: 2,
   },
   docViewBtn: {
     padding: SPACING.xs, marginRight: SPACING.xs,
@@ -833,7 +839,7 @@ const styles = StyleSheet.create({
   },
 
   dateText: {
-    color: COLORS.textTertiary, fontSize: 11, marginBottom: SPACING.sm,
+    color: colors.textTertiary, fontSize: 11, marginBottom: SPACING.sm,
   },
 
   // Actions
@@ -843,16 +849,16 @@ const styles = StyleSheet.create({
   rejectBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 4, paddingVertical: 10,
-    borderRadius: BORDER_RADIUS.md, borderWidth: 1, borderColor: COLORS.error,
-    backgroundColor: `${COLORS.error}08`,
+    borderRadius: BORDER_RADIUS.md, borderWidth: 1, borderColor: colors.error,
+    backgroundColor: `${colors.error}08`,
   },
   rejectBtnText: {
-    color: COLORS.error, fontWeight: FONT_WEIGHTS.semibold, fontSize: 13,
+    color: colors.error, fontWeight: FONT_WEIGHTS.semibold, fontSize: 13,
   },
   approveBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 4, paddingVertical: 10,
-    borderRadius: BORDER_RADIUS.md, backgroundColor: COLORS.success,
+    borderRadius: BORDER_RADIUS.md, backgroundColor: colors.success,
   },
   approveBtnText: {
     color: '#FFF', fontWeight: FONT_WEIGHTS.bold, fontSize: 13,
@@ -864,7 +870,7 @@ const styles = StyleSheet.create({
     flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)',
   },
   modalContent: {
-    backgroundColor: COLORS.background, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    backgroundColor: colors.background, borderTopLeftRadius: 24, borderTopRightRadius: 24,
     padding: SPACING.xl, paddingBottom: 40, minHeight: 400,
   },
   modalHeader: {
@@ -872,15 +878,15 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.lg,
   },
   modalTitle: {
-    fontSize: FONT_SIZES.section, fontWeight: FONT_WEIGHTS.bold, color: COLORS.textPrimary,
+    fontSize: FONT_SIZES.section, fontWeight: FONT_WEIGHTS.bold, color: colors.textPrimary,
   },
   modalSubtitle: {
-    color: COLORS.textSecondary, fontSize: FONT_SIZES.label, marginBottom: SPACING.lg,
+    color: colors.textSecondary, fontSize: FONT_SIZES.label, marginBottom: SPACING.lg,
   },
   reasonInput: {
-    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.md, padding: SPACING.md,
-    color: COLORS.textPrimary, fontSize: FONT_SIZES.body,
-    borderWidth: 1, borderColor: COLORS.border,
+    backgroundColor: colors.surface, borderRadius: BORDER_RADIUS.md, padding: SPACING.md,
+    color: colors.textPrimary, fontSize: FONT_SIZES.body,
+    borderWidth: 1, borderColor: colors.border,
     minHeight: 120, textAlignVertical: 'top', marginBottom: SPACING.xl,
   },
   modalActions: {
@@ -888,14 +894,14 @@ const styles = StyleSheet.create({
   },
   cancelBtn: {
     flex: 1, paddingVertical: SPACING.lg, borderRadius: BORDER_RADIUS.md,
-    backgroundColor: `${COLORS.textTertiary}15`, alignItems: 'center',
+    backgroundColor: `${colors.textTertiary}15`, alignItems: 'center',
   },
   cancelBtnText: {
-    color: COLORS.textSecondary, fontWeight: FONT_WEIGHTS.bold, fontSize: FONT_SIZES.label,
+    color: colors.textSecondary, fontWeight: FONT_WEIGHTS.bold, fontSize: FONT_SIZES.label,
   },
   submitBtn: {
     flex: 1, paddingVertical: SPACING.lg, borderRadius: BORDER_RADIUS.md,
-    backgroundColor: COLORS.error, alignItems: 'center',
+    backgroundColor: colors.error, alignItems: 'center',
   },
   submitBtnDisabled: {
     opacity: 0.5,

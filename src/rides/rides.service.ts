@@ -510,12 +510,11 @@ export class RidesService {
         return { success: false, message: 'Ride not found' };
       }
 
-      const passengerId =
-        (ride.passenger as any)?._id?.toString() || ride.passenger.toString();
-      const driverId =
-        (ride.driver as any)?._id?.toString() || ride.driver.toString();
+      const callerId = toObjectIdString(requestingUserId);
+      const passengerId = toObjectIdString(ride.passenger);
+      const driverId = toObjectIdString(ride.driver);
 
-      if (requestingUserId !== passengerId && requestingUserId !== driverId) {
+      if (callerId !== passengerId && callerId !== driverId) {
         return {
           success: false,
           message: 'You do not have access to this receipt',
@@ -540,7 +539,7 @@ export class RidesService {
       const receipt = {
         rideId: ride._id.toString(),
         requestId: taxiRequest?._id?.toString() || ride.booking?.toString(),
-        role: requestingUserId === passengerId ? 'passenger' : 'driver',
+        role: callerId === passengerId ? 'passenger' : 'driver',
         serviceType: ride.serviceType,
         completedAt: ride.completedAt,
         startedAt: ride.startedAt,
@@ -565,7 +564,7 @@ export class RidesService {
         paymentNote:
           (ride as any).paymentStatus === 'payment_failed'
             ? 'Payment could not be processed. Please try again from your bookings.'
-            : requestingUserId === passengerId
+            : callerId === passengerId
               ? 'Paid via your confirmed payment.'
               : 'Earnings credited to your wallet (after platform fee).',
         vehicle: taxiRequest?.driverVehicle || null,
@@ -598,13 +597,11 @@ export class RidesService {
         return { success: false, message: 'Ride request not found' };
       }
 
-      const passengerId = request.passenger.toString();
-      const driverId = request.acceptedDriver?.toString();
+      const callerId = toObjectIdString(requestingUserId);
+      const passengerId = toObjectIdString(request.passenger);
+      const driverId = toObjectIdString(request.acceptedDriver);
 
-      if (
-        requestingUserId !== passengerId &&
-        (!driverId || requestingUserId !== driverId)
-      ) {
+      if (callerId !== passengerId && (!driverId || callerId !== driverId)) {
         return {
           success: false,
           message: 'You do not have access to this receipt',
@@ -631,7 +628,7 @@ export class RidesService {
         };
       }
 
-      return this.getRideReceipt(request.ride.toString(), requestingUserId);
+      return this.getRideReceipt(request.ride.toString(), callerId);
     } catch (error) {
       return {
         success: false,

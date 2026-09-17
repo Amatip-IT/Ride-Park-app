@@ -29,6 +29,7 @@ import {
   RefreshTokenDto,
   ResetPasswordDto,
 } from './dto/auth.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 
 @Controller('users')
 export class UsersController {
@@ -61,11 +62,25 @@ export class UsersController {
     // Check if result is an error response with success false
     if (!result.success) {
       throw new HttpException(
-        { message: result.message },
+        { message: result.message, data: result.data },
         HttpStatus.BAD_REQUEST,
       );
     }
 
+    return result;
+  }
+
+  @Get('check-username')
+  @RateLimit({ limit: 30, windowMs: 60_000 })
+  async checkUsername(@Query('username') username: string) {
+    const result =
+      await this.usersService.checkUsernameAvailability(username);
+    if (!result.success) {
+      throw new HttpException(
+        { message: result.message, data: result.data },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
     return result;
   }
 
@@ -210,30 +225,74 @@ export class UsersController {
   // Update own profile (or save push tokens)
   @Patch('profile')
   @UseGuards(AuthGuard)
-  async updateProfile(@Req() req: any, @Body() updateData: Partial<User>) {
+  async updateProfile(@Req() req: any, @Body() updateData: UpdateProfileDto) {
     const userId = req.user._id || req.user.id;
-    const user = await this.usersService.findById(userId);
-    if (!user) {
-      throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+    const result = await this.usersService.updateOwnProfile(userId, updateData);
+    if (!result.success) {
+      throw new HttpException(
+        { message: result.message },
+        result.message === 'User not found'
+          ? HttpStatus.NOT_FOUND
+          : HttpStatus.BAD_REQUEST,
+      );
+    }
+    return result;
+  }
+
+  /**
+   * GET /users/media-url?url=
+   * Time-limited signed URL for the caller's own uploaded media (e.g. profile photo).
+   */
+  @Get('media-url')
+  @UseGuards(AuthGuard)
+  async getMediaUrl(@Req() req: any, @Query('url') url: string) {
+    if (!url) {
+      throw new HttpException(
+        { message: 'url query parameter is required' },
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
-    if (updateData.pushToken) user.pushToken = updateData.pushToken;
-    if (updateData.firstName) user.firstName = updateData.firstName;
-    if (updateData.lastName) user.lastName = updateData.lastName;
-    if (updateData.profileImageUrl)
-      user.profileImageUrl = updateData.profileImageUrl;
-    if (updateData.phoneNumber) user.phoneNumber = updateData.phoneNumber;
-    if (updateData.identityDocumentUrl)
-      user.identityDocumentUrl = updateData.identityDocumentUrl;
-    if (updateData.proofOfAddressUrl)
-      user.proofOfAddressUrl = updateData.proofOfAddressUrl;
+    const user = req.user;
+    const userId = String(user._id || user.id);
+    const role = user.role;
+    const ownProfileUrl = user.profileImageUrl as string | undefined;
 
-    await user.save();
-    return {
-      success: true,
-      message: 'Profile updated successfully',
-      data: user,
-    };
+    let allowed = role === 'admin';
+    if (!allowed && ownProfileUrl && url === ownProfileUrl) {
+      allowed = true;
+    }
+    if (!allowed) {
+      try {
+        const parsed = new URL(url);
+        const path = decodeURIComponent(parsed.pathname);
+        // Path-style: /bucket/user-uploads/{userId}/...
+        // Virtual-hosted: /user-uploads/{userId}/...
+        allowed =
+          path.includes(`/user-uploads/${userId}/`) ||
+          path.endsWith(`/user-uploads/${userId}`) ||
+          path.includes(`/provider-documents/${userId}/`);
+      } catch {
+        allowed = false;
+      }
+    }
+
+    if (!allowed) {
+      throw new HttpException(
+        { message: 'You are not allowed to access this file' },
+        HttpStatus.FORBIDDEN,
+      );
+    }
+
+    try {
+      const signed = await this.fileUploadService.getPresignedUrl(url);
+      return { success: true, url: signed };
+    } catch (error: any) {
+      throw new HttpException(
+        { message: `Failed to generate media URL: ${error.message}` },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
   @Patch(':id')
