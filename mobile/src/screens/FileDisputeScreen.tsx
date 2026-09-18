@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView,
   Alert, Platform, ActivityIndicator, Image,
@@ -6,7 +6,8 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import { disputesApi } from '@/api';
 import { uploadFileToS3 } from '@/utils/uploadFile';
-import { COLORS, SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '@/constants/theme';
+import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS, ThemeColors } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 
@@ -22,6 +23,8 @@ const CATEGORIES = [
 type EvidenceItem = { uri: string; name: string };
 
 export function FileDisputeScreen() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const prefill = route.params || {};
@@ -103,7 +106,7 @@ export function FileDisputeScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
+          <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>File a Dispute</Text>
       </View>
@@ -128,14 +131,14 @@ export function FileDisputeScreen() {
           value={description}
           onChangeText={setDescription}
           placeholder="Describe the issue in detail..."
-          placeholderTextColor={COLORS.textTertiary}
+          placeholderTextColor={colors.textTertiary}
           multiline
           textAlignVertical="top"
         />
 
         <Text style={styles.label}>Evidence (optional)</Text>
         <TouchableOpacity style={styles.evidenceBtn} onPress={pickEvidence}>
-          <Ionicons name="images-outline" size={20} color={COLORS.electricTeal} />
+          <Ionicons name="images-outline" size={20} color={colors.electricTeal} />
           <Text style={styles.evidenceBtnText}>Add photos</Text>
         </TouchableOpacity>
         {evidence.length > 0 && (
@@ -144,7 +147,7 @@ export function FileDisputeScreen() {
               <View key={`${item.uri}-${index}`} style={styles.evidenceThumbWrap}>
                 <Image source={{ uri: item.uri }} style={styles.evidenceThumb} />
                 <TouchableOpacity style={styles.removeEvidence} onPress={() => removeEvidence(index)}>
-                  <Ionicons name="close-circle" size={22} color={COLORS.error} />
+                  <Ionicons name="close-circle" size={22} color={colors.error} />
                 </TouchableOpacity>
               </View>
             ))}
@@ -157,7 +160,7 @@ export function FileDisputeScreen() {
           value={complaintAbout}
           onChangeText={setComplaintAbout}
           placeholder="Leave blank if not about a specific user"
-          placeholderTextColor={COLORS.textTertiary}
+          placeholderTextColor={colors.textTertiary}
           autoCapitalize="none"
         />
 
@@ -167,7 +170,7 @@ export function FileDisputeScreen() {
           value={relatedServiceId}
           onChangeText={setRelatedServiceId}
           placeholder="e.g. ride or booking ID"
-          placeholderTextColor={COLORS.textTertiary}
+          placeholderTextColor={colors.textTertiary}
           autoCapitalize="none"
         />
 
@@ -187,47 +190,47 @@ export function FileDisputeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: SPACING.lg,
     paddingTop: Platform.OS === 'android' ? SPACING.xl : SPACING.sm,
     paddingBottom: SPACING.md,
-    borderBottomWidth: 1, borderBottomColor: COLORS.border,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
   },
   backBtn: { padding: SPACING.xs, marginRight: SPACING.sm },
-  headerTitle: { color: COLORS.textPrimary, fontSize: FONT_SIZES.section, fontWeight: FONT_WEIGHTS.bold },
+  headerTitle: { color: colors.textPrimary, fontSize: FONT_SIZES.section, fontWeight: FONT_WEIGHTS.bold },
   scroll: { padding: SPACING.lg, paddingBottom: 40 },
-  label: { color: COLORS.textSecondary, fontSize: FONT_SIZES.small, marginBottom: SPACING.sm, marginTop: SPACING.sm },
+  label: { color: colors.textSecondary, fontSize: FONT_SIZES.small, marginBottom: SPACING.sm, marginTop: SPACING.sm },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.xs, marginBottom: SPACING.md },
   chip: {
     paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm,
-    borderRadius: BORDER_RADIUS.full, borderWidth: 1, borderColor: COLORS.border,
-    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.full, borderWidth: 1, borderColor: colors.border,
+    backgroundColor: colors.surface,
   },
-  chipActive: { backgroundColor: `${COLORS.electricTeal}15`, borderColor: COLORS.electricTeal },
-  chipText: { color: COLORS.textSecondary, fontSize: FONT_SIZES.small },
-  chipTextActive: { color: COLORS.electricTeal },
+  chipActive: { backgroundColor: `${colors.electricTeal}15`, borderColor: colors.electricTeal },
+  chipText: { color: colors.textSecondary, fontSize: FONT_SIZES.small },
+  chipTextActive: { color: colors.electricTeal },
   input: {
-    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.md, color: COLORS.textPrimary,
-    borderWidth: 1, borderColor: COLORS.border, marginBottom: SPACING.md,
+    backgroundColor: colors.surface, borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md, color: colors.textPrimary,
+    borderWidth: 1, borderColor: colors.border, marginBottom: SPACING.md,
   },
   textArea: { minHeight: 120 },
   evidenceBtn: {
     flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
     padding: SPACING.md, borderRadius: BORDER_RADIUS.md,
-    borderWidth: 1, borderColor: COLORS.electricTeal, marginBottom: SPACING.md,
-    backgroundColor: `${COLORS.electricTeal}10`,
+    borderWidth: 1, borderColor: colors.electricTeal, marginBottom: SPACING.md,
+    backgroundColor: `${colors.electricTeal}10`,
   },
-  evidenceBtnText: { color: COLORS.electricTeal, fontWeight: FONT_WEIGHTS.semibold },
+  evidenceBtnText: { color: colors.electricTeal, fontWeight: FONT_WEIGHTS.semibold },
   evidenceRow: { marginBottom: SPACING.md },
   evidenceThumbWrap: { marginRight: SPACING.sm, position: 'relative' },
   evidenceThumb: { width: 80, height: 80, borderRadius: BORDER_RADIUS.md },
   removeEvidence: { position: 'absolute', top: -6, right: -6 },
   submitBtn: {
-    backgroundColor: COLORS.electricTeal, borderRadius: BORDER_RADIUS.md,
+    backgroundColor: colors.electricTeal, borderRadius: BORDER_RADIUS.md,
     padding: SPACING.md, alignItems: 'center', marginTop: SPACING.lg,
   },
   submitBtnDisabled: { opacity: 0.6 },

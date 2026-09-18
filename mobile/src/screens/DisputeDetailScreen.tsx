@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Platform, Image, Linking,
 } from 'react-native';
 import { disputesApi } from '@/api';
-import { COLORS, SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '@/constants/theme';
+import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS, ThemeColors } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 
@@ -17,6 +18,8 @@ const RESOLUTION_LABELS: Record<string, string> = {
 };
 
 export function DisputeDetailScreen() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const disputeId = route.params?.disputeId as string;
@@ -39,7 +42,7 @@ export function DisputeDetailScreen() {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color={COLORS.electricTeal} />
+        <ActivityIndicator size="large" color={colors.electricTeal} />
       </View>
     );
   }
@@ -58,7 +61,7 @@ export function DisputeDetailScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
+          <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Dispute Details</Text>
       </View>
@@ -98,7 +101,7 @@ export function DisputeDetailScreen() {
         {dispute.resolution && (
           <>
             <Text style={styles.sectionLabel}>Resolution</Text>
-            <Text style={[styles.bodyText, { color: COLORS.success }]}>
+            <Text style={[styles.bodyText, { color: colors.success }]}>
               {RESOLUTION_LABELS[dispute.resolution] || dispute.resolution}
             </Text>
             {dispute.resolutionNotes && (
@@ -115,38 +118,38 @@ export function DisputeDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  errorText: { color: COLORS.error },
+  errorText: { color: colors.error },
   header: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: SPACING.lg,
     paddingTop: Platform.OS === 'android' ? SPACING.xl : SPACING.sm,
     paddingBottom: SPACING.md,
-    borderBottomWidth: 1, borderBottomColor: COLORS.border,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
   },
   backBtn: { padding: SPACING.xs, marginRight: SPACING.sm },
-  headerTitle: { color: COLORS.textPrimary, fontSize: FONT_SIZES.section, fontWeight: FONT_WEIGHTS.bold },
+  headerTitle: { color: colors.textPrimary, fontSize: FONT_SIZES.section, fontWeight: FONT_WEIGHTS.bold },
   scroll: { padding: SPACING.lg },
   statusRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.lg,
+    backgroundColor: colors.surface, borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.md, marginBottom: SPACING.lg,
-    borderWidth: 1, borderColor: COLORS.border,
+    borderWidth: 1, borderColor: colors.border,
   },
-  statusLabel: { color: COLORS.textSecondary },
-  statusValue: { color: COLORS.electricTeal, fontWeight: FONT_WEIGHTS.bold, textTransform: 'capitalize' },
-  sectionLabel: { color: COLORS.textTertiary, fontSize: FONT_SIZES.small, marginBottom: SPACING.xs, marginTop: SPACING.md },
-  bodyText: { color: COLORS.textPrimary, lineHeight: 22 },
+  statusLabel: { color: colors.textSecondary },
+  statusValue: { color: colors.electricTeal, fontWeight: FONT_WEIGHTS.bold, textTransform: 'capitalize' },
+  sectionLabel: { color: colors.textTertiary, fontSize: FONT_SIZES.small, marginBottom: SPACING.xs, marginTop: SPACING.md },
+  bodyText: { color: colors.textPrimary, lineHeight: 22 },
   evidenceImage: {
     width: 100,
     height: 100,
     borderRadius: BORDER_RADIUS.md,
     marginRight: SPACING.sm,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
   },
-  notesText: { color: COLORS.textSecondary, marginTop: SPACING.sm, fontStyle: 'italic' },
-  dateText: { color: COLORS.textTertiary, fontSize: FONT_SIZES.small, marginTop: SPACING.xl },
+  notesText: { color: colors.textSecondary, marginTop: SPACING.sm, fontStyle: 'italic' },
+  dateText: { color: colors.textTertiary, fontSize: FONT_SIZES.small, marginTop: SPACING.xl },
 });

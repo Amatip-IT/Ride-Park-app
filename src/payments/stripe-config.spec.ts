@@ -76,15 +76,15 @@ describe('Stripe live configuration', () => {
     ).toBe('whsec_legacy');
   });
 
-  it('prefers a scope-specific webhook secret when present', () => {
+  it('skips placeholder restricted keys and falls back to the secret key', () => {
     expect(
-      getStripeWebhookSecret('connect', {
+      getStripeServerKey('payments', {
         read: reader({
-          NODE_ENV: 'production',
-          STRIPE_WEBHOOK_SECRET: 'whsec_legacy',
-          STRIPE_CONNECT_WEBHOOK_SECRET: 'whsec_connect',
+          NODE_ENV: 'development',
+          STRIPE_RESTRICTED_KEY: 'rk_test_replace_me',
+          STRIPE_SECRET_KEY: 'sk_test_real_secret_key_value',
         }),
       }),
-    ).toBe('whsec_connect');
+    ).toBe('sk_test_real_secret_key_value');
   });
 });

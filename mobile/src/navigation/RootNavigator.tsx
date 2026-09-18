@@ -1,8 +1,9 @@
 import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, DarkTheme, DefaultTheme, Theme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useAuthStore } from '@/store/authStore';
+import { useUIStore } from '@/store/index';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { navigationRef } from '@/navigation/navigationRef';
 import { UserRole } from '@/types';
@@ -43,7 +44,9 @@ import { ProviderActiveJourneyScreen } from '@/screens/ProviderActiveJourneyScre
 import { DocumentUploadScreen } from '@/screens/DocumentUploadScreen';
 import { ProviderVerificationScreen } from '@/screens/ProviderVerificationScreen';
 import { AdminDashboardScreen } from '@/screens/AdminDashboardScreen';
+import { AdminActiveRidesScreen } from '@/screens/AdminActiveRidesScreen';
 import { AdminUsersScreen } from '@/screens/AdminUsersScreen';
+import { AdminUserDetailScreen } from '@/screens/AdminUserDetailScreen';
 import { AdminVerificationQueueScreen } from '@/screens/AdminVerificationQueueScreen';
 import { AdminDriverQueueScreen } from '@/screens/AdminDriverQueueScreen';
 import { AdminIdentityQueueScreen } from '@/screens/AdminIdentityQueueScreen';
@@ -148,8 +151,10 @@ const ConsumerTabs = () => {
 };
 
 // Consumer Navigation — Stack wrapping tabs so sub-screens can push on top
-const ConsumerNavigator = () => (
-  <ConsumerStack.Navigator screenOptions={{ headerShown: false }}>
+const ConsumerNavigator = () => {
+  const colors = useThemeColors();
+  return (
+  <ConsumerStack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
     <ConsumerStack.Screen name="ConsumerTabs" component={ConsumerTabs} />
     {/* Service flows */}
     <ConsumerStack.Screen name="ServiceChoice" component={ServiceChoiceScreen} />
@@ -164,18 +169,21 @@ const ConsumerNavigator = () => (
     <ConsumerStack.Screen name="TripReceipt" component={TripReceiptScreen} />
     <ConsumerStack.Screen name="MapPreview" component={MapPreviewScreen} />
   </ConsumerStack.Navigator>
-);
+  );
+};
 
 // Provider Tabs (inner tab navigation)
-const ProviderTabs = () => (
+const ProviderTabs = () => {
+  const colors = useThemeColors();
+  return (
   <Tab.Navigator
     screenOptions={{
       headerShown: false,
-      tabBarActiveTintColor: '#00C2A8',
-      tabBarInactiveTintColor: '#999999',
+      tabBarActiveTintColor: colors.electricTeal,
+      tabBarInactiveTintColor: colors.textTertiary,
       tabBarStyle: {
-        backgroundColor: '#FFFFFF',
-        borderTopColor: '#EEEEEE',
+        backgroundColor: colors.background,
+        borderTopColor: colors.border,
       },
     }}
   >
@@ -224,11 +232,14 @@ const ProviderTabs = () => (
       }}
     />
   </Tab.Navigator>
-);
+  );
+};
 
 // Provider Navigation — Stack wrapping tabs so sub-screens can push on top
-const ProviderNavigator = () => (
-  <ProviderStack.Navigator screenOptions={{ headerShown: false }}>
+const ProviderNavigator = () => {
+  const colors = useThemeColors();
+  return (
+  <ProviderStack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
     <ProviderStack.Screen name="ProviderTabs" component={ProviderTabs} />
     <ProviderStack.Screen name="ProviderSpaceManagement" component={ProviderSpaceManagementScreen} />
     <ProviderStack.Screen name="ProviderVerification" component={ProviderVerificationScreen} />
@@ -240,27 +251,33 @@ const ProviderNavigator = () => (
     <ProviderStack.Screen name="DriverVerification" component={DriverVerificationScreen} />
     <ProviderStack.Screen name="DocumentUpload" component={DocumentUploadScreen} />
   </ProviderStack.Navigator>
-);
+  );
+};
 
 // Placeholder for screens that may not exist yet
 const PlaceholderScreen = () => {
+  const colors = useThemeColors();
   const React = require('react');
   const { View, Text } = require('react-native');
   return (
-    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0D1B2A' }}>
-      <Text style={{ color: '#8899BB', fontSize: 16 }}>Coming Soon</Text>
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
+      <Text style={{ color: colors.textSecondary, fontSize: 16 }}>Coming Soon</Text>
     </View>
   );
 };
 
 // Admin Navigation — Stack-based so sub-screens can push on top
-const AdminNavigator = () => (
-  <AdminStack.Navigator screenOptions={{ headerShown: false }}>
+const AdminNavigator = () => {
+  const colors = useThemeColors();
+  return (
+  <AdminStack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
     <AdminStack.Screen name="AdminDashboard" component={AdminDashboardScreen} />
+    <AdminStack.Screen name="AdminActiveRides" component={AdminActiveRidesScreen} />
     <AdminStack.Screen name="AdminVerificationQueue" component={AdminVerificationQueueScreen} />
     <AdminStack.Screen name="AdminDriverQueue" component={AdminDriverQueueScreen} />
     <AdminStack.Screen name="AdminIdentityQueue" component={AdminIdentityQueueScreen} />
     <AdminStack.Screen name="AdminUsers" component={AdminUsersScreen} />
+    <AdminStack.Screen name="AdminUserDetail" component={AdminUserDetailScreen} />
     <AdminStack.Screen name="AdminExpiringDocuments" component={AdminExpiringDocumentsScreen} />
     <AdminStack.Screen name="AdminAuditLogs" component={AdminAuditLogsScreen} />
     <AdminStack.Screen name="AdminMessaging" component={AdminMessagingScreen} />
@@ -280,12 +297,29 @@ const AdminNavigator = () => (
       component={AdminPlatformSettingsScreen || PlaceholderScreen}
     />
   </AdminStack.Navigator>
-);
+  );
+};
 
 // Root Navigator with authentication flow
 export const RootNavigator = () => {
   const { isAuthenticated, isOnboarded, user, isLoading } = useAuthStore();
+  const colors = useThemeColors();
+  const isDarkMode = useUIStore((s) => s.isDarkMode);
   const userRole = user?.role || 'user';
+
+  const navTheme: Theme = {
+    ...(isDarkMode ? DarkTheme : DefaultTheme),
+    dark: isDarkMode,
+    colors: {
+      ...(isDarkMode ? DarkTheme.colors : DefaultTheme.colors),
+      primary: colors.electricTeal,
+      background: colors.background,
+      card: colors.surface,
+      text: colors.textPrimary,
+      border: colors.border,
+      notification: colors.coralRed,
+    },
+  };
 
   if (isLoading) {
     return <SplashScreen />;
@@ -302,9 +336,12 @@ export const RootNavigator = () => {
   const navigatorKey = isAuthenticated ? `app-${userRole}` : 'auth';
 
   return (
-    <NavigationContainer ref={navigationRef} key={navigatorKey}>
+    <NavigationContainer ref={navigationRef} key={navigatorKey} theme={navTheme}>
       <Stack.Navigator
-        screenOptions={{ headerShown: false }}
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: colors.background },
+        }}
         initialRouteName={initialRouteName}
       >
         <Stack.Screen name="Onboarding" component={OnboardingScreen} />
@@ -313,98 +350,61 @@ export const RootNavigator = () => {
         <Stack.Screen
           name="Auth"
           component={AuthScreen}
-          options={{ contentStyle: { backgroundColor: '#0D1B2A' } }}
+          getId={({ params }) =>
+            `${params?.isLogin ? 'login' : 'register'}-${params?.role ?? 'user'}`
+          }
         />
         <Stack.Screen
           name="ForgotPassword"
           component={ForgotPasswordScreen}
-          options={{
-            presentation: 'modal',
-            contentStyle: { backgroundColor: '#0D1B2A' },
-          }}
+          options={{ presentation: 'modal' }}
         />
         <Stack.Screen
           name="LegalDocument"
           component={LegalDocumentScreen}
-          options={{
-            presentation: 'modal',
-            contentStyle: { backgroundColor: '#0D1B2A' },
-          }}
+          options={{ presentation: 'modal' }}
         />
 
         {/* Application Flow */}
-        <Stack.Screen
-          name="AdminApp"
-          component={AdminNavigator}
-          options={{ contentStyle: { backgroundColor: '#0D1B2A' } }}
-        />
-        <Stack.Screen
-          name="ConsumerApp"
-          component={ConsumerNavigator}
-          options={{ contentStyle: { backgroundColor: '#0D1B2A' } }}
-        />
-        <Stack.Screen
-          name="ProviderApp"
-          component={ProviderNavigator}
-          options={{ contentStyle: { backgroundColor: '#0D1B2A' } }}
-        />
+        <Stack.Screen name="AdminApp" component={AdminNavigator} />
+        <Stack.Screen name="ConsumerApp" component={ConsumerNavigator} />
+        <Stack.Screen name="ProviderApp" component={ProviderNavigator} />
 
         {/* Shared Modal Screens */}
         <Stack.Screen
           name="ChatList"
           component={ChatListScreen}
-          options={{
-            presentation: 'modal',
-            contentStyle: { backgroundColor: '#0D1B2A' },
-          }}
+          options={{ presentation: 'modal' }}
         />
         <Stack.Screen
           name="Chat"
           component={ChatScreen}
-          options={{
-            presentation: 'modal',
-            contentStyle: { backgroundColor: '#0D1B2A' },
-          }}
+          options={{ presentation: 'modal' }}
         />
         <Stack.Screen
           name="EditProfile"
           component={EditProfileScreen}
-          options={{
-            presentation: 'modal',
-            contentStyle: { backgroundColor: '#0D1B2A' },
-          }}
+          options={{ presentation: 'modal' }}
         />
         <Stack.Screen
           name="Notifications"
           component={NotificationsScreen}
-          options={{
-            presentation: 'modal',
-            contentStyle: { backgroundColor: '#0D1B2A' },
-          }}
+          options={{ presentation: 'modal' }}
         />
         <Stack.Screen
           name="Disputes"
           component={DisputesScreen}
-          options={{
-            presentation: 'modal',
-            contentStyle: { backgroundColor: '#0D1B2A' },
-          }}
+          options={{ presentation: 'modal' }}
         />
         <Stack.Screen
           name="FileDispute"
           component={FileDisputeScreen}
-          options={{
-            presentation: 'modal',
-            contentStyle: { backgroundColor: '#0D1B2A' },
-          }}
+          options={{ presentation: 'modal' }}
         />
         <Stack.Screen
           name="DisputeDetail"
           component={DisputeDetailScreen}
-          options={{
-            presentation: 'modal',
-            contentStyle: { backgroundColor: '#0D1B2A' },
-          }}
+          options={{ presentation: 'modal' }}
         />
       </Stack.Navigator>
     </NavigationContainer>
@@ -442,10 +442,12 @@ export type RootStackParamList = {
   DocumentUpload: undefined;
   // Admin Stack (nested)
   AdminDashboard: undefined;
+  AdminActiveRides: undefined;
   AdminVerificationQueue: undefined;
   AdminDriverQueue: undefined;
   AdminIdentityQueue: undefined;
   AdminUsers: undefined;
+  AdminUserDetail: { userId: string };
   AdminExpiringDocuments: undefined;
   AdminAuditLogs: undefined;
   AdminMessaging: { userId?: string; userName?: string } | undefined;

@@ -24,6 +24,18 @@ function normalizedValue(
   return value || undefined;
 }
 
+/** Skip empty / template placeholders so a real STRIPE_SECRET_KEY can win. */
+function isUsableStripeServerKey(key: string | undefined): key is string {
+  if (!key) return false;
+  if (/replace_me|your_|changeme|\bxxx\b/i.test(key)) return false;
+  return (
+    key.startsWith('rk_test_') ||
+    key.startsWith('rk_live_') ||
+    key.startsWith('sk_test_') ||
+    key.startsWith('sk_live_')
+  );
+}
+
 export function getStripeServerKey(
   scope: StripeKeyScope,
   options: {
@@ -33,10 +45,12 @@ export function getStripeServerKey(
 ): string | undefined {
   const read = options.read || processEnvironment;
   const nodeEnv = normalizedValue(read, 'NODE_ENV') || process.env.NODE_ENV;
-  const key =
-    normalizedValue(read, SCOPED_KEY_NAMES[scope]) ||
-    normalizedValue(read, 'STRIPE_RESTRICTED_KEY') ||
-    normalizedValue(read, 'STRIPE_SECRET_KEY');
+  const candidates = [
+    normalizedValue(read, SCOPED_KEY_NAMES[scope]),
+    normalizedValue(read, 'STRIPE_RESTRICTED_KEY'),
+    normalizedValue(read, 'STRIPE_SECRET_KEY'),
+  ];
+  const key = candidates.find(isUsableStripeServerKey);
 
   if (!key) {
     if (nodeEnv === 'test') return 'sk_test_mock';

@@ -17,8 +17,8 @@ export class Review {
   @Prop({ type: MongooseSchema.Types.ObjectId, required: true })
   serviceId: string;
 
-  // Reference to the booking this review is for
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'BookingRequest' })
+  // BookingRequest or TaxiRideRequest id (optional link for duplicate prevention)
+  @Prop({ type: MongooseSchema.Types.ObjectId })
   booking?: string;
 
   // Star rating (1-5)

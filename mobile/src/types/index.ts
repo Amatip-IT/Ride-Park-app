@@ -4,6 +4,7 @@ export interface ApiResponse<T = any> {
   message: string;
   data?: T;
   expiresIn?: string;
+  retryAfter?: number;
   url?: string;
 }
 

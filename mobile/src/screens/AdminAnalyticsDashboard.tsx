@@ -1,10 +1,11 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   ActivityIndicator, RefreshControl, Share, Alert,
 } from 'react-native';
 import { adminApi } from '@/api';
-import { COLORS, SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '@/constants/theme';
+import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS, ThemeColors } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { AdminScreenLayout } from '@/components/admin/AdminScreenLayout';
@@ -19,19 +20,23 @@ const PERIODS = [
 
 type Period = typeof PERIODS[number]['id'];
 
-function MetricCard({ label, value, sub, color = COLORS.electricTeal }: {
+function MetricCard({ label, value, sub, color }: {
   label: string; value: string | number; sub?: string; color?: string;
 }) {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <View style={styles.metricCard}>
       <Text style={styles.metricLabel}>{label}</Text>
-      <Text style={[styles.metricValue, { color }]}>{value}</Text>
+      <Text style={[styles.metricValue, { color: color || colors.electricTeal }]}>{value}</Text>
       {sub ? <Text style={styles.metricSub}>{sub}</Text> : null}
     </View>
   );
 }
 
 function SimpleBarChart({ data, title }: { data: Array<{ label: string; value: number }>; title: string }) {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const max = Math.max(...data.map(d => d.value), 1);
   return (
     <View style={styles.chartCard}>
@@ -56,6 +61,8 @@ function SimpleBarChart({ data, title }: { data: Array<{ label: string; value: n
 }
 
 export function AdminAnalyticsDashboard() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [period, setPeriod] = useState<Period>('month');
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -102,7 +109,7 @@ export function AdminAnalyticsDashboard() {
   if (loading && !data) {
     return (
       <SafeAreaView style={styles.center} edges={['top', 'bottom']}>
-        <ActivityIndicator size="large" color={COLORS.electricTeal} />
+        <ActivityIndicator size="large" color={colors.electricTeal} />
       </SafeAreaView>
     );
   }
@@ -133,7 +140,7 @@ export function AdminAnalyticsDashboard() {
       headerBottom={periodRow}
       rightSlot={(
         <TouchableOpacity onPress={handleExport} style={styles.exportBtn}>
-          <Ionicons name="download-outline" size={22} color={COLORS.electricTeal} />
+          <Ionicons name="download-outline" size={22} color={colors.electricTeal} />
         </TouchableOpacity>
       )}
     >
@@ -143,13 +150,13 @@ export function AdminAnalyticsDashboard() {
         keyboardDismissMode="on-drag"
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => fetchAnalytics(period, true)} tintColor={COLORS.electricTeal} />
+          <RefreshControl refreshing={refreshing} onRefresh={() => fetchAnalytics(period, true)} tintColor={colors.electricTeal} />
         }
       >
         <Text style={styles.sectionTitle}>Revenue</Text>
         <View style={styles.metricGrid}>
-          <MetricCard label="MTD Fees" value={`£${(revenue.mtdFees || 0).toFixed(2)}`} color={COLORS.success} />
-          <MetricCard label="YTD Fees" value={`£${(revenue.ytdFees || 0).toFixed(2)}`} color={COLORS.success} />
+          <MetricCard label="MTD Fees" value={`£${(revenue.mtdFees || 0).toFixed(2)}`} color={colors.success} />
+          <MetricCard label="YTD Fees" value={`£${(revenue.ytdFees || 0).toFixed(2)}`} color={colors.success} />
           <MetricCard label="All-Time" value={`£${(revenue.allTimeFees || 0).toFixed(2)}`} />
           <MetricCard label="Avg Fee / Txn" value={`£${(revenue.averageFeePerTransaction || 0).toFixed(2)}`} sub={`${revenue.transactionCount || 0} txns`} />
         </View>
@@ -170,9 +177,9 @@ export function AdminAnalyticsDashboard() {
 
         <Text style={styles.sectionTitle}>Verifications</Text>
         <View style={styles.metricGrid}>
-          <MetricCard label="Approval Rate" value={`${(verifications.approvalRate || 0).toFixed(1)}%`} color={COLORS.info} />
+          <MetricCard label="Approval Rate" value={`${(verifications.approvalRate || 0).toFixed(1)}%`} color={colors.info} />
           <MetricCard label="Avg Approval Time" value={`${verifications.averageApprovalDays || 0}d`} />
-          <MetricCard label="Pending" value={verifications.pending || 0} color={COLORS.amber} />
+          <MetricCard label="Pending" value={verifications.pending || 0} color={colors.amber} />
           <MetricCard label="Resubmit Success" value={`${(verifications.resubmissionSuccessRate || 0).toFixed(1)}%`} />
         </View>
 
@@ -191,18 +198,18 @@ export function AdminAnalyticsDashboard() {
         <Text style={styles.sectionTitle}>Users & Drivers</Text>
         <View style={styles.metricGrid}>
           <MetricCard label="Total Users" value={users.totalUsers || 0} />
-          <MetricCard label="New Sign-ups" value={users.newSignups || 0} color={COLORS.info} />
-          <MetricCard label="Active Drivers" value={users.drivers?.active || 0} color={COLORS.success} />
-          <MetricCard label="Churn Rate" value={`${(users.churnRate || 0).toFixed(1)}%`} color={COLORS.error} />
+          <MetricCard label="New Sign-ups" value={users.newSignups || 0} color={colors.info} />
+          <MetricCard label="Active Drivers" value={users.drivers?.active || 0} color={colors.success} />
+          <MetricCard label="Churn Rate" value={`${(users.churnRate || 0).toFixed(1)}%`} color={colors.error} />
         </View>
-        <MetricCard label="Docs Expiring (30 days)" value={users.documentExpiryForecast || 0} color={COLORS.warning} />
+        <MetricCard label="Docs Expiring (30 days)" value={users.documentExpiryForecast || 0} color={colors.warning} />
 
         <Text style={styles.sectionTitle}>Queue Health</Text>
         <View style={styles.metricGrid}>
-          <MetricCard label="Total Backlog" value={queue.backlog?.total || 0} color={COLORS.amber} />
+          <MetricCard label="Total Backlog" value={queue.backlog?.total || 0} color={colors.amber} />
           <MetricCard label="Driver Queue" value={queue.backlog?.drivers || 0} />
           <MetricCard label="Avg Wait" value={`${queue.averageWaitDays || 0}d`} />
-          <MetricCard label="Oldest Pending" value={`${queue.oldestPendingDays || 0}d`} color={COLORS.error} />
+          <MetricCard label="Oldest Pending" value={`${queue.oldestPendingDays || 0}d`} color={colors.error} />
         </View>
         <MetricCard
           label="Est. Days to Clear Queue"
@@ -214,8 +221,8 @@ export function AdminAnalyticsDashboard() {
   );
 }
 
-const styles = StyleSheet.create({
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.background },
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background },
   exportBtn: { padding: SPACING.sm, width: 40, alignItems: 'center' },
   periodRow: {
     flexDirection: 'row',
@@ -224,7 +231,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: colors.border,
   },
   analyticsScroll: { flex: 1 },
   periodChip: {
@@ -232,47 +239,47 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: BORDER_RADIUS.full,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.surface,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
   },
-  periodChipActive: { backgroundColor: `${COLORS.electricTeal}15`, borderColor: COLORS.electricTeal },
-  periodText: { color: COLORS.textSecondary, fontSize: FONT_SIZES.small, fontWeight: FONT_WEIGHTS.medium },
-  periodTextActive: { color: COLORS.electricTeal },
+  periodChipActive: { backgroundColor: `${colors.electricTeal}15`, borderColor: colors.electricTeal },
+  periodText: { color: colors.textSecondary, fontSize: FONT_SIZES.small, fontWeight: FONT_WEIGHTS.medium },
+  periodTextActive: { color: colors.electricTeal },
   scrollContent: { padding: SPACING.md, paddingBottom: SPACING.xl },
   sectionTitle: {
-    color: COLORS.textPrimary, fontSize: FONT_SIZES.body, fontWeight: FONT_WEIGHTS.bold,
+    color: colors.textPrimary, fontSize: FONT_SIZES.body, fontWeight: FONT_WEIGHTS.bold,
     marginBottom: SPACING.md, marginTop: SPACING.sm,
   },
   metricGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm, marginBottom: SPACING.md },
   metricCard: {
-    width: '48%', backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.md, borderWidth: 1, borderColor: COLORS.border,
+    width: '48%', backgroundColor: colors.surface, borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.md, borderWidth: 1, borderColor: colors.border,
   },
-  metricLabel: { color: COLORS.textSecondary, fontSize: FONT_SIZES.small, marginBottom: 4 },
-  metricValue: { color: COLORS.textPrimary, fontSize: 20, fontWeight: FONT_WEIGHTS.bold },
-  metricSub: { color: COLORS.textTertiary, fontSize: 11, marginTop: 2 },
+  metricLabel: { color: colors.textSecondary, fontSize: FONT_SIZES.small, marginBottom: 4 },
+  metricValue: { color: colors.textPrimary, fontSize: 20, fontWeight: FONT_WEIGHTS.bold },
+  metricSub: { color: colors.textTertiary, fontSize: 11, marginTop: 2 },
   chartCard: {
-    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.lg,
+    backgroundColor: colors.surface, borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.md, marginBottom: SPACING.md,
-    borderWidth: 1, borderColor: COLORS.border,
+    borderWidth: 1, borderColor: colors.border,
   },
-  chartTitle: { color: COLORS.textPrimary, fontWeight: FONT_WEIGHTS.semibold, marginBottom: SPACING.md },
-  emptyChart: { color: COLORS.textTertiary, textAlign: 'center', paddingVertical: SPACING.lg },
+  chartTitle: { color: colors.textPrimary, fontWeight: FONT_WEIGHTS.semibold, marginBottom: SPACING.md },
+  emptyChart: { color: colors.textTertiary, textAlign: 'center', paddingVertical: SPACING.lg },
   chartBars: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', height: 140 },
   barColumn: { flex: 1, alignItems: 'center' },
-  barTrack: { width: 20, height: 100, backgroundColor: COLORS.divider, borderRadius: 4, justifyContent: 'flex-end', overflow: 'hidden' },
-  barFill: { width: '100%', backgroundColor: COLORS.electricTeal, borderRadius: 4 },
-  barLabel: { fontSize: 9, color: COLORS.textTertiary, marginTop: 4 },
-  barValue: { fontSize: 9, color: COLORS.textSecondary, fontWeight: FONT_WEIGHTS.medium },
+  barTrack: { width: 20, height: 100, backgroundColor: colors.divider, borderRadius: 4, justifyContent: 'flex-end', overflow: 'hidden' },
+  barFill: { width: '100%', backgroundColor: colors.electricTeal, borderRadius: 4 },
+  barLabel: { fontSize: 9, color: colors.textTertiary, marginTop: 4 },
+  barValue: { fontSize: 9, color: colors.textSecondary, fontWeight: FONT_WEIGHTS.medium },
   listCard: {
-    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.lg,
+    backgroundColor: colors.surface, borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.md, marginBottom: SPACING.md,
-    borderWidth: 1, borderColor: COLORS.border,
+    borderWidth: 1, borderColor: colors.border,
   },
   listRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingVertical: SPACING.sm, borderBottomWidth: 1, borderBottomColor: COLORS.divider,
+    paddingVertical: SPACING.sm, borderBottomWidth: 1, borderBottomColor: colors.divider,
   },
-  listName: { flex: 1, color: COLORS.textPrimary, fontSize: FONT_SIZES.small, marginRight: SPACING.sm },
-  listValue: { color: COLORS.electricTeal, fontWeight: FONT_WEIGHTS.semibold },
+  listName: { flex: 1, color: colors.textPrimary, fontSize: FONT_SIZES.small, marginRight: SPACING.sm },
+  listValue: { color: colors.electricTeal, fontWeight: FONT_WEIGHTS.semibold },
 });

@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, SafeAreaView,
   ActivityIndicator, Alert, Linking,
 } from 'react-native';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
+import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, ThemeColors } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { taxiBookingsApi, ridesApi } from '@/api';
@@ -14,7 +15,6 @@ import { useAuthStore } from '@/store/authStore';
 import {
   getApiErrorMessage,
   haversineDistanceMiles,
-  openMapsNavigation,
 } from '@/utils/helpers';
 import { useRideRouteAndEta } from '@/hooks/useRideRouteAndEta';
 
@@ -43,6 +43,8 @@ function mapRequestStatusToJourney(status?: string): JourneyState {
 }
 
 export function ProviderActiveJourneyScreen() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const navigation = useNavigation<any>();
   const route = useRoute<RouteProp<ParamList, 'ProviderActiveJourney'>>();
   const { requestId, serviceType } = route.params;
@@ -53,6 +55,7 @@ export function ProviderActiveJourneyScreen() {
   const [actionLoading, setActionLoading] = useState(false);
   const [journeyState, setJourneyState] = useState<JourneyState>('accepted');
   const [rideId, setRideId] = useState<string | null>(null);
+  const [mapFocusToken, setMapFocusToken] = useState(0);
 
   const rideStartedAtRef = useRef<number | null>(null);
   const lastPositionRef = useRef<{ lat: number; lng: number } | null>(null);
@@ -327,23 +330,29 @@ export function ProviderActiveJourneyScreen() {
     }
   };
 
-  const navigateToPickup = () => {
-    openMapsNavigation({
-      lat: requestItem?.pickupLat,
-      lng: requestItem?.pickupLng,
-      label: 'Pickup',
-      address: [requestItem?.pickupAddress, requestItem?.pickupPostcode].filter(Boolean).join(', '),
+  const messagePassenger = () => {
+    const passenger = requestItem?.passenger;
+    const passengerId = passenger?._id || passenger?.id;
+    if (!passengerId) {
+      Alert.alert('Unavailable', 'Passenger chat is not available yet.');
+      return;
+    }
+    const name =
+      `${passenger?.firstName || ''} ${passenger?.lastName || ''}`.trim() || 'Passenger';
+    navigation.navigate('Chat', {
+      userId: String(passengerId),
+      userName: name,
+      bookingId: requestId,
     });
   };
 
-  const navigateToDropoff = () => {
-    openMapsNavigation({
-      lat: requestItem?.destinationLat,
-      lng: requestItem?.destinationLng,
-      label: 'Drop-off',
-      address: [requestItem?.destinationAddress, requestItem?.destinationPostcode].filter(Boolean).join(', '),
-    });
+  /** Keep navigation inside the app map (blue route) — do not open Apple/Google Maps. */
+  const focusInAppRoute = () => {
+    setMapFocusToken((n) => n + 1);
   };
+
+  const navigateToPickup = () => focusInAppRoute();
+  const navigateToDropoff = () => focusInAppRoute();
 
   const getActionText = () => {
     switch (journeyState) {
@@ -366,28 +375,37 @@ export function ProviderActiveJourneyScreen() {
     }
   };
 
+  const goHome = () => {
+    navigation.navigate('ProviderTabs', { screen: 'ProviderHome' });
+  };
+
   const getActionColor = () => {
     switch (journeyState) {
       case 'accepted':
-        return COLORS.amber;
+        return colors.amber;
       case 'arrived':
-        return COLORS.success;
+        return colors.success;
       case 'in_progress':
-        return COLORS.error;
+        return colors.error;
       case 'awaiting_payment':
-        return COLORS.amber;
+        return colors.amber;
       case 'completed':
-        return COLORS.electricTeal;
+        return colors.electricTeal;
       default:
-        return COLORS.electricTeal;
+        return colors.electricTeal;
     }
   };
 
   if (loading) {
     return (
       <SafeAreaView style={styles.safeArea}>
+        <View style={styles.topBar}>
+          <TouchableOpacity style={styles.backBtn} onPress={goHome} activeOpacity={0.8}>
+            <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
+          </TouchableOpacity>
+        </View>
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color={COLORS.electricTeal} />
+          <ActivityIndicator size="large" color={colors.electricTeal} />
         </View>
       </SafeAreaView>
     );
@@ -396,8 +414,13 @@ export function ProviderActiveJourneyScreen() {
   if (!requestItem) {
     return (
       <SafeAreaView style={styles.safeArea}>
+        <View style={styles.topBar}>
+          <TouchableOpacity style={styles.backBtn} onPress={goHome} activeOpacity={0.8}>
+            <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
+          </TouchableOpacity>
+        </View>
         <View style={styles.centered}>
-          <Text style={{ color: COLORS.textPrimary }}>Request not found.</Text>
+          <Text style={{ color: colors.textPrimary }}>Request not found.</Text>
         </View>
       </SafeAreaView>
     );
@@ -409,6 +432,9 @@ export function ProviderActiveJourneyScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.mapContainer}>
+        <TouchableOpacity style={styles.mapBackBtn} onPress={goHome} activeOpacity={0.8}>
+          <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
+        </TouchableOpacity>
         <AmazonMap
           pickupLat={requestItem.pickupLat}
           pickupLng={requestItem.pickupLng}
@@ -418,13 +444,14 @@ export function ProviderActiveJourneyScreen() {
           driverLng={driverLocation?.lng}
           driverRotation={driverLocation?.rotation}
           routeCoordinates={routeCoordinates}
+          focusToken={mapFocusToken}
         />
       </View>
 
       <View style={styles.detailsContainer}>
         {fetchError && (
           <TouchableOpacity style={styles.errorBanner} onPress={() => fetchRequest()}>
-            <Ionicons name="cloud-offline-outline" size={18} color={COLORS.coralRed} />
+            <Ionicons name="cloud-offline-outline" size={18} color={colors.coralRed} />
             <Text style={styles.errorBannerText}>Updates paused. Tap to retry.</Text>
           </TouchableOpacity>
         )}
@@ -432,32 +459,37 @@ export function ProviderActiveJourneyScreen() {
           <Text style={styles.passengerStr}>
             {requestItem.passenger?.firstName} {requestItem.passenger?.lastName}
           </Text>
-          <TouchableOpacity style={styles.callBtn} onPress={callPassenger} activeOpacity={0.8}>
-            <Ionicons name="call" size={20} color="#FFF" />
-          </TouchableOpacity>
+          <View style={styles.contactActions}>
+            <TouchableOpacity style={styles.messageBtn} onPress={messagePassenger} activeOpacity={0.8}>
+              <Ionicons name="chatbubble" size={20} color="#FFF" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.callBtn} onPress={callPassenger} activeOpacity={0.8}>
+              <Ionicons name="call" size={20} color="#FFF" />
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View style={styles.routeBox}>
           <TouchableOpacity style={styles.routeRow} onPress={navigateToPickup} activeOpacity={0.7}>
-            <Ionicons name="radio-button-on" size={16} color={COLORS.success} />
+            <Ionicons name="radio-button-on" size={16} color={colors.success} />
             <Text style={styles.routeText} numberOfLines={2}>
               {requestItem.pickupAddress || requestItem.pickupPostcode || 'GPS Location'}
             </Text>
-            <Ionicons name="navigate-outline" size={18} color={COLORS.electricTeal} />
+            <Ionicons name="navigate-outline" size={18} color={colors.electricTeal} />
           </TouchableOpacity>
           <View style={styles.routeDivider} />
           <TouchableOpacity style={styles.routeRow} onPress={navigateToDropoff} activeOpacity={0.7}>
-            <Ionicons name="location" size={16} color={COLORS.error} />
+            <Ionicons name="location" size={16} color={colors.error} />
             <Text style={styles.routeText} numberOfLines={2}>
               {requestItem.destinationAddress || requestItem.destinationPostcode}
             </Text>
-            <Ionicons name="navigate-outline" size={18} color={COLORS.electricTeal} />
+            <Ionicons name="navigate-outline" size={18} color={colors.electricTeal} />
           </TouchableOpacity>
         </View>
 
         {etaLabel && journeyState !== 'completed' && (
           <View style={styles.etaBanner}>
-            <Ionicons name="time-outline" size={18} color={COLORS.electricTeal} />
+            <Ionicons name="time-outline" size={18} color={colors.electricTeal} />
             <Text style={styles.etaText}>{etaLabel}</Text>
           </View>
         )}
@@ -467,7 +499,7 @@ export function ProviderActiveJourneyScreen() {
           onPress={navTarget === 'dropoff' ? navigateToDropoff : navigateToPickup}
           activeOpacity={0.8}
         >
-          <Ionicons name="navigate" size={20} color={COLORS.electricTeal} />
+          <Ionicons name="navigate" size={20} color={colors.electricTeal} />
           <Text style={styles.navBtnText}>
             {navTarget === 'dropoff' ? 'Navigate to drop-off' : 'Navigate to pickup'}
           </Text>
@@ -479,7 +511,7 @@ export function ProviderActiveJourneyScreen() {
             onPress={() => navigation.navigate('TripReceipt', { requestId, rideId })}
             activeOpacity={0.8}
           >
-            <Ionicons name="receipt-outline" size={18} color={COLORS.electricTeal} />
+            <Ionicons name="receipt-outline" size={18} color={colors.electricTeal} />
             <Text style={styles.receiptBtnText}>View trip receipt</Text>
           </TouchableOpacity>
         )}
@@ -501,12 +533,46 @@ export function ProviderActiveJourneyScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: COLORS.background },
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: colors.background },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  mapContainer: { flex: 1, backgroundColor: '#E2E8F0' },
+  topBar: {
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.sm,
+    paddingBottom: SPACING.sm,
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  mapContainer: { flex: 1, backgroundColor: colors.surfaceAlt },
+  mapBackBtn: {
+    position: 'absolute',
+    top: SPACING.md,
+    left: SPACING.lg,
+    zIndex: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 4,
+  },
   detailsContainer: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
     padding: SPACING.xl,
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
@@ -518,42 +584,55 @@ const styles = StyleSheet.create({
   },
   errorBanner: {
     flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
-    backgroundColor: `${COLORS.coralRed}15`, borderRadius: BORDER_RADIUS.md,
+    backgroundColor: `${colors.coralRed}15`, borderRadius: BORDER_RADIUS.md,
     padding: SPACING.sm, marginBottom: SPACING.md,
   },
-  errorBannerText: { flex: 1, color: COLORS.coralRed, fontSize: FONT_SIZES.small },
+  errorBannerText: { flex: 1, color: colors.coralRed, fontSize: FONT_SIZES.small },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: SPACING.lg,
   },
-  passengerStr: { fontSize: 22, fontWeight: FONT_WEIGHTS.bold, color: COLORS.textPrimary },
+  passengerStr: { fontSize: 22, fontWeight: FONT_WEIGHTS.bold, color: colors.textPrimary },
   callBtn: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: COLORS.success,
+    backgroundColor: colors.success,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  messageBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.electricTeal,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  contactActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
   routeBox: {
-    backgroundColor: COLORS.background,
+    backgroundColor: colors.background,
     padding: SPACING.md,
     borderRadius: BORDER_RADIUS.md,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
     marginBottom: SPACING.md,
   },
   routeRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
   routeDivider: {
     width: 2,
     height: 16,
-    backgroundColor: COLORS.border,
+    backgroundColor: colors.border,
     marginVertical: 4,
     marginLeft: 7,
   },
-  routeText: { fontSize: FONT_SIZES.body, color: COLORS.textSecondary, flex: 1 },
+  routeText: { fontSize: FONT_SIZES.body, color: colors.textSecondary, flex: 1 },
   etaBanner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -562,10 +641,10 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.sm,
     marginBottom: SPACING.md,
     borderRadius: BORDER_RADIUS.md,
-    backgroundColor: `${COLORS.electricTeal}12`,
+    backgroundColor: `${colors.electricTeal}12`,
   },
   etaText: {
-    color: COLORS.electricTeal,
+    color: colors.electricTeal,
     fontSize: 15,
     fontWeight: FONT_WEIGHTS.semibold,
   },
@@ -578,11 +657,11 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
     borderRadius: BORDER_RADIUS.lg,
     borderWidth: 1,
-    borderColor: COLORS.electricTeal,
-    backgroundColor: `${COLORS.electricTeal}10`,
+    borderColor: colors.electricTeal,
+    backgroundColor: `${colors.electricTeal}10`,
   },
   receiptBtnText: {
-    color: COLORS.electricTeal,
+    color: colors.electricTeal,
     fontSize: 15,
     fontWeight: FONT_WEIGHTS.bold,
   },
@@ -595,11 +674,11 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.lg,
     borderRadius: BORDER_RADIUS.lg,
     borderWidth: 1,
-    borderColor: COLORS.electricTeal,
-    backgroundColor: `${COLORS.electricTeal}10`,
+    borderColor: colors.electricTeal,
+    backgroundColor: `${colors.electricTeal}10`,
   },
   navBtnText: {
-    color: COLORS.electricTeal,
+    color: colors.electricTeal,
     fontSize: 15,
     fontWeight: FONT_WEIGHTS.bold,
   },

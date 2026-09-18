@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import {
   ParkingVerification,
   ParkingVerificationDocument,
@@ -21,6 +21,23 @@ import {
 } from 'src/schemas/platform-settings.schema';
 import { Chauffeur, ChauffeurDocument } from 'src/schemas/chauffeur.schema';
 import { Taxi, TaxiDocument } from 'src/schemas/taxi.schema';
+import {
+  BookingRequest,
+  BookingRequestDocument,
+} from 'src/schemas/booking-request.schema';
+import {
+  TaxiRideRequest,
+  TaxiRideRequestDocument,
+} from 'src/schemas/taxi-ride-request.schema';
+import { Dispute, DisputeDocument } from 'src/schemas/dispute.schema';
+import {
+  AdminAuditLog,
+  AdminAuditLogDocument,
+} from 'src/schemas/admin-audit-log.schema';
+import {
+  AdminMessage,
+  AdminMessageDocument,
+} from 'src/schemas/admin-message.schema';
 import { Response } from 'src/common/interfaces/response.interface';
 import { What3WordsService } from 'src/utility/what3words.service';
 import { AmazonLocationService } from 'src/utility/amazon-location.service';
@@ -78,6 +95,16 @@ export class AdminService {
     @InjectModel(Chauffeur.name)
     private chauffeurModel: Model<ChauffeurDocument>,
     @InjectModel(Taxi.name) private taxiModel: Model<TaxiDocument>,
+    @InjectModel(BookingRequest.name)
+    private bookingRequestModel: Model<BookingRequestDocument>,
+    @InjectModel(TaxiRideRequest.name)
+    private taxiRideRequestModel: Model<TaxiRideRequestDocument>,
+    @InjectModel(Dispute.name)
+    private disputeModel: Model<DisputeDocument>,
+    @InjectModel(AdminAuditLog.name)
+    private auditLogModel: Model<AdminAuditLogDocument>,
+    @InjectModel(AdminMessage.name)
+    private adminMessageModel: Model<AdminMessageDocument>,
     private what3wordsService: What3WordsService,
     private amazonLocationService: AmazonLocationService,
     private notificationsService: NotificationsService,
@@ -2002,5 +2029,111 @@ export class AdminService {
       data: { results, successCount, failedCount: items.length - successCount },
       message: `Message sent to ${successCount} of ${items.length} driver(s)`,
     };
+  }
+
+  /**
+   * Full admin dossier for a single user: profile + bookings/rides + money + activity.
+   */
+  async getUserDossier(userId: string): Promise<Response> {
+    try {
+      if (!Types.ObjectId.isValid(userId)) {
+        return { success: false, message: 'Invalid user id' };
+      }
+
+      const oid = new Types.ObjectId(userId);
+
+      const user = await this.userModel
+        .findById(oid)
+        .select('-password -refreshToken')
+        .lean()
+        .exec();
+
+      if (!user) {
+        return { success: false, message: 'User not found' };
+      }
+
+      const [
+        bookings,
+        rides,
+        wallet,
+        transactions,
+        disputes,
+        auditLogs,
+        messages,
+      ] = await Promise.all([
+        this.bookingRequestModel
+          .find({ $or: [{ requester: oid }, { provider: oid }] })
+          .populate('requester', 'firstName lastName email')
+          .populate('provider', 'firstName lastName email')
+          .sort({ createdAt: -1 })
+          .limit(50)
+          .lean()
+          .exec(),
+        this.taxiRideRequestModel
+          .find({
+            $or: [
+              { passenger: oid },
+              { acceptedDriver: oid },
+              { targetDriver: oid },
+            ],
+          })
+          .populate('passenger', 'firstName lastName email')
+          .populate('acceptedDriver', 'firstName lastName email')
+          .populate('targetDriver', 'firstName lastName email')
+          .sort({ createdAt: -1 })
+          .limit(50)
+          .lean()
+          .exec(),
+        this.walletModel.findOne({ providerId: oid }).lean().exec(),
+        this.transactionModel
+          .find({ providerId: oid })
+          .sort({ createdAt: -1 })
+          .limit(50)
+          .lean()
+          .exec(),
+        this.disputeModel
+          .find({ $or: [{ filedBy: oid }, { complaintAbout: oid }] })
+          .populate('filedBy', 'firstName lastName email')
+          .populate('complaintAbout', 'firstName lastName email')
+          .sort({ createdAt: -1 })
+          .limit(30)
+          .lean()
+          .exec(),
+        this.auditLogModel
+          .find({ targetId: userId })
+          .populate('admin', 'firstName lastName email')
+          .sort({ createdAt: -1 })
+          .limit(30)
+          .lean()
+          .exec(),
+        this.adminMessageModel
+          .find({ userId: oid })
+          .populate('admin', 'firstName lastName email')
+          .sort({ createdAt: -1 })
+          .limit(30)
+          .lean()
+          .exec(),
+      ]);
+
+      return {
+        success: true,
+        data: {
+          profile: user,
+          bookings,
+          rides,
+          wallet: wallet || null,
+          transactions,
+          disputes,
+          auditLogs,
+          messages,
+        },
+        message: 'User dossier loaded',
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: `Failed to load user dossier: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      };
+    }
   }
 }

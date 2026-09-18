@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, SafeAreaView,
   ActivityIndicator, Alert, Linking, Animated,
 } from 'react-native';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
+import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, ThemeColors } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
 import { taxiBookingsApi, ridesApi } from '@/api';
@@ -20,6 +21,8 @@ type ParamList = {
 };
 
 export function PassengerTrackingScreen() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const navigation = useNavigation<any>();
   const route = useRoute<RouteProp<ParamList, 'PassengerTracking'>>();
   const { requestId } = route.params;
@@ -212,6 +215,7 @@ export function PassengerTrackingScreen() {
       return 'Payment needs your attention';
     }
     switch (request.status) {
+      case 'searching': return '🔍 Finding a nearby driver…';
       case 'accepted': return '🚗 Driver is on the way';
       case 'arrived': return '📍 Driver has arrived';
       case 'in_progress': return '🛣️ Ride in progress';
@@ -222,14 +226,14 @@ export function PassengerTrackingScreen() {
   };
 
   const getStatusColor = () => {
-    if (!request) return COLORS.textSecondary;
+    if (!request) return colors.textSecondary;
     switch (request.status) {
-      case 'accepted': return COLORS.info;
-      case 'arrived': return COLORS.amber;
-      case 'in_progress': return COLORS.success;
-      case 'awaiting_payment': return COLORS.amber;
-      case 'completed': return COLORS.electricTeal;
-      default: return COLORS.textSecondary;
+      case 'accepted': return colors.info;
+      case 'arrived': return colors.amber;
+      case 'in_progress': return colors.success;
+      case 'awaiting_payment': return colors.amber;
+      case 'completed': return colors.electricTeal;
+      default: return colors.textSecondary;
     }
   };
 
@@ -240,6 +244,18 @@ export function PassengerTrackingScreen() {
     } else {
       Alert.alert('Unavailable', 'Driver contact is not available yet.');
     }
+  };
+
+  const messageDriver = () => {
+    if (!driverId) {
+      Alert.alert('Unavailable', 'Driver chat will be available once a driver accepts.');
+      return;
+    }
+    navigation.navigate('Chat', {
+      userId: String(driverId),
+      userName: driverName,
+      bookingId: requestId,
+    });
   };
 
   const handleCancelRide = () => {
@@ -277,7 +293,7 @@ export function PassengerTrackingScreen() {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color={COLORS.electricTeal} />
+          <ActivityIndicator size="large" color={colors.electricTeal} />
         </View>
       </SafeAreaView>
     );
@@ -287,7 +303,7 @@ export function PassengerTrackingScreen() {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.centered}>
-          <Text style={{ color: COLORS.textPrimary }}>Ride request not found.</Text>
+          <Text style={{ color: colors.textPrimary }}>Ride request not found.</Text>
         </View>
       </SafeAreaView>
     );
@@ -313,7 +329,7 @@ export function PassengerTrackingScreen() {
       <View style={styles.detailsSheet}>
         {fetchError && (
           <TouchableOpacity style={styles.errorBanner} onPress={fetchRequest}>
-            <Ionicons name="cloud-offline-outline" size={18} color={COLORS.coralRed} />
+            <Ionicons name="cloud-offline-outline" size={18} color={colors.coralRed} />
             <Text style={styles.errorBannerText}>Updates paused. Tap to retry.</Text>
           </TouchableOpacity>
         )}
@@ -343,23 +359,38 @@ export function PassengerTrackingScreen() {
                 </Text>
               )}
             </View>
-            <TouchableOpacity style={styles.callBtn} onPress={callDriver}>
-              <Ionicons name="call" size={20} color="#FFF" />
-            </TouchableOpacity>
+            <View style={styles.contactActions}>
+              <TouchableOpacity style={styles.messageBtn} onPress={messageDriver}>
+                <Ionicons name="chatbubble" size={20} color="#FFF" />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.callBtn} onPress={callDriver}>
+                <Ionicons name="call" size={20} color="#FFF" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* Searching state before driver accepts */}
+        {!request.acceptedDriver && request.status === 'searching' && (
+          <View style={styles.driverRow}>
+            <ActivityIndicator size="small" color={colors.electricTeal} />
+            <Text style={[styles.vehicleText, { flex: 1, marginLeft: SPACING.md }]}>
+              Matching you with a nearby taxi…
+            </Text>
           </View>
         )}
 
         {/* Route */}
         <View style={styles.routeBox}>
           <View style={styles.routeRow}>
-            <Ionicons name="radio-button-on" size={14} color={COLORS.success} />
+            <Ionicons name="radio-button-on" size={14} color={colors.success} />
             <Text style={styles.routeText} numberOfLines={1}>
               {request.pickupAddress || request.pickupPostcode || 'GPS Pickup'}
             </Text>
           </View>
           <View style={styles.routeDivider} />
           <View style={styles.routeRow}>
-            <Ionicons name="location" size={14} color={COLORS.error} />
+            <Ionicons name="location" size={14} color={colors.error} />
             <Text style={styles.routeText} numberOfLines={1}>
               {request.destinationAddress || request.destinationPostcode}
             </Text>
@@ -373,13 +404,13 @@ export function PassengerTrackingScreen() {
               <Animated.View style={{ opacity: pulseAnim }}>
                 <View style={styles.liveDot} />
               </Animated.View>
-              <Ionicons name="time-outline" size={16} color={COLORS.electricTeal} />
+              <Ionicons name="time-outline" size={16} color={colors.electricTeal} />
               <Text style={styles.etaChipText}>{etaLabel}</Text>
             </View>
           )}
           {request.estimatedCost && (
             <View style={styles.infoChip}>
-              <Ionicons name="cash-outline" size={16} color={COLORS.electricTeal} />
+              <Ionicons name="cash-outline" size={16} color={colors.electricTeal} />
               <Text style={styles.infoChipText}>Est: £{request.estimatedCost.toFixed(2)}</Text>
             </View>
           )}
@@ -407,17 +438,17 @@ export function PassengerTrackingScreen() {
                 disabled={confirmLoading}
               >
                 {confirmLoading ? (
-                  <ActivityIndicator color={COLORS.electricTeal} />
+                  <ActivityIndicator color={colors.electricTeal} />
                 ) : (
                   <>
-                    <Ionicons name="location-outline" size={18} color={COLORS.electricTeal} />
+                    <Ionicons name="location-outline" size={18} color={colors.electricTeal} />
                     <Text style={styles.receiptBtnText}>I am at my destination</Text>
                   </>
                 )}
               </TouchableOpacity>
             ) : paymentStatus === 'processing' ? (
               <View style={styles.processingBanner}>
-                <ActivityIndicator color={COLORS.amber} />
+                <ActivityIndicator color={colors.amber} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.processingTitle}>Payment processing</Text>
                   <Text style={styles.processingText}>We will refresh automatically.</Text>
@@ -425,7 +456,7 @@ export function PassengerTrackingScreen() {
               </View>
             ) : (
               <TouchableOpacity
-                style={[styles.receiptBtn, { backgroundColor: COLORS.electricTeal }]}
+                style={[styles.receiptBtn, { backgroundColor: colors.electricTeal }]}
                 onPress={handlePayRide}
                 disabled={payLoading}
               >
@@ -449,7 +480,7 @@ export function PassengerTrackingScreen() {
             style={styles.receiptBtn}
             onPress={() => navigation.navigate('TripReceipt', { requestId, rideId: String(rideRecordId) })}
           >
-            <Ionicons name="receipt-outline" size={18} color={COLORS.electricTeal} />
+            <Ionicons name="receipt-outline" size={18} color={colors.electricTeal} />
             <Text style={styles.receiptBtnText}>View trip receipt</Text>
           </TouchableOpacity>
         )}
@@ -465,14 +496,14 @@ export function PassengerTrackingScreen() {
 
           {canCancelRide(request.status) && (
             <TouchableOpacity
-              style={[styles.backButton, { flex: 1, borderColor: COLORS.coralRed }]}
+              style={[styles.backButton, { flex: 1, borderColor: colors.coralRed }]}
               onPress={handleCancelRide}
               disabled={cancelLoading}
             >
               {cancelLoading ? (
-                <ActivityIndicator color={COLORS.coralRed} />
+                <ActivityIndicator color={colors.coralRed} />
               ) : (
-                <Text style={[styles.backButtonText, { color: COLORS.coralRed }]}>Cancel Ride</Text>
+                <Text style={[styles.backButtonText, { color: colors.coralRed }]}>Cancel Ride</Text>
               )}
             </TouchableOpacity>
           )}
@@ -497,13 +528,13 @@ export function PassengerTrackingScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: COLORS.background },
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: colors.background },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   mapContainer: { flex: 1, backgroundColor: '#E2E8F0' },
 
   detailsSheet: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
     padding: SPACING.xl,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
@@ -513,17 +544,17 @@ const styles = StyleSheet.create({
   errorBanner: {
     flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
     padding: SPACING.sm, marginBottom: SPACING.md,
-    borderRadius: BORDER_RADIUS.md, backgroundColor: `${COLORS.coralRed}15`,
+    borderRadius: BORDER_RADIUS.md, backgroundColor: `${colors.coralRed}15`,
   },
-  errorBannerText: { flex: 1, color: COLORS.coralRed, fontSize: FONT_SIZES.small },
+  errorBannerText: { flex: 1, color: colors.coralRed, fontSize: FONT_SIZES.small },
   processingBanner: {
     flexDirection: 'row', alignItems: 'center', gap: SPACING.md,
     padding: SPACING.md, marginBottom: SPACING.md,
-    borderRadius: BORDER_RADIUS.lg, backgroundColor: `${COLORS.amber}15`,
-    borderWidth: 1, borderColor: `${COLORS.amber}40`,
+    borderRadius: BORDER_RADIUS.lg, backgroundColor: `${colors.amber}15`,
+    borderWidth: 1, borderColor: `${colors.amber}40`,
   },
-  processingTitle: { color: COLORS.amber, fontSize: 14, fontWeight: FONT_WEIGHTS.bold },
-  processingText: { color: COLORS.textSecondary, fontSize: 12, marginTop: 2 },
+  processingTitle: { color: colors.amber, fontSize: 14, fontWeight: FONT_WEIGHTS.bold },
+  processingText: { color: colors.textSecondary, fontSize: 12, marginTop: 2 },
   statusBanner: {
     paddingVertical: SPACING.md, paddingHorizontal: SPACING.lg,
     borderRadius: BORDER_RADIUS.lg, alignItems: 'center',
@@ -538,49 +569,59 @@ const styles = StyleSheet.create({
   },
   driverAvatar: {
     width: 48, height: 48, borderRadius: 24,
-    backgroundColor: `${COLORS.electricTeal}18`,
+    backgroundColor: `${colors.electricTeal}18`,
     justifyContent: 'center', alignItems: 'center', marginRight: SPACING.md,
   },
   driverAvatarText: {
-    color: COLORS.electricTeal, fontSize: 18, fontWeight: FONT_WEIGHTS.bold,
+    color: colors.electricTeal, fontSize: 18, fontWeight: FONT_WEIGHTS.bold,
   },
   driverName: {
-    color: COLORS.textPrimary, fontSize: 16, fontWeight: FONT_WEIGHTS.semibold,
+    color: colors.textPrimary, fontSize: 16, fontWeight: FONT_WEIGHTS.semibold,
   },
   vehicleText: {
-    color: COLORS.textSecondary, fontSize: 13, marginTop: 2,
+    color: colors.textSecondary, fontSize: 13, marginTop: 2,
   },
   callBtn: {
     width: 44, height: 44, borderRadius: 22,
-    backgroundColor: COLORS.success,
+    backgroundColor: colors.success,
     justifyContent: 'center', alignItems: 'center',
+  },
+  messageBtn: {
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: colors.electricTeal,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  contactActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
   },
 
   routeBox: {
-    backgroundColor: COLORS.background, padding: SPACING.md,
-    borderRadius: BORDER_RADIUS.md, borderWidth: 1, borderColor: COLORS.border,
+    backgroundColor: colors.background, padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.md, borderWidth: 1, borderColor: colors.border,
     marginBottom: SPACING.md,
   },
   routeRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
   routeDivider: {
-    width: 2, height: 14, backgroundColor: COLORS.border,
+    width: 2, height: 14, backgroundColor: colors.border,
     marginVertical: 3, marginLeft: 6,
   },
-  routeText: { fontSize: 13, color: COLORS.textSecondary, flex: 1 },
+  routeText: { fontSize: 13, color: colors.textSecondary, flex: 1 },
 
   infoRow: {
     flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.md,
   },
   etaChip: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: `${COLORS.electricTeal}15`,
+    backgroundColor: `${colors.electricTeal}15`,
     paddingHorizontal: SPACING.lg, paddingVertical: SPACING.md,
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: `${COLORS.electricTeal}30`,
+    borderColor: `${colors.electricTeal}30`,
   },
   etaChipText: {
-    color: COLORS.electricTeal, fontSize: 15, fontWeight: FONT_WEIGHTS.bold,
+    color: colors.electricTeal, fontSize: 15, fontWeight: FONT_WEIGHTS.bold,
   },
   liveDot: {
     width: 8, height: 8, borderRadius: 4,
@@ -588,12 +629,12 @@ const styles = StyleSheet.create({
   },
   infoChip: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: `${COLORS.electricTeal}10`,
+    backgroundColor: `${colors.electricTeal}10`,
     paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm,
     borderRadius: 20,
   },
   infoChipText: {
-    color: COLORS.electricTeal, fontSize: 13, fontWeight: FONT_WEIGHTS.semibold,
+    color: colors.electricTeal, fontSize: 13, fontWeight: FONT_WEIGHTS.semibold,
   },
   liveTrackingBar: {
     flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
@@ -612,7 +653,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   liveSubtext: {
-    color: COLORS.textSecondary, fontSize: 12,
+    color: colors.textSecondary, fontSize: 12,
   },
   receiptBtn: {
     flexDirection: 'row',
@@ -623,20 +664,20 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
     borderRadius: BORDER_RADIUS.lg,
     borderWidth: 1,
-    borderColor: COLORS.electricTeal,
-    backgroundColor: `${COLORS.electricTeal}10`,
+    borderColor: colors.electricTeal,
+    backgroundColor: `${colors.electricTeal}10`,
   },
   receiptBtnText: {
-    color: COLORS.electricTeal,
+    color: colors.electricTeal,
     fontSize: 15,
     fontWeight: FONT_WEIGHTS.semibold,
   },
 
   backButton: {
     alignItems: 'center', paddingVertical: SPACING.md,
-    borderRadius: BORDER_RADIUS.lg, borderWidth: 1, borderColor: COLORS.border,
+    borderRadius: BORDER_RADIUS.lg, borderWidth: 1, borderColor: colors.border,
   },
   backButtonText: {
-    color: COLORS.textPrimary, fontSize: 15, fontWeight: FONT_WEIGHTS.semibold,
+    color: colors.textPrimary, fontSize: 15, fontWeight: FONT_WEIGHTS.semibold,
   },
 });

@@ -1,12 +1,14 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert,
-  SafeAreaView, Platform, Modal, TextInput, Linking, Image, useWindowDimensions, ScrollView,
+  SafeAreaView, Platform, Modal, TextInput, Image, useWindowDimensions, ScrollView,
 } from 'react-native';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
+import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, ThemeColors } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { adminApi } from '@/api';
 import { Ionicons } from '@expo/vector-icons';
 import { useAdminDashboardBack } from '@/components/admin/AdminScreenLayout';
+import { DocumentViewerModal } from '@/components/admin/PresignedDocumentImage';
 
 type DetailField = { label: string; value: string | undefined | null };
 
@@ -40,6 +42,7 @@ function formatValue(value: unknown): string {
 }
 
 function PresignedImage({ url, style }: { url: string; style?: any }) {
+  const colors = useThemeColors();
   const [presignedUrl, setPresignedUrl] = useState<string | null>(null);
   const [error, setError] = useState(false);
 
@@ -58,16 +61,16 @@ function PresignedImage({ url, style }: { url: string; style?: any }) {
 
   if (error) {
     return (
-      <View style={[style, { justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.surfaceAlt }]}>
-        <Ionicons name="image-outline" size={24} color={COLORS.textTertiary} />
+      <View style={[style, { justifyContent: 'center', alignItems: 'center', backgroundColor: colors.surfaceAlt }]}>
+        <Ionicons name="image-outline" size={24} color={colors.textTertiary} />
       </View>
     );
   }
 
   if (!presignedUrl) {
     return (
-      <View style={[style, { justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.surfaceAlt }]}>
-        <ActivityIndicator size="small" color={COLORS.electricTeal} />
+      <View style={[style, { justifyContent: 'center', alignItems: 'center', backgroundColor: colors.surfaceAlt }]}>
+        <ActivityIndicator size="small" color={colors.electricTeal} />
       </View>
     );
   }
@@ -76,38 +79,35 @@ function PresignedImage({ url, style }: { url: string; style?: any }) {
 }
 
 function DetailRow({ label, value }: DetailField) {
+  const colors = useThemeColors();
   const display = formatValue(value);
   return (
-    <View style={detailStyles.row}>
-      <Text style={detailStyles.label}>{label}</Text>
-      <Text style={detailStyles.value} selectable>{display}</Text>
+    <View style={{
+      marginBottom: SPACING.sm,
+      paddingBottom: SPACING.sm,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    }}>
+      <Text style={{
+        color: colors.textTertiary,
+        fontSize: 11,
+        fontWeight: FONT_WEIGHTS.semibold,
+        textTransform: 'uppercase',
+        letterSpacing: 0.4,
+        marginBottom: 4,
+      }}>{label}</Text>
+      <Text style={{
+        color: colors.textPrimary,
+        fontSize: FONT_SIZES.label,
+        lineHeight: 20,
+      }} selectable>{display}</Text>
     </View>
   );
 }
 
-const detailStyles = StyleSheet.create({
-  row: {
-    marginBottom: SPACING.sm,
-    paddingBottom: SPACING.sm,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: COLORS.border,
-  },
-  label: {
-    color: COLORS.textTertiary,
-    fontSize: 11,
-    fontWeight: FONT_WEIGHTS.semibold,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-    marginBottom: 4,
-  },
-  value: {
-    color: COLORS.textPrimary,
-    fontSize: FONT_SIZES.label,
-    lineHeight: 20,
-  },
-});
-
 export function AdminVerificationQueueScreen() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const goToDashboard = useAdminDashboardBack();
   const { width: screenWidth } = useWindowDimensions();
   const cardWidth = screenWidth - SPACING.md * 2;
@@ -118,6 +118,7 @@ export function AdminVerificationQueueScreen() {
   const [rejectModal, setRejectModal] = useState<{ id: string; name: string } | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [viewer, setViewer] = useState<{ url: string; title: string } | null>(null);
 
   useEffect(() => {
     fetchVerifications();
@@ -146,15 +147,9 @@ export function AdminVerificationQueueScreen() {
     });
   }, []);
 
-  const openDocument = async (url: string) => {
+  const openDocument = (url: string, title?: string) => {
     if (!url) return;
-    try {
-      const res = await adminApi.getPresignedUrl(url);
-      const presigned = res.data?.url || url;
-      await Linking.openURL(presigned);
-    } catch {
-      Alert.alert('Error', 'Cannot open document');
-    }
+    setViewer({ url, title: title || 'Document' });
   };
 
   const handeApprove = async (id: string, name: string) => {
@@ -280,7 +275,7 @@ export function AdminVerificationQueueScreen() {
         <Text style={styles.photoBlockTitle}>{label} ({urls.length})</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photoScroll}>
           {urls.map((url, idx) => (
-            <TouchableOpacity key={`${url}-${idx}`} onPress={() => openDocument(url)} activeOpacity={0.85}>
+            <TouchableOpacity key={`${url}-${idx}`} onPress={() => openDocument(url, label)} activeOpacity={0.85}>
               <PresignedImage url={url} style={styles.photoThumb} />
             </TouchableOpacity>
           ))}
@@ -321,7 +316,7 @@ export function AdminVerificationQueueScreen() {
               <Ionicons
                 name={isExpanded ? 'chevron-up' : 'chevron-down'}
                 size={22}
-                color={COLORS.textTertiary}
+                color={colors.textTertiary}
               />
             </View>
           </View>
@@ -353,7 +348,7 @@ export function AdminVerificationQueueScreen() {
                 disabled={isProcessing}
                 onPress={() => handleReject(item._id, userName)}
               >
-                <Ionicons name="close" size={18} color={COLORS.error} />
+                <Ionicons name="close" size={18} color={colors.error} />
                 <Text style={styles.rejectBtnText}>Reject</Text>
               </TouchableOpacity>
 
@@ -382,7 +377,7 @@ export function AdminVerificationQueueScreen() {
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={goToDashboard}>
-          <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
+          <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
         <View style={styles.headerText}>
           <Text style={styles.headerTitle}>Verification Queue</Text>
@@ -394,12 +389,12 @@ export function AdminVerificationQueueScreen() {
 
       {loading ? (
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={COLORS.electricTeal} />
+          <ActivityIndicator size="large" color={colors.electricTeal} />
           <Text style={styles.loadingText}>Fetching pending applications...</Text>
         </View>
       ) : verifications.length === 0 ? (
         <View style={styles.centerContainer}>
-          <Ionicons name="checkmark-circle-outline" size={64} color={COLORS.success} />
+          <Ionicons name="checkmark-circle-outline" size={64} color={colors.success} />
           <Text style={styles.emptyTitle}>All Caught Up!</Text>
           <Text style={styles.emptySub}>There are no pending applications.</Text>
         </View>
@@ -419,7 +414,7 @@ export function AdminVerificationQueueScreen() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Rejection Reason</Text>
               <TouchableOpacity onPress={() => setRejectModal(null)}>
-                <Ionicons name="close" size={24} color={COLORS.textPrimary} />
+                <Ionicons name="close" size={24} color={colors.textPrimary} />
               </TouchableOpacity>
             </View>
 
@@ -430,7 +425,7 @@ export function AdminVerificationQueueScreen() {
             <TextInput
               style={styles.reasonInput}
               placeholder="e.g., Poor property photos, insufficient parking spaces, location issues..."
-              placeholderTextColor={COLORS.textTertiary}
+              placeholderTextColor={colors.textTertiary}
               value={rejectionReason}
               onChangeText={setRejectionReason}
               multiline
@@ -453,14 +448,21 @@ export function AdminVerificationQueueScreen() {
           </View>
         </View>
       </Modal>
+
+      <DocumentViewerModal
+        visible={!!viewer}
+        sourceUrl={viewer?.url ?? null}
+        title={viewer?.title}
+        onClose={() => setViewer(null)}
+      />
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -469,17 +471,17 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'android' ? SPACING.xl : SPACING.sm,
     paddingBottom: SPACING.md,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: colors.border,
   },
   backBtn: { padding: SPACING.xs, marginRight: SPACING.sm },
   headerText: { flex: 1, minWidth: 0 },
   headerTitle: {
-    color: COLORS.textPrimary,
+    color: colors.textPrimary,
     fontSize: FONT_SIZES.section,
     fontWeight: FONT_WEIGHTS.bold,
   },
   headerSub: {
-    color: COLORS.textSecondary,
+    color: colors.textSecondary,
     fontSize: FONT_SIZES.small,
     marginTop: 4,
     lineHeight: 18,
@@ -490,11 +492,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   card: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
     borderRadius: BORDER_RADIUS.lg,
     marginBottom: SPACING.md,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
     overflow: 'hidden',
     alignSelf: 'center',
   },
@@ -515,17 +517,17 @@ const styles = StyleSheet.create({
     gap: SPACING.xs,
   },
   title: {
-    color: COLORS.textPrimary,
+    color: colors.textPrimary,
     fontSize: 16,
     fontWeight: FONT_WEIGHTS.semibold,
   },
   summaryLine: {
-    color: COLORS.textSecondary,
+    color: colors.textSecondary,
     fontSize: 13,
     marginTop: 4,
   },
   expandHint: {
-    color: COLORS.electricTeal,
+    color: colors.electricTeal,
     fontSize: 12,
     marginTop: SPACING.sm,
     fontWeight: FONT_WEIGHTS.medium,
@@ -537,7 +539,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   statusText: {
-    color: COLORS.amber,
+    color: colors.amber,
     fontSize: 10,
     fontWeight: 'bold',
   },
@@ -545,13 +547,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
     paddingBottom: SPACING.md,
     borderTopWidth: 1,
-    borderTopColor: COLORS.border,
+    borderTopColor: colors.border,
   },
   sectionBlock: {
     marginTop: SPACING.md,
   },
   sectionTitle: {
-    color: COLORS.textPrimary,
+    color: colors.textPrimary,
     fontSize: 14,
     fontWeight: FONT_WEIGHTS.bold,
     marginBottom: SPACING.sm,
@@ -560,13 +562,13 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
   },
   photoBlockTitle: {
-    color: COLORS.textSecondary,
+    color: colors.textSecondary,
     fontSize: 12,
     fontWeight: FONT_WEIGHTS.semibold,
     marginBottom: SPACING.xs,
   },
   photoMissing: {
-    color: COLORS.error,
+    color: colors.error,
     fontSize: 12,
     fontStyle: 'italic',
   },
@@ -578,7 +580,7 @@ const styles = StyleSheet.create({
     height: 88,
     borderRadius: BORDER_RADIUS.md,
     marginRight: SPACING.sm,
-    backgroundColor: COLORS.surfaceAlt,
+    backgroundColor: colors.surfaceAlt,
   },
   approveBtn: {
     flex: 1,
@@ -586,7 +588,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    backgroundColor: COLORS.success,
+    backgroundColor: colors.success,
     borderRadius: BORDER_RADIUS.md,
     paddingVertical: 12,
   },
@@ -605,17 +607,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.xl,
   },
   loadingText: {
-    color: COLORS.textSecondary,
+    color: colors.textSecondary,
     marginTop: SPACING.md,
   },
   emptyTitle: {
-    color: COLORS.textPrimary,
+    color: colors.textPrimary,
     fontSize: 20,
     fontWeight: FONT_WEIGHTS.bold,
     marginTop: SPACING.md,
   },
   emptySub: {
-    color: COLORS.textSecondary,
+    color: colors.textSecondary,
     marginTop: 4,
     textAlign: 'center',
   },
@@ -633,11 +635,11 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.md,
     borderRadius: BORDER_RADIUS.md,
     borderWidth: 1,
-    borderColor: COLORS.error,
-    backgroundColor: `${COLORS.error}08`,
+    borderColor: colors.error,
+    backgroundColor: `${colors.error}08`,
   },
   rejectBtnText: {
-    color: COLORS.error,
+    color: colors.error,
     fontWeight: FONT_WEIGHTS.semibold,
     fontSize: 13,
   },
@@ -647,7 +649,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.5)',
   },
   modalContent: {
-    backgroundColor: COLORS.background,
+    backgroundColor: colors.background,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: SPACING.xl,
@@ -663,21 +665,21 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: FONT_SIZES.section,
     fontWeight: FONT_WEIGHTS.bold,
-    color: COLORS.textPrimary,
+    color: colors.textPrimary,
   },
   modalSubtitle: {
-    color: COLORS.textSecondary,
+    color: colors.textSecondary,
     fontSize: FONT_SIZES.label,
     marginBottom: SPACING.lg,
   },
   reasonInput: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
     borderRadius: BORDER_RADIUS.md,
     padding: SPACING.md,
-    color: COLORS.textPrimary,
+    color: colors.textPrimary,
     fontSize: FONT_SIZES.body,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
     minHeight: 120,
     textAlignVertical: 'top',
     marginBottom: SPACING.xl,
@@ -690,11 +692,11 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: SPACING.lg,
     borderRadius: BORDER_RADIUS.md,
-    backgroundColor: `${COLORS.textTertiary}15`,
+    backgroundColor: `${colors.textTertiary}15`,
     alignItems: 'center',
   },
   cancelBtnText: {
-    color: COLORS.textSecondary,
+    color: colors.textSecondary,
     fontWeight: FONT_WEIGHTS.bold,
     fontSize: FONT_SIZES.label,
   },
@@ -702,7 +704,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: SPACING.lg,
     borderRadius: BORDER_RADIUS.md,
-    backgroundColor: COLORS.error,
+    backgroundColor: colors.error,
     alignItems: 'center',
   },
   submitBtnDisabled: {

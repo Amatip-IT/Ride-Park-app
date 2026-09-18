@@ -22,6 +22,8 @@ import { Response } from 'src/common/interfaces/response.interface';
 
 const GENERIC_OTP_SENT =
   'If an account exists for this email, an OTP has been sent';
+const OTP_TTL_MS = 10 * 60 * 1000;
+const RESEND_COOLDOWN_MS = 60 * 1000;
 
 @Injectable()
 export class EmailVerificationService {
@@ -44,6 +46,7 @@ export class EmailVerificationService {
     success: boolean;
     message: string;
     expiresIn?: string;
+    retryAfter?: number;
   }> {
     const normalizedEmail = email?.toLowerCase().trim();
     const user = await this.userModel
@@ -56,21 +59,23 @@ export class EmailVerificationService {
         success: true,
         message: GENERIC_OTP_SENT,
         expiresIn: '10 minutes',
+        retryAfter: 60,
       };
     }
 
     // Rate limiting: Check if OTP was sent recently (within 1 minute)
     if (user.otpStorage?.emailOtp?.expiresAt) {
       const lastOtpTime =
-        new Date(user.otpStorage.emailOtp.expiresAt).getTime() - 10 * 60 * 1000;
-      const timeSinceLastOtp = Date.now() - lastOtpTime;
-      const oneMinute = 60 * 1000;
+        new Date(user.otpStorage.emailOtp.expiresAt).getTime() - OTP_TTL_MS;
+      const waitTime = Math.ceil(
+        (RESEND_COOLDOWN_MS - (Date.now() - lastOtpTime)) / 1000,
+      );
 
-      if (timeSinceLastOtp < oneMinute) {
-        const waitTime = Math.ceil((oneMinute - timeSinceLastOtp) / 1000);
-        throw new BadRequestException(
-          `Please wait ${waitTime} seconds before requesting a new OTP`,
-        );
+      if (waitTime > 0) {
+        throw new BadRequestException({
+          message: `Please wait ${waitTime} seconds before requesting a new OTP`,
+          retryAfter: waitTime,
+        });
       }
     }
 
@@ -81,7 +86,26 @@ export class EmailVerificationService {
     }
 
     const otp = generateOtp();
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    const expiresAt = new Date(Date.now() + OTP_TTL_MS);
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    if (!isProduction) {
+      this.logger.log(`DEV OTP for ${normalizedEmail}: ${otp}`);
+    }
+
+    try {
+      await this.emailService.sendOtpEmail(normalizedEmail, otp);
+    } catch (error) {
+      // Do not persist an OTP the user never received in production.
+      // In local/dev, keep the code so verification can continue from server logs
+      // when SMTP credentials are misconfigured (e.g. 535 auth failures).
+      if (isProduction) {
+        throw error;
+      }
+      this.logger.warn(
+        `OTP email delivery failed; development OTP for ${normalizedEmail}: ${otp}`,
+      );
+    }
 
     if (!user.otpStorage) {
       user.otpStorage = {};
@@ -90,12 +114,11 @@ export class EmailVerificationService {
     user.markModified('otpStorage');
     await user.save();
 
-    await this.emailService.sendOtpEmail(normalizedEmail, otp);
-
     return {
       success: true,
       message: GENERIC_OTP_SENT,
       expiresIn: '10 minutes',
+      retryAfter: 60,
     };
   }
 

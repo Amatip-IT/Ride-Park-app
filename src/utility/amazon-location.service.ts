@@ -15,13 +15,14 @@ export class AmazonLocationService {
   private readonly logger = new Logger(AmazonLocationService.name);
   private readonly apiKey: string;
   private readonly region: string;
-  private readonly placeIndex: string;
+
+  /** Fallback bias when GPS is unavailable (central London). */
+  private readonly defaultBias: [number, number] = [-0.1278, 51.5074];
 
   constructor(private configService: ConfigService) {
     this.apiKey = this.configService.get<string>('AWS_LOCATION_KEY') || '';
-    this.region = this.configService.get<string>('AWS_REGION') || 'eu-west-2';
-    this.placeIndex =
-      this.configService.get<string>('AWS_PLACE_INDEX') || 'AmatipPlaceIndex';
+    // Places API v2 keys for this project are authorized in us-east-1
+    this.region = this.configService.get<string>('AWS_REGION') || 'us-east-1';
 
     if (!this.apiKey) {
       this.logger.warn(
@@ -30,8 +31,12 @@ export class AmazonLocationService {
     }
   }
 
+  private placesBaseUrl() {
+    return `https://places.geo.${this.region}.amazonaws.com`;
+  }
+
   /**
-   * Forward-geocode a free-text address using Amazon Location Service.
+   * Forward-geocode a free-text address using Amazon Location Places API v2.
    */
   async searchByText(
     query: string,
@@ -41,16 +46,17 @@ export class AmazonLocationService {
     if (!trimmed || trimmed.length < 2) return null;
     if (!this.apiKey) return null;
 
-    const endpoint = `https://places.geo.${this.region}.amazonaws.com/places/v0/indexes/${this.placeIndex}/search/text?key=${this.apiKey}`;
+    const endpoint = `${this.placesBaseUrl()}/v2/search-text?key=${this.apiKey}`;
+    const bias: [number, number] =
+      options?.biasPosition?.lat != null && options?.biasPosition?.lng != null
+        ? [options.biasPosition.lng, options.biasPosition.lat]
+        : this.defaultBias;
 
     const body: Record<string, unknown> = {
-      Text: trimmed,
+      QueryText: trimmed,
       MaxResults: 1,
+      BiasPosition: bias,
     };
-
-    if (options?.biasPosition) {
-      body.BiasPosition = [options.biasPosition.lng, options.biasPosition.lat];
-    }
 
     try {
       const response = await fetch(endpoint, {
@@ -60,25 +66,26 @@ export class AmazonLocationService {
       });
 
       if (!response.ok) {
+        const errText = await response.text().catch(() => '');
         this.logger.warn(
-          `Amazon Location text search failed: ${response.status} ${response.statusText}`,
+          `Amazon Location text search failed: ${response.status} ${response.statusText} ${errText.slice(0, 180)}`,
         );
         return null;
       }
 
       const data = await response.json();
-      const place = data?.Results?.[0]?.Place;
-      const point = place?.Geometry?.Point;
+      const item = data?.ResultItems?.[0];
+      const position = item?.Position; // [lng, lat]
+      if (!item || !Array.isArray(position) || position.length < 2) return null;
 
-      if (!place || !point?.[0] || !point?.[1]) return null;
-
+      const address = item.Address || {};
       return {
-        lat: point[1],
-        lng: point[0],
-        label: place.Label || trimmed,
-        municipality: place.Municipality,
-        postalCode: place.PostalCode,
-        country: place.Country,
+        lat: position[1],
+        lng: position[0],
+        label: address.Label || item.Title || trimmed,
+        municipality: address.Locality,
+        postalCode: address.PostalCode,
+        country: address.Country?.Name || address.Country?.Code3,
       };
     } catch (error) {
       this.logger.warn(

@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -12,7 +12,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
+import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, ThemeColors } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { ridesApi } from '@/api';
 import { formatCurrency, getApiErrorMessage } from '@/utils/helpers';
 
@@ -46,23 +47,25 @@ function formatDuration(minutes: number) {
   return m ? `${h}h ${m}m` : `${h}h`;
 }
 
-function rideStatusMeta(ride: any) {
+function rideStatusMeta(ride: any, colors: ThemeColors) {
   if (ride.paymentStatus === 'charged' || ride.status === 'completed') {
     if (ride.paymentStatus === 'charged') {
-      return { label: 'Paid', color: COLORS.success };
+      return { label: 'Paid', color: colors.success };
     }
-    return { label: 'Completed', color: COLORS.info };
+    return { label: 'Completed', color: colors.info };
   }
   if (ride.status === 'awaiting_payment' || ride.paymentStatus === 'processing') {
-    return { label: 'Awaiting payment', color: COLORS.amber };
+    return { label: 'Awaiting payment', color: colors.amber };
   }
   if (ride.paymentStatus === 'payment_failed') {
-    return { label: 'Payment failed', color: COLORS.coralRed };
+    return { label: 'Payment failed', color: colors.coralRed };
   }
-  return { label: ride.status || 'Unknown', color: COLORS.textSecondary };
+  return { label: ride.status || 'Unknown', color: colors.textSecondary };
 }
 
 export function ProviderPastRidesScreen() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const navigation = useNavigation<any>();
   const [period, setPeriod] = useState<Period>(undefined);
   const [rides, setRides] = useState<any[]>([]);
@@ -106,7 +109,7 @@ export function ProviderPastRidesScreen() {
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
+          <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Past Rides</Text>
         <View style={{ width: 40 }} />
@@ -135,7 +138,7 @@ export function ProviderPastRidesScreen() {
       </View>
 
       {loading && !refreshing ? (
-        <ActivityIndicator size="large" color={COLORS.electricTeal} style={{ flex: 1 }} />
+        <ActivityIndicator size="large" color={colors.electricTeal} style={{ flex: 1 }} />
       ) : (
         <ScrollView
           contentContainerStyle={styles.scrollContent}
@@ -143,7 +146,7 @@ export function ProviderPastRidesScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={() => fetchHistory(period, true)}
-              tintColor={COLORS.electricTeal}
+              tintColor={colors.electricTeal}
             />
           }
           showsVerticalScrollIndicator={false}
@@ -169,7 +172,7 @@ export function ProviderPastRidesScreen() {
 
           {(stats.awaitingPayment > 0 || stats.pendingEarnings > 0) && (
             <View style={styles.pendingBanner}>
-              <Ionicons name="time-outline" size={18} color={COLORS.amber} />
+              <Ionicons name="time-outline" size={18} color={colors.amber} />
               <Text style={styles.pendingText}>
                 {stats.awaitingPayment} trip{stats.awaitingPayment === 1 ? '' : 's'} awaiting payment
                 {stats.pendingEarnings > 0 ? ` · ${formatCurrency(stats.pendingEarnings)} pending` : ''}
@@ -181,7 +184,7 @@ export function ProviderPastRidesScreen() {
 
           {error ? (
             <View style={styles.emptyState}>
-              <Ionicons name="alert-circle-outline" size={40} color={COLORS.coralRed} />
+              <Ionicons name="alert-circle-outline" size={40} color={colors.coralRed} />
               <Text style={styles.emptyTitle}>{error}</Text>
               <TouchableOpacity style={styles.retryBtn} onPress={() => fetchHistory(period)}>
                 <Text style={styles.retryText}>Try again</Text>
@@ -189,7 +192,7 @@ export function ProviderPastRidesScreen() {
             </View>
           ) : rides.length === 0 ? (
             <View style={styles.emptyState}>
-              <Ionicons name="car-outline" size={48} color={COLORS.softSlate} />
+              <Ionicons name="car-outline" size={48} color={colors.softSlate} />
               <Text style={styles.emptyTitle}>No past rides yet</Text>
               <Text style={styles.emptySub}>
                 Completed trips will show here with distance, time, and earnings.
@@ -201,7 +204,7 @@ export function ProviderPastRidesScreen() {
               const name = passenger?.firstName
                 ? `${passenger.firstName} ${passenger.lastName || ''}`.trim()
                 : 'Passenger';
-              const status = rideStatusMeta(ride);
+              const status = rideStatusMeta(ride, colors);
               const when = ride.completedAt || ride.createdAt;
               const canOpenReceipt = ride.paymentStatus === 'charged';
 
@@ -217,7 +220,7 @@ export function ProviderPastRidesScreen() {
                       <Ionicons
                         name={ride.serviceType === 'taxi' ? 'car-sport' : 'person'}
                         size={20}
-                        color={COLORS.electricTeal}
+                        color={colors.electricTeal}
                       />
                     </View>
                     <View style={styles.rideInfo}>
@@ -269,7 +272,7 @@ export function ProviderPastRidesScreen() {
                       <>
                         <Text style={styles.footerDot}>·</Text>
                         <Text style={styles.receiptLink}>Receipt</Text>
-                        <Ionicons name="chevron-forward" size={14} color={COLORS.electricTeal} />
+                        <Ionicons name="chevron-forward" size={14} color={colors.electricTeal} />
                       </>
                     )}
                   </View>
@@ -283,8 +286,8 @@ export function ProviderPastRidesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: COLORS.background },
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -295,7 +298,7 @@ const styles = StyleSheet.create({
   },
   backBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
   headerTitle: {
-    color: COLORS.textPrimary,
+    color: colors.textPrimary,
     fontSize: FONT_SIZES.body,
     fontWeight: FONT_WEIGHTS.bold,
   },
@@ -309,16 +312,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
     borderRadius: BORDER_RADIUS.full ?? 999,
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
   },
   periodPillActive: {
-    backgroundColor: `${COLORS.electricTeal}20`,
-    borderColor: COLORS.electricTeal,
+    backgroundColor: `${colors.electricTeal}20`,
+    borderColor: colors.electricTeal,
   },
-  periodText: { color: COLORS.textSecondary, fontSize: FONT_SIZES.small, fontWeight: FONT_WEIGHTS.medium },
-  periodTextActive: { color: COLORS.electricTeal, fontWeight: FONT_WEIGHTS.bold },
+  periodText: { color: colors.textSecondary, fontSize: FONT_SIZES.small, fontWeight: FONT_WEIGHTS.medium },
+  periodTextActive: { color: colors.electricTeal, fontWeight: FONT_WEIGHTS.bold },
   scrollContent: { padding: SPACING.lg, paddingBottom: 40 },
   statsGrid: {
     flexDirection: 'row',
@@ -329,19 +332,19 @@ const styles = StyleSheet.create({
   statCard: {
     width: '48%',
     flexGrow: 1,
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
     borderRadius: BORDER_RADIUS.lg,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
     padding: SPACING.md,
   },
   statValue: {
-    color: COLORS.textPrimary,
+    color: colors.textPrimary,
     fontSize: FONT_SIZES.section,
     fontWeight: FONT_WEIGHTS.bold,
   },
   statLabel: {
-    color: COLORS.textSecondary,
+    color: colors.textSecondary,
     fontSize: FONT_SIZES.small,
     marginTop: 4,
   },
@@ -349,14 +352,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.sm,
-    backgroundColor: `${COLORS.amber}15`,
+    backgroundColor: `${colors.amber}15`,
     borderRadius: BORDER_RADIUS.md,
     padding: SPACING.md,
     marginBottom: SPACING.lg,
   },
-  pendingText: { flex: 1, color: COLORS.amber, fontSize: FONT_SIZES.small },
+  pendingText: { flex: 1, color: colors.amber, fontSize: FONT_SIZES.small },
   sectionTitle: {
-    color: COLORS.textPrimary,
+    color: colors.textPrimary,
     fontSize: FONT_SIZES.body,
     fontWeight: FONT_WEIGHTS.bold,
     marginBottom: SPACING.md,
@@ -367,14 +370,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
   },
   emptyTitle: {
-    color: COLORS.textPrimary,
+    color: colors.textPrimary,
     fontSize: FONT_SIZES.body,
     fontWeight: FONT_WEIGHTS.semibold,
     marginTop: SPACING.md,
     textAlign: 'center',
   },
   emptySub: {
-    color: COLORS.textSecondary,
+    color: colors.textSecondary,
     fontSize: FONT_SIZES.small,
     marginTop: SPACING.sm,
     textAlign: 'center',
@@ -383,15 +386,15 @@ const styles = StyleSheet.create({
     marginTop: SPACING.md,
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.sm,
-    backgroundColor: COLORS.electricTeal,
+    backgroundColor: colors.electricTeal,
     borderRadius: BORDER_RADIUS.md,
   },
   retryText: { color: '#FFF', fontWeight: FONT_WEIGHTS.bold },
   rideCard: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
     borderRadius: BORDER_RADIUS.lg,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
     padding: SPACING.md,
     marginBottom: SPACING.md,
   },
@@ -400,19 +403,19 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: `${COLORS.electricTeal}15`,
+    backgroundColor: `${colors.electricTeal}15`,
     justifyContent: 'center',
     alignItems: 'center',
   },
   rideInfo: { flex: 1 },
   rideTitle: {
-    color: COLORS.textPrimary,
+    color: colors.textPrimary,
     fontSize: FONT_SIZES.label,
     fontWeight: FONT_WEIGHTS.semibold,
   },
-  rideMeta: { color: COLORS.textSecondary, fontSize: 12, marginTop: 2 },
+  rideMeta: { color: colors.textSecondary, fontSize: 12, marginTop: 2 },
   rideAmount: {
-    color: COLORS.electricTeal,
+    color: colors.electricTeal,
     fontSize: FONT_SIZES.label,
     fontWeight: FONT_WEIGHTS.bold,
   },
@@ -424,18 +427,18 @@ const styles = StyleSheet.create({
   },
   statusText: { fontSize: 11, fontWeight: FONT_WEIGHTS.semibold, textTransform: 'capitalize' },
   routeBlock: { marginTop: SPACING.md, gap: 4 },
-  routeLine: { color: COLORS.textPrimary, fontSize: FONT_SIZES.small },
-  routeLabel: { color: COLORS.textSecondary },
+  routeLine: { color: colors.textPrimary, fontSize: FONT_SIZES.small },
+  routeLabel: { color: colors.textSecondary },
   rideFooter: {
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: SPACING.md,
     gap: 6,
   },
-  footerStat: { color: COLORS.textSecondary, fontSize: 12 },
-  footerDot: { color: COLORS.textTertiary },
+  footerStat: { color: colors.textSecondary, fontSize: 12 },
+  footerDot: { color: colors.textTertiary },
   receiptLink: {
-    color: COLORS.electricTeal,
+    color: colors.electricTeal,
     fontSize: 12,
     fontWeight: FONT_WEIGHTS.semibold,
   },

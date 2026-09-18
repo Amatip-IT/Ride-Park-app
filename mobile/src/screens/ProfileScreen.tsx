@@ -1,11 +1,12 @@
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, SafeAreaView, Alert, Image, Switch } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, SafeAreaView, Alert, Switch } from 'react-native';
 import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/index';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { useNavigation } from '@react-navigation/native';
+import { ProfileAvatar } from '@/components/ProfileAvatar';
 
 export function ProfileScreen() {
   const { user, logout } = useAuthStore();
@@ -39,14 +40,11 @@ export function ProfileScreen() {
           {/* Avatar and Info */}
           <View style={styles.profileHeader}>
             <View style={styles.avatarContainer}>
-              {user?.profileImageUrl ? (
-                <Image source={{ uri: user.profileImageUrl }} style={{ width: 80, height: 80, borderRadius: 40 }} />
-              ) : (
-                <Text style={styles.avatarText}>
-                  {user?.firstName?.charAt(0).toUpperCase() || 'E'}
-                  {user?.lastName?.charAt(0).toUpperCase() || ''}
-                </Text>
-              )}
+              <ProfileAvatar
+                uri={user?.profileImageUrl}
+                size={80}
+                initials={`${user?.firstName?.charAt(0).toUpperCase() || 'E'}${user?.lastName?.charAt(0).toUpperCase() || ''}`}
+              />
             </View>
             <View style={styles.infoWrapper}>
               <Text style={styles.userName}>

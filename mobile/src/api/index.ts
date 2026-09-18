@@ -1,5 +1,6 @@
 import { apiClient } from './client';
 import { ApiResponse, BookingRequest, RideRecord, TaxiRideRequest } from '@/types';
+import { uploadLocalFile } from '@/utils/uploadFile';
 
 const api = apiClient.getInstance();
 
@@ -7,25 +8,18 @@ export const usersApi = {
   updatePushToken: (pushToken: string) =>
     api.patch<ApiResponse>('/users/profile', { pushToken }),
 
-  uploadFile: async (formData: FormData) => {
-    const { useAuthStore } = require('@/store/authStore');
-    const token = useAuthStore.getState().token;
-    const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5001/api';
-
-    const response = await fetch(`${API_BASE_URL}/users/upload-file`, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: formData,
-    });
-
-    const data = await response.json();
-    if (!response.ok) {
-      throw { message: data?.message || `Upload failed (HTTP ${response.status})` };
+  uploadFile: async (file: { uri: string; name?: string; type?: string }) => {
+    try {
+      const data = await uploadLocalFile(
+        '/users/upload-file',
+        file.uri,
+        file.name || 'upload.jpg',
+        file.type,
+      );
+      return { data };
+    } catch (err: any) {
+      throw { message: err?.message || 'Upload failed' };
     }
-    return { data };
   },
 };
 
@@ -147,51 +141,19 @@ export const providerApi = {
   getMyDriverNumber: () =>
     api.get<ApiResponse>('/provider/my-driver-number'),
 
-  // Upload a document to S3 using native fetch to avoid React Native Axios FormData bugs
-  uploadDocument: async (formData: any) => {
-    const { useAuthStore } = require('@/store/authStore');
-    const token = useAuthStore.getState().token;
-    const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5001/api';
-    const url = `${API_BASE_URL}/provider/upload-document`;
-
-    let response: globalThis.Response;
+  // Native multipart upload — RN FormData { uri, name, type } throws on SDK 53+
+  uploadDocument: async (file: { uri: string; name?: string; type?: string }) => {
     try {
-      response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          Accept: 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: formData,
-      });
-    } catch (networkErr: any) {
-      throw {
-        message:
-          `Network request failed — cannot reach ${API_BASE_URL}. ` +
-          'Check that the backend is running and the API URL is correct. ' +
-          `(${networkErr?.message || 'network error'})`,
-        isNetworkError: true,
-      };
+      const data = await uploadLocalFile(
+        '/provider/upload-document',
+        file.uri,
+        file.name || 'upload.jpg',
+        file.type,
+      );
+      return { data };
+    } catch (err: any) {
+      throw { message: err?.message || 'Upload failed' };
     }
-
-    let data: any;
-    try {
-      data = await response.json();
-    } catch {
-      throw {
-        message: `Server returned non-JSON response (HTTP ${response.status}) from ${url}`,
-        status: response.status,
-      };
-    }
-
-    if (!response.ok) {
-      throw {
-        response: { data },
-        message: data?.message || `Upload failed with HTTP ${response.status}`,
-        status: response.status,
-      };
-    }
-    return { data };
   },
 };
 
@@ -209,6 +171,9 @@ export const adminApi = {
   // ── Users Management ──
   getUsers: () =>
     api.get<ApiResponse>('/users'),
+
+  getUserDossier: (userId: string) =>
+    api.get<ApiResponse>(`/admin/users/${userId}/dossier`),
 
   deleteUser: (userId: string) =>
     api.delete<ApiResponse>(`/users/${userId}`),

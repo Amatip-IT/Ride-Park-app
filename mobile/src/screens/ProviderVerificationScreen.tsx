@@ -1,9 +1,10 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Platform, SafeAreaView, ActivityIndicator, Alert, TextInput, Image,
 } from 'react-native';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
+import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, ThemeColors } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/store/authStore';
 import { providerApi } from '@/api';
@@ -19,13 +20,15 @@ type VerificationStatus = 'not_applied' | 'pending_admin_review' | 'approved' | 
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 
-const STATUS_CONFIG: Record<string, { color: string; label: string; icon: keyof typeof Ionicons.glyphMap }> = {
-  not_applied: { color: COLORS.softSlate, label: 'Draft', icon: 'document-text-outline' },
-  pending_auto_check: { color: COLORS.amber, label: 'Under Review', icon: 'time-outline' },
-  pending_admin_review: { color: COLORS.amber, label: 'Under Review', icon: 'time-outline' },
-  approved: { color: COLORS.success, label: 'Verified & Listed', icon: 'checkmark-circle' },
-  rejected: { color: COLORS.coralRed, label: 'Rejected', icon: 'close-circle' },
-};
+const getStatusConfig = (
+  colors: ThemeColors,
+): Record<string, { color: string; label: string; icon: keyof typeof Ionicons.glyphMap }> => ({
+  not_applied: { color: colors.softSlate, label: 'Draft', icon: 'document-text-outline' },
+  pending_auto_check: { color: colors.amber, label: 'Under Review', icon: 'time-outline' },
+  pending_admin_review: { color: colors.amber, label: 'Under Review', icon: 'time-outline' },
+  approved: { color: colors.success, label: 'Verified & Listed', icon: 'checkmark-circle' },
+  rejected: { color: colors.coralRed, label: 'Rejected', icon: 'close-circle' },
+});
 
 interface DocItem {
   key: string;
@@ -64,6 +67,9 @@ const PARKING_FIELDS: DocItem[] = [
 ];
 
 export function ProviderVerificationScreen() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const STATUS_CONFIG = getStatusConfig(colors);
   const { user } = useAuthStore();
   const navigation = useNavigation<NavigationProp<any>>();
   const role = user?.role || 'parking_provider';
@@ -267,14 +273,11 @@ export function ProviderVerificationScreen() {
         const s3Urls: string[] = [];
         for (const uri of uris) {
           try {
-            const imgFormData = new FormData();
-            imgFormData.append('file', {
-              uri: Platform.OS === 'ios' ? uri.replace('file://', '') : uri,
+            const uploadRes = await providerApi.uploadDocument({
+              uri,
               name: `park_${key}_${Date.now()}.jpg`,
               type: 'image/jpeg',
-            } as any);
-
-            const uploadRes = await providerApi.uploadDocument(imgFormData);
+            });
             if (uploadRes.data?.success && uploadRes.data.url) {
               s3Urls.push(uploadRes.data.url);
             }
@@ -311,7 +314,7 @@ export function ProviderVerificationScreen() {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.electricTeal} />
+          <ActivityIndicator size="large" color={colors.electricTeal} />
         </View>
       </SafeAreaView>
     );
@@ -329,7 +332,7 @@ export function ProviderVerificationScreen() {
           <ScrollView contentContainerStyle={styles.scrollContent}>
             {verifications.length === 0 ? (
               <View style={styles.emptyState}>
-                <Ionicons name="map-outline" size={60} color={COLORS.softSlate} />
+                <Ionicons name="map-outline" size={60} color={colors.softSlate} />
                 <Text style={styles.emptyTitle}>No Parks Found</Text>
                 <Text style={styles.emptyDesc}>You have not added any parking spaces yet.</Text>
               </View>
@@ -354,8 +357,8 @@ export function ProviderVerificationScreen() {
                     <Text style={styles.parkAddress}>{park.address || 'No address provided'}</Text>
                     {park.status === 'rejected' && park.rejectionReason && (
                       <View style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center' }}>
-                         <Ionicons name="warning" size={14} color={COLORS.coralRed} />
-                         <Text style={{ color: COLORS.coralRed, fontSize: 12, marginLeft: 4 }}>Needs attention</Text>
+                         <Ionicons name="warning" size={14} color={colors.coralRed} />
+                         <Text style={{ color: colors.coralRed, fontSize: 12, marginLeft: 4 }}>Needs attention</Text>
                       </View>
                     )}
                   </TouchableOpacity>
@@ -392,7 +395,7 @@ export function ProviderVerificationScreen() {
       <View style={styles.container}>
         <View style={styles.headerWithBack}>
           <TouchableOpacity onPress={() => setViewState('list')} style={{ paddingRight: SPACING.md }}>
-            <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
+            <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
           </TouchableOpacity>
           <View>
             <Text style={[styles.headerTitle, { fontSize: 22 }]}>
@@ -422,7 +425,7 @@ export function ProviderVerificationScreen() {
 
           {status === 'rejected' && rejectionReason && (
             <View style={styles.rejectionCard}>
-              <Ionicons name="warning" size={20} color={COLORS.coralRed} />
+              <Ionicons name="warning" size={20} color={colors.coralRed} />
               <View style={{ flex: 1, marginLeft: SPACING.sm }}>
                 <Text style={styles.rejectionLabel}>Rejection Reason</Text>
                 <Text style={styles.rejectionText}>{rejectionReason}</Text>
@@ -448,9 +451,9 @@ export function ProviderVerificationScreen() {
                         activeOpacity={0.7}
                       >
                         {locatingGps ? (
-                          <ActivityIndicator size="small" color={COLORS.electricTeal} />
+                          <ActivityIndicator size="small" color={colors.electricTeal} />
                         ) : (
-                          <Ionicons name="locate" size={18} color={COLORS.electricTeal} />
+                          <Ionicons name="locate" size={18} color={colors.electricTeal} />
                         )}
                         <Text style={styles.useLocationBtnText}>
                           {locatingGps ? 'Getting your location...' : 'Use my current location'}
@@ -488,7 +491,7 @@ export function ProviderVerificationScreen() {
                                     style={styles.removeImageBtn}
                                     onPress={() => removeImage(field.key, idx - existingPhotos.length)}
                                   >
-                                    <Ionicons name="close-circle" size={22} color={COLORS.coralRed} />
+                                    <Ionicons name="close-circle" size={22} color={colors.coralRed} />
                                   </TouchableOpacity>
                                 )}
                               </View>
@@ -499,12 +502,12 @@ export function ProviderVerificationScreen() {
                                 onPress={() => pickImage(field.key)}
                                 activeOpacity={0.7}
                               >
-                                <Ionicons name="add-circle-outline" size={36} color={COLORS.electricTeal} />
+                                <Ionicons name="add-circle-outline" size={36} color={colors.electricTeal} />
                                 <Text style={styles.addImageText}>{allPhotos.length === 0 ? 'Add photos' : 'Add more'}</Text>
                               </TouchableOpacity>
                             )}
                           </ScrollView>
-                          <Text style={{ color: COLORS.textTertiary, fontSize: 12, marginBottom: SPACING.sm }}>
+                          <Text style={{ color: colors.textTertiary, fontSize: 12, marginBottom: SPACING.sm }}>
                             {allPhotos.length} / {maxImg} photos
                           </Text>
                         </View>
@@ -557,7 +560,7 @@ export function ProviderVerificationScreen() {
                             onSelectPlace={handleAddressSelect}
                             searchOptions={{ biasPosition: biasPosition ?? undefined }}
                             placeholder={field.placeholder || 'Search for your park address'}
-                            placeholderTextColor={COLORS.textTertiary}
+                            placeholderTextColor={colors.textTertiary}
                           />
                         ) : (
                           <TextInput
@@ -565,7 +568,7 @@ export function ProviderVerificationScreen() {
                             value={formData[field.key] !== undefined ? formData[field.key] : value || ''}
                             onChangeText={(text) => setFormData({ ...formData, [field.key]: text })}
                             placeholder={field.placeholder || ''}
-                            placeholderTextColor={COLORS.textTertiary}
+                            placeholderTextColor={colors.textTertiary}
                             keyboardType={field.keyboardType || 'default'}
                             multiline={field.label.includes('Description') || field.label.includes('Rules')}
                           />
@@ -577,7 +580,7 @@ export function ProviderVerificationScreen() {
               ))}
 
               <View style={styles.infoBox}>
-                <Ionicons name="information-circle" size={24} color={COLORS.info} />
+                <Ionicons name="information-circle" size={24} color={colors.info} />
                 <Text style={styles.infoBoxText}>
                   All submitted details and photos are verified by our team within 24-48 hours. Please ensure images are clear.
                 </Text>
@@ -601,7 +604,7 @@ export function ProviderVerificationScreen() {
           {status === 'approved' && (
             <View style={styles.readOnlyContainer}>
               <View style={styles.infoBox}>
-                 <Ionicons name="checkmark-circle" size={24} color={COLORS.success} />
+                 <Ionicons name="checkmark-circle" size={24} color={colors.success} />
                  <Text style={styles.infoBoxText}>
                    Your park is live and accepting bookings!
                  </Text>
@@ -624,8 +627,8 @@ export function ProviderVerificationScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: COLORS.background },
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: colors.background },
   container: { flex: 1 },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   
@@ -633,50 +636,50 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.xl,
     paddingTop: Platform.OS === 'android' ? SPACING.xl : SPACING.sm,
     paddingBottom: SPACING.md,
-    borderBottomWidth: 1, borderBottomColor: COLORS.border,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
   },
   headerWithBack: {
     paddingHorizontal: SPACING.lg,
     paddingTop: Platform.OS === 'android' ? SPACING.xl : SPACING.sm,
     paddingBottom: SPACING.md,
-    borderBottomWidth: 1, borderBottomColor: COLORS.border,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
     flexDirection: 'row', alignItems: 'center',
   },
-  headerTitle: { color: COLORS.textPrimary, fontSize: FONT_SIZES.hero, fontWeight: FONT_WEIGHTS.bold },
-  headerSubtext: { color: COLORS.textSecondary, fontSize: FONT_SIZES.body, marginTop: 4 },
+  headerTitle: { color: colors.textPrimary, fontSize: FONT_SIZES.hero, fontWeight: FONT_WEIGHTS.bold },
+  headerSubtext: { color: colors.textSecondary, fontSize: FONT_SIZES.body, marginTop: 4 },
   
   scrollContent: { padding: SPACING.lg, paddingBottom: 40 },
 
   // List View Styles
   parkCard: {
-    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.lg,
+    backgroundColor: colors.surface, borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.lg, marginBottom: SPACING.md,
-    borderWidth: 1, borderColor: COLORS.border,
+    borderWidth: 1, borderColor: colors.border,
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05, shadowRadius: 4, elevation: 2,
   },
   parkCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.xs },
-  parkName: { fontSize: 18, fontWeight: FONT_WEIGHTS.bold, color: COLORS.textPrimary, flex: 1 },
-  parkAddress: { fontSize: 13, color: COLORS.textSecondary, marginTop: 2 },
+  parkName: { fontSize: 18, fontWeight: FONT_WEIGHTS.bold, color: colors.textPrimary, flex: 1 },
+  parkAddress: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
   statusBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
   statusBadgeText: { fontSize: 12, fontWeight: FONT_WEIGHTS.bold },
 
   addBtn: {
-    flexDirection: 'row', backgroundColor: COLORS.electricTeal,
+    flexDirection: 'row', backgroundColor: colors.electricTeal,
     padding: SPACING.lg, borderRadius: BORDER_RADIUS.lg,
     justifyContent: 'center', alignItems: 'center',
-    marginTop: SPACING.xl, shadowColor: COLORS.electricTeal, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4,
+    marginTop: SPACING.xl, shadowColor: colors.electricTeal, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4,
   },
   addBtnText: { color: '#FFF', fontSize: 16, fontWeight: FONT_WEIGHTS.bold },
 
   emptyState: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
-  emptyTitle: { fontSize: 20, fontWeight: FONT_WEIGHTS.bold, color: COLORS.textPrimary, marginTop: 16 },
-  emptyDesc: { fontSize: 14, color: COLORS.textSecondary, textAlign: 'center', marginTop: 8 },
+  emptyTitle: { fontSize: 20, fontWeight: FONT_WEIGHTS.bold, color: colors.textPrimary, marginTop: 16 },
+  emptyDesc: { fontSize: 14, color: colors.textSecondary, textAlign: 'center', marginTop: 8 },
 
   // Form Styles
   sectionHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: SPACING.lg, marginTop: SPACING.xl },
-  sectionDot: { width: 8, height: 24, backgroundColor: COLORS.electricTeal, borderRadius: 4, marginRight: SPACING.md },
-  sectionTitle: { color: COLORS.textPrimary, fontSize: 20, fontWeight: FONT_WEIGHTS.bold },
+  sectionDot: { width: 8, height: 24, backgroundColor: colors.electricTeal, borderRadius: 4, marginRight: SPACING.md },
+  sectionTitle: { color: colors.textPrimary, fontSize: 20, fontWeight: FONT_WEIGHTS.bold },
 
   useLocationBtn: {
     flexDirection: 'row',
@@ -684,14 +687,14 @@ const styles = StyleSheet.create({
     gap: SPACING.sm,
     paddingVertical: SPACING.md,
     paddingHorizontal: SPACING.lg,
-    backgroundColor: `${COLORS.electricTeal}10`,
+    backgroundColor: `${colors.electricTeal}10`,
     borderRadius: BORDER_RADIUS.md,
     borderWidth: 1,
-    borderColor: `${COLORS.electricTeal}30`,
+    borderColor: `${colors.electricTeal}30`,
     marginBottom: SPACING.lg,
   },
   useLocationBtnText: {
-    color: COLORS.electricTeal,
+    color: colors.electricTeal,
     fontSize: FONT_SIZES.label,
     fontWeight: FONT_WEIGHTS.semibold,
   },
@@ -702,85 +705,85 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     marginBottom: SPACING.lg,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
   },
 
   fieldContainer: { marginBottom: SPACING.xl },
-  label: { color: COLORS.textPrimary, fontSize: 14, fontWeight: FONT_WEIGHTS.semibold, marginBottom: 8 },
-  requiredAsterisk: { color: COLORS.coralRed },
+  label: { color: colors.textPrimary, fontSize: 14, fontWeight: FONT_WEIGHTS.semibold, marginBottom: 8 },
+  requiredAsterisk: { color: colors.coralRed },
   
   input: {
-    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.lg, borderWidth: 1, borderColor: COLORS.border,
-    paddingHorizontal: SPACING.lg, paddingVertical: 14, color: COLORS.textPrimary, fontSize: 16,
+    backgroundColor: colors.surface, borderRadius: BORDER_RADIUS.lg, borderWidth: 1, borderColor: colors.border,
+    paddingHorizontal: SPACING.lg, paddingVertical: 14, color: colors.textPrimary, fontSize: 16,
   },
   
   imagePicker: {
-    height: 160, backgroundColor: COLORS.surfaceAlt, borderRadius: BORDER_RADIUS.lg,
-    borderWidth: 2, borderColor: COLORS.border, borderStyle: 'dashed',
+    height: 160, backgroundColor: colors.surfaceAlt, borderRadius: BORDER_RADIUS.lg,
+    borderWidth: 2, borderColor: colors.border, borderStyle: 'dashed',
     justifyContent: 'center', alignItems: 'center', overflow: 'hidden',
   },
   imagePickerContent: { alignItems: 'center' },
-  imagePickerText: { color: COLORS.textSecondary, marginTop: 8, fontSize: 14, fontWeight: FONT_WEIGHTS.medium },
+  imagePickerText: { color: colors.textSecondary, marginTop: 8, fontSize: 14, fontWeight: FONT_WEIGHTS.medium },
   selectedImage: { width: '100%', height: '100%' },
 
   optionsContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   optionPill: {
-    paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surface,
+    paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface,
   },
-  optionPillSelected: { backgroundColor: COLORS.electricTeal, borderColor: COLORS.electricTeal },
-  optionText: { color: COLORS.textSecondary, fontWeight: FONT_WEIGHTS.medium },
+  optionPillSelected: { backgroundColor: colors.electricTeal, borderColor: colors.electricTeal },
+  optionText: { color: colors.textSecondary, fontWeight: FONT_WEIGHTS.medium },
   optionTextSelected: { color: '#FFF', fontWeight: FONT_WEIGHTS.bold },
 
   infoBox: {
-    flexDirection: 'row', backgroundColor: `${COLORS.info}10`, padding: SPACING.lg,
+    flexDirection: 'row', backgroundColor: `${colors.info}10`, padding: SPACING.lg,
     borderRadius: BORDER_RADIUS.lg, marginTop: SPACING.xl, marginBottom: SPACING['2xl'], alignItems: 'flex-start',
   },
-  infoBoxText: { color: COLORS.info, flex: 1, marginLeft: SPACING.md, fontSize: 13, lineHeight: 20 },
+  infoBoxText: { color: colors.info, flex: 1, marginLeft: SPACING.md, fontSize: 13, lineHeight: 20 },
 
   submitBtn: {
-    backgroundColor: COLORS.electricTeal, paddingVertical: 18, borderRadius: BORDER_RADIUS.xl,
-    alignItems: 'center', shadowColor: COLORS.electricTeal, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 10, elevation: 5, marginBottom: 40,
+    backgroundColor: colors.electricTeal, paddingVertical: 18, borderRadius: BORDER_RADIUS.xl,
+    alignItems: 'center', shadowColor: colors.electricTeal, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 10, elevation: 5, marginBottom: 40,
   },
   submitBtnDisabled: { opacity: 0.7 },
   submitBtnText: { color: '#FFF', fontSize: 16, fontWeight: FONT_WEIGHTS.bold },
 
-  statusCard: { alignItems: 'center', backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.xl, padding: SPACING.xl, marginBottom: SPACING.xl, borderWidth: 1, borderColor: COLORS.border },
+  statusCard: { alignItems: 'center', backgroundColor: colors.surface, borderRadius: BORDER_RADIUS.xl, padding: SPACING.xl, marginBottom: SPACING.xl, borderWidth: 1, borderColor: colors.border },
   statusIcon: { width: 64, height: 64, borderRadius: 32, justifyContent: 'center', alignItems: 'center', marginBottom: SPACING.md },
   statusLabel: { fontSize: 22, fontWeight: FONT_WEIGHTS.bold, marginBottom: SPACING.sm },
-  statusDesc: { fontSize: 14, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 22 },
+  statusDesc: { fontSize: 14, color: colors.textSecondary, textAlign: 'center', lineHeight: 22 },
 
   rejectionCard: { flexDirection: 'row', backgroundColor: '#FEF2F2', borderRadius: BORDER_RADIUS.lg, padding: SPACING.lg, marginBottom: SPACING.xl, borderWidth: 1, borderColor: '#FECACA' },
-  rejectionLabel: { color: COLORS.coralRed, fontSize: 14, fontWeight: FONT_WEIGHTS.bold, marginBottom: 2 },
-  rejectionText: { color: COLORS.textSecondary, fontSize: 13 },
+  rejectionLabel: { color: colors.coralRed, fontSize: 14, fontWeight: FONT_WEIGHTS.bold, marginBottom: 2 },
+  rejectionText: { color: colors.textSecondary, fontSize: 13 },
 
   readOnlyContainer: { marginTop: SPACING.xl },
 
   // Multi-image gallery
   multiImage: {
     width: 110, height: 110, borderRadius: BORDER_RADIUS.md,
-    borderWidth: 1, borderColor: COLORS.border,
+    borderWidth: 1, borderColor: colors.border,
   },
   removeImageBtn: {
     position: 'absolute', top: -6, right: -6,
-    backgroundColor: '#FFF', borderRadius: 12,
+    backgroundColor: colors.surface, borderRadius: 12,
   },
   addImageBtn: {
     width: 110, height: 110, borderRadius: BORDER_RADIUS.md,
-    borderWidth: 2, borderColor: COLORS.border, borderStyle: 'dashed',
+    borderWidth: 2, borderColor: colors.border, borderStyle: 'dashed',
     justifyContent: 'center', alignItems: 'center',
-    backgroundColor: COLORS.surfaceAlt,
+    backgroundColor: colors.surfaceAlt,
   },
   addImageText: {
-    color: COLORS.textSecondary, fontSize: 12, marginTop: 4,
+    color: colors.textSecondary, fontSize: 12, marginTop: 4,
     fontWeight: FONT_WEIGHTS.medium,
   },
 
   // Manage Spaces button
   manageSpacesBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: COLORS.electricTeal, borderRadius: BORDER_RADIUS.lg,
+    backgroundColor: colors.electricTeal, borderRadius: BORDER_RADIUS.lg,
     paddingVertical: 16, paddingHorizontal: SPACING.lg, marginTop: SPACING.md,
-    shadowColor: COLORS.electricTeal, shadowOffset: { width: 0, height: 4 },
+    shadowColor: colors.electricTeal, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3, shadowRadius: 8, elevation: 4,
   },
   manageSpacesBtnText: {

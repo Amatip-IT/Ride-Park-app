@@ -33,6 +33,38 @@ class AuthService {
       return {
         success: false,
         message: this.extractErrorMessage(error, 'Registration failed'),
+        data: error?.data,
+      };
+    }
+  }
+
+  /**
+   * Check whether a username is available before the user continues signup
+   */
+  async checkUsername(
+    username: string,
+  ): Promise<ApiResponse<{ available: boolean; suggestions?: string[] }>> {
+    try {
+      const response = await this.api.get('/users/check-username', {
+        params: { username },
+      });
+      return response.data;
+    } catch (error: any) {
+      const axiosData = error?.response?.data;
+      if (axiosData && typeof axiosData === 'object') {
+        const msg = Array.isArray(axiosData.message)
+          ? axiosData.message[0]
+          : axiosData.message || 'Failed to check username';
+        return {
+          success: false,
+          message: msg,
+          data: axiosData.data,
+        };
+      }
+      return {
+        success: false,
+        message: this.extractErrorMessage(error, 'Failed to check username'),
+        data: error?.data,
       };
     }
   }
@@ -111,6 +143,7 @@ class AuthService {
       return {
         success: false,
         message: this.extractErrorMessage(error, 'Failed to send OTP'),
+        retryAfter: error?.retryAfter,
       };
     }
   }
@@ -141,6 +174,7 @@ class AuthService {
       return {
         success: false,
         message: this.extractErrorMessage(error, 'Failed to resend OTP'),
+        retryAfter: error?.retryAfter,
       };
     }
   }
@@ -217,6 +251,20 @@ class AuthService {
         success: false,
         message: this.extractErrorMessage(error, 'Failed to update profile'),
       };
+    }
+  }
+
+  /**
+   * Get a short-lived signed URL for the caller's own uploaded media (profile photo, etc.)
+   */
+  async getMediaUrl(url: string): Promise<string | null> {
+    try {
+      const response = await this.api.get('/users/media-url', {
+        params: { url },
+      });
+      return response.data?.url || null;
+    } catch {
+      return null;
     }
   }
 }

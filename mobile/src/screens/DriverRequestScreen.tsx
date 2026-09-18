@@ -1,9 +1,10 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Platform, SafeAreaView, ActivityIndicator, Alert, TextInput,
 } from 'react-native';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
+import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, ThemeColors } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { LocationAutocompleteInput } from '@/components/LocationAutocompleteInput';
 import { useLocationBias } from '@/hooks/useLocationBias';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,13 +13,15 @@ import { bookingsApi } from '@/api';
 import { calculateChauffeurQuotedPrice } from '@/constants/pricing';
 import { formatCurrency } from '@/utils/helpers';
 import * as Location from 'expo-location';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import { PlatformDateTimePicker } from '@/components/PlatformDateTimePicker';
 
 type RouteParams = {
   DriverRequest: { serviceId?: string; prefilledName?: string };
 };
 
 export function DriverRequestScreen() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const navigation = useNavigation<NavigationProp<any>>();
   const route = useRoute<RouteProp<RouteParams, 'DriverRequest'>>();
   const targetServiceId = route.params?.serviceId;
@@ -136,7 +139,7 @@ export function DriverRequestScreen() {
       <View style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
+            <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Request a Driver</Text>
           <View style={{ width: 32 }} />
@@ -146,7 +149,7 @@ export function DriverRequestScreen() {
           {targetName && (
             <View style={styles.preselectedDriverCard}>
               <View style={styles.preselectedDriverHeader}>
-                <Ionicons name="shield-checkmark" size={16} color={COLORS.electricTeal} />
+                <Ionicons name="shield-checkmark" size={16} color={colors.electricTeal} />
                 <Text style={styles.preselectedDriverLabel}>DIRECT DRIVER BOOKING SECURED</Text>
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: SPACING.sm }}>
@@ -175,9 +178,9 @@ export function DriverRequestScreen() {
             activeOpacity={0.7}
           >
             {fetchingLocation ? (
-              <ActivityIndicator size="small" color={COLORS.info} />
+              <ActivityIndicator size="small" color={colors.info} />
             ) : (
-              <Ionicons name="navigate" size={20} color={COLORS.info} />
+              <Ionicons name="navigate" size={20} color={colors.info} />
             )}
             <Text style={styles.gpsBtnText}>
               {usingGps ? '📍 Using GPS Location' : 'Use My Current Location'}
@@ -189,7 +192,7 @@ export function DriverRequestScreen() {
           <LocationAutocompleteInput
             style={styles.input}
             placeholder="Address"
-            placeholderTextColor={COLORS.textTertiary}
+            placeholderTextColor={colors.textTertiary}
             value={pickupAddress}
             onChangeText={(text) => {
               setPickupAddress(text);
@@ -211,7 +214,7 @@ export function DriverRequestScreen() {
           <TextInput
             style={styles.input}
             placeholder="Postcode or house number"
-            placeholderTextColor={COLORS.textTertiary}
+            placeholderTextColor={colors.textTertiary}
             value={pickupPostcode}
             onChangeText={(t) => { setPickupPostcode(t); setUsingGps(false); }}
           />
@@ -226,7 +229,7 @@ export function DriverRequestScreen() {
             activeOpacity={0.7}
           >
             <View style={styles.timeIconRow}>
-              <Ionicons name="time-outline" size={20} color={COLORS.success} />
+              <Ionicons name="time-outline" size={20} color={colors.success} />
               <Text style={styles.timeLabel}>Start Time</Text>
             </View>
             <Text style={styles.timeValue}>
@@ -234,18 +237,13 @@ export function DriverRequestScreen() {
             </Text>
           </TouchableOpacity>
 
-          {showStartPicker && (
-            <DateTimePicker
-              value={startTime}
-              mode="datetime"
-              is24Hour={true}
-              minimumDate={new Date()}
-              onChange={(_, selected) => {
-                setShowStartPicker(false);
-                if (selected) setStartTime(selected);
-              }}
-            />
-          )}
+          <PlatformDateTimePicker
+            visible={showStartPicker}
+            value={startTime}
+            minimumDate={new Date()}
+            onChange={setStartTime}
+            onClose={() => setShowStartPicker(false)}
+          />
 
           {/* End Time */}
           <TouchableOpacity
@@ -254,7 +252,7 @@ export function DriverRequestScreen() {
             activeOpacity={0.7}
           >
             <View style={styles.timeIconRow}>
-              <Ionicons name="time-outline" size={20} color={COLORS.error} />
+              <Ionicons name="time-outline" size={20} color={colors.error} />
               <Text style={styles.timeLabel}>End Time</Text>
             </View>
             <Text style={styles.timeValue}>
@@ -262,22 +260,17 @@ export function DriverRequestScreen() {
             </Text>
           </TouchableOpacity>
 
-          {showEndPicker && (
-            <DateTimePicker
-              value={endTime}
-              mode="datetime"
-              is24Hour={true}
-              minimumDate={startTime}
-              onChange={(_, selected) => {
-                setShowEndPicker(false);
-                if (selected) setEndTime(selected);
-              }}
-            />
-          )}
+          <PlatformDateTimePicker
+            visible={showEndPicker}
+            value={endTime}
+            minimumDate={startTime}
+            onChange={setEndTime}
+            onClose={() => setShowEndPicker(false)}
+          />
 
           {/* Duration Summary */}
           <View style={styles.durationSummary}>
-            <Ionicons name="hourglass-outline" size={18} color={COLORS.electricTeal} />
+            <Ionicons name="hourglass-outline" size={18} color={colors.electricTeal} />
             <View style={{ flex: 1 }}>
               <Text style={styles.durationText}>
                 Duration: {durationHours.toFixed(1)} hour{durationHours !== 1 ? 's' : ''}
@@ -294,7 +287,7 @@ export function DriverRequestScreen() {
           <TextInput
             style={[styles.input, { height: 90, textAlignVertical: 'top' }]}
             placeholder="Any special instructions or requirements..."
-            placeholderTextColor={COLORS.textTertiary}
+            placeholderTextColor={colors.textTertiary}
             value={notes}
             onChangeText={setNotes}
             multiline
@@ -302,7 +295,7 @@ export function DriverRequestScreen() {
 
           {/* ── Pricing Info ── */}
           <View style={styles.pricingInfo}>
-            <Ionicons name="information-circle-outline" size={18} color={COLORS.textSecondary} />
+            <Ionicons name="information-circle-outline" size={18} color={colors.textSecondary} />
             <Text style={styles.pricingText}>
               Quote uses £1.10/mile × estimated distance for your booked hours. You confirm payment after the service is finished.
             </Text>
@@ -330,77 +323,77 @@ export function DriverRequestScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: COLORS.background },
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: colors.background },
   container: { flex: 1 },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: SPACING.lg,
     paddingTop: Platform.OS === 'android' ? SPACING.xl : SPACING.sm,
     paddingBottom: SPACING.md,
-    borderBottomWidth: 1, borderBottomColor: COLORS.border,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
   },
   backBtn: { padding: SPACING.xs },
   headerTitle: {
-    color: COLORS.textPrimary, fontSize: FONT_SIZES.section, fontWeight: FONT_WEIGHTS.bold,
+    color: colors.textPrimary, fontSize: FONT_SIZES.section, fontWeight: FONT_WEIGHTS.bold,
   },
   scrollContent: { padding: SPACING.lg, paddingBottom: 100 },
   sectionLabel: {
-    color: COLORS.textPrimary, fontSize: FONT_SIZES.body,
+    color: colors.textPrimary, fontSize: FONT_SIZES.body,
     fontWeight: FONT_WEIGHTS.semibold, marginBottom: SPACING.sm,
   },
   gpsBtn: {
     flexDirection: 'row', alignItems: 'center', gap: SPACING.md,
-    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.lg, borderWidth: 1, borderColor: COLORS.info,
+    backgroundColor: colors.surface, borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.lg, borderWidth: 1, borderColor: colors.info,
   },
   gpsBtnText: {
-    color: COLORS.info, fontSize: FONT_SIZES.label, fontWeight: FONT_WEIGHTS.semibold,
+    color: colors.info, fontSize: FONT_SIZES.label, fontWeight: FONT_WEIGHTS.semibold,
   },
   orText: {
-    color: COLORS.textTertiary, fontSize: FONT_SIZES.small,
+    color: colors.textTertiary, fontSize: FONT_SIZES.small,
     textAlign: 'center', marginVertical: SPACING.sm,
   },
   input: {
-    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.lg, color: COLORS.textPrimary, fontSize: FONT_SIZES.label,
-    borderWidth: 1, borderColor: COLORS.border, marginBottom: SPACING.sm,
+    backgroundColor: colors.surface, borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.lg, color: colors.textPrimary, fontSize: FONT_SIZES.label,
+    borderWidth: 1, borderColor: colors.border, marginBottom: SPACING.sm,
   },
   timeField: {
-    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.lg, borderWidth: 1, borderColor: COLORS.border,
+    backgroundColor: colors.surface, borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.lg, borderWidth: 1, borderColor: colors.border,
     marginBottom: SPACING.sm,
   },
   timeIconRow: {
     flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginBottom: 4,
   },
   timeLabel: {
-    color: COLORS.textSecondary, fontSize: FONT_SIZES.small, fontWeight: FONT_WEIGHTS.medium,
+    color: colors.textSecondary, fontSize: FONT_SIZES.small, fontWeight: FONT_WEIGHTS.medium,
   },
   timeValue: {
-    color: COLORS.textPrimary, fontSize: FONT_SIZES.body, fontWeight: FONT_WEIGHTS.semibold,
+    color: colors.textPrimary, fontSize: FONT_SIZES.body, fontWeight: FONT_WEIGHTS.semibold,
   },
   durationSummary: {
     flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm,
-    backgroundColor: `${COLORS.electricTeal}10`, borderRadius: BORDER_RADIUS.md,
+    backgroundColor: `${colors.electricTeal}10`, borderRadius: BORDER_RADIUS.md,
     padding: SPACING.md, marginTop: SPACING.xs,
   },
   durationText: {
-    color: COLORS.electricTeal, fontSize: FONT_SIZES.label, fontWeight: FONT_WEIGHTS.semibold,
+    color: colors.electricTeal, fontSize: FONT_SIZES.label, fontWeight: FONT_WEIGHTS.semibold,
   },
   quoteText: {
-    color: COLORS.textPrimary, fontSize: FONT_SIZES.small, marginTop: 4,
+    color: colors.textPrimary, fontSize: FONT_SIZES.small, marginTop: 4,
   },
   pricingInfo: {
     flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
-    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.md,
+    backgroundColor: colors.surface, borderRadius: BORDER_RADIUS.md,
     padding: SPACING.md, marginTop: SPACING.lg, marginBottom: SPACING.lg,
   },
   pricingText: {
-    flex: 1, color: COLORS.textSecondary, fontSize: FONT_SIZES.small, lineHeight: 18,
+    flex: 1, color: colors.textSecondary, fontSize: FONT_SIZES.small, lineHeight: 18,
   },
   submitBtn: {
-    backgroundColor: COLORS.info, borderRadius: BORDER_RADIUS.md,
+    backgroundColor: colors.info, borderRadius: BORDER_RADIUS.md,
     paddingVertical: SPACING.lg, flexDirection: 'row',
     justifyContent: 'center', alignItems: 'center',
   },
@@ -410,23 +403,23 @@ const styles = StyleSheet.create({
 
   // Preselected Driver Card
   preselectedDriverCard: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.lg,
     marginBottom: SPACING.lg,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
   },
   preselectedDriverHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: colors.border,
     paddingBottom: SPACING.sm,
   },
   preselectedDriverLabel: {
-    color: COLORS.electricTeal,
+    color: colors.electricTeal,
     fontSize: 11,
     fontWeight: '800',
     letterSpacing: 0.5,
@@ -435,32 +428,32 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: `${COLORS.electricTeal}15`,
+    backgroundColor: `${colors.electricTeal}15`,
     justifyContent: 'center',
     alignItems: 'center',
   },
   driverAvatarMiniText: {
-    color: COLORS.electricTeal,
+    color: colors.electricTeal,
     fontSize: 14,
     fontWeight: 'bold',
   },
   driverNameText: {
-    color: COLORS.textPrimary,
+    color: colors.textPrimary,
     fontSize: FONT_SIZES.label,
     fontWeight: FONT_WEIGHTS.bold,
   },
   driverNumSubtext: {
-    color: COLORS.textTertiary,
+    color: colors.textTertiary,
     fontSize: 11,
     marginTop: 2,
   },
 
   // Autocomplete suggestions
   suggestionsContainer: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
     borderRadius: BORDER_RADIUS.md,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
     marginTop: -SPACING.sm + 2,
     marginBottom: SPACING.sm,
     overflow: 'hidden',
@@ -472,11 +465,11 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.md,
     paddingHorizontal: SPACING.lg,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: colors.border,
   },
   suggestionText: {
     flex: 1,
-    color: COLORS.textPrimary,
+    color: colors.textPrimary,
     fontSize: FONT_SIZES.small,
     lineHeight: 18,
   },

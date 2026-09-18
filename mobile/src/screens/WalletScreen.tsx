@@ -126,14 +126,6 @@ export function WalletScreenContent() {
   };
 
   const handleAddCard = async () => {
-    if (!stripeConfigured) {
-      Alert.alert(
-        'Payments unavailable',
-        'Stripe is not configured for this build. Set EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY in your environment.',
-      );
-      return;
-    }
-
     if (addingCard) return;
 
     try {
@@ -143,7 +135,26 @@ export function WalletScreenContent() {
         throw new Error(res.data?.message || 'Failed to initialize card setup');
       }
 
-      const { setupIntent, ephemeralKey, customer } = res.data.data;
+      const data = res.data.data || {};
+      if (data.mockPayments) {
+        Alert.alert(
+          'Mock payments on',
+          data.message ||
+            'A test card is already available. You can request rides without adding a real card.',
+        );
+        await loadWalletData();
+        return;
+      }
+
+      if (!stripeConfigured) {
+        Alert.alert(
+          'Payments unavailable',
+          'Stripe is not configured for this build. Set EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY in your environment.',
+        );
+        return;
+      }
+
+      const { setupIntent, ephemeralKey, customer } = data;
       if (!setupIntent || !ephemeralKey || !customer) {
         throw new Error('Stripe setup response is incomplete. Please try again.');
       }

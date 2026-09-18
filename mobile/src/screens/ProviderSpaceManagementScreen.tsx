@@ -1,10 +1,11 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Platform, SafeAreaView, ActivityIndicator, Alert, Switch,
   TextInput, Modal, KeyboardAvoidingView,
 } from 'react-native';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
+import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, ThemeColors } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { Ionicons } from '@expo/vector-icons';
 import { providerApi } from '@/api';
 import { searchLocationByPosition } from '@/api/amazonLocation';
@@ -45,6 +46,8 @@ interface Verification {
 }
 
 export function ProviderSpaceManagementScreen() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const navigation = useNavigation<any>();
   const [spaces, setSpaces] = useState<ParkingSpace[]>([]);
   const [verifications, setVerifications] = useState<Verification[]>([]);
@@ -202,16 +205,16 @@ export function ProviderSpaceManagementScreen() {
   };
 
   const getOccupancyColor = (percent: number) => {
-    if (percent >= 90) return COLORS.coralRed;
-    if (percent >= 60) return COLORS.amber;
-    return COLORS.success;
+    if (percent >= 90) return colors.coralRed;
+    if (percent >= 60) return colors.amber;
+    return colors.success;
   };
 
   if (loading) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color={COLORS.electricTeal} />
+          <ActivityIndicator size="large" color={colors.electricTeal} />
         </View>
       </SafeAreaView>
     );
@@ -222,7 +225,7 @@ export function ProviderSpaceManagementScreen() {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
+          <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>My Parking Spaces</Text>
@@ -238,7 +241,7 @@ export function ProviderSpaceManagementScreen() {
       >
         {fetchError && (
           <View style={styles.errorBanner}>
-            <Ionicons name="alert-circle" size={18} color={COLORS.coralRed} />
+            <Ionicons name="alert-circle" size={18} color={colors.coralRed} />
             <Text style={styles.errorBannerText}>{fetchError}</Text>
             <TouchableOpacity onPress={() => fetchSpaces(true)}>
               <Text style={styles.retryLink}>Retry</Text>
@@ -260,11 +263,11 @@ export function ProviderSpaceManagementScreen() {
                     </Text>
                     <View style={[
                       styles.verifBadge,
-                      { backgroundColor: v.status === 'rejected' ? `${COLORS.coralRed}20` : `${COLORS.amber}20` },
+                      { backgroundColor: v.status === 'rejected' ? `${colors.coralRed}20` : `${colors.amber}20` },
                     ]}>
                       <Text style={[
                         styles.verifBadgeText,
-                        { color: v.status === 'rejected' ? COLORS.coralRed : COLORS.amber },
+                        { color: v.status === 'rejected' ? colors.coralRed : colors.amber },
                       ]}>
                         {v.status.charAt(0).toUpperCase() + v.status.slice(1)}
                       </Text>
@@ -293,7 +296,7 @@ export function ProviderSpaceManagementScreen() {
 
         {spaces.length === 0 && verifications.filter(v => v.status !== 'approved').length === 0 ? (
           <View style={styles.emptyState}>
-            <Ionicons name="business-outline" size={64} color={COLORS.softSlate} />
+            <Ionicons name="business-outline" size={64} color={colors.softSlate} />
             <Text style={styles.emptyTitle}>No Parking Spaces Yet</Text>
             <Text style={styles.emptySub}>
               Submit a parking verification to get started. Once approved by an admin, your spaces will appear here.
@@ -315,10 +318,10 @@ export function ProviderSpaceManagementScreen() {
                   </View>
                   <View style={[
                     styles.availBadge,
-                    { backgroundColor: space.isAvailable ? `${COLORS.success}20` : `${COLORS.coralRed}20` },
+                    { backgroundColor: space.isAvailable ? `${colors.success}20` : `${colors.coralRed}20` },
                   ]}>
-                    <View style={[styles.availDot, { backgroundColor: space.isAvailable ? COLORS.success : COLORS.coralRed }]} />
-                    <Text style={[styles.availText, { color: space.isAvailable ? COLORS.success : COLORS.coralRed }]}>
+                    <View style={[styles.availDot, { backgroundColor: space.isAvailable ? colors.success : colors.coralRed }]} />
+                    <Text style={[styles.availText, { color: space.isAvailable ? colors.success : colors.coralRed }]}>
                       {space.isAvailable ? 'Live' : 'Paused'}
                     </Text>
                   </View>
@@ -345,22 +348,22 @@ export function ProviderSpaceManagementScreen() {
                 {/* Stats Grid */}
                 <View style={styles.statsGrid}>
                   <View style={styles.statItem}>
-                    <Ionicons name="time-outline" size={18} color={COLORS.amber} />
+                    <Ionicons name="time-outline" size={18} color={colors.amber} />
                     <Text style={styles.statValue}>{space.stats.pendingRequests}</Text>
                     <Text style={styles.statLabel}>Pending</Text>
                   </View>
                   <View style={styles.statItem}>
-                    <Ionicons name="checkmark-circle-outline" size={18} color={COLORS.success} />
+                    <Ionicons name="checkmark-circle-outline" size={18} color={colors.success} />
                     <Text style={styles.statValue}>{space.stats.activeBookings}</Text>
                     <Text style={styles.statLabel}>Active</Text>
                   </View>
                   <View style={styles.statItem}>
-                    <Ionicons name="flag-outline" size={18} color={COLORS.info} />
+                    <Ionicons name="flag-outline" size={18} color={colors.info} />
                     <Text style={styles.statValue}>{space.stats.completedBookings}</Text>
                     <Text style={styles.statLabel}>Completed</Text>
                   </View>
                   <View style={styles.statItem}>
-                    <Ionicons name="cash-outline" size={18} color={COLORS.electricTeal} />
+                    <Ionicons name="cash-outline" size={18} color={colors.electricTeal} />
                     <Text style={styles.statValue}>£{(space.stats.totalRevenue || 0).toFixed(0)}</Text>
                     <Text style={styles.statLabel}>Revenue</Text>
                   </View>
@@ -390,7 +393,7 @@ export function ProviderSpaceManagementScreen() {
                     style={styles.editBtn}
                     onPress={() => openEditModal(space)}
                   >
-                    <Ionicons name="create-outline" size={18} color={COLORS.electricTeal} />
+                    <Ionicons name="create-outline" size={18} color={colors.electricTeal} />
                     <Text style={styles.editBtnText}>Edit Details</Text>
                   </TouchableOpacity>
 
@@ -400,15 +403,15 @@ export function ProviderSpaceManagementScreen() {
                     disabled={isToggling}
                   >
                     {isToggling ? (
-                      <ActivityIndicator size="small" color={space.isAvailable ? COLORS.coralRed : COLORS.success} />
+                      <ActivityIndicator size="small" color={space.isAvailable ? colors.coralRed : colors.success} />
                     ) : (
                       <>
                         <Ionicons
                           name={space.isAvailable ? 'pause-circle-outline' : 'play-circle-outline'}
                           size={18}
-                          color={space.isAvailable ? COLORS.coralRed : COLORS.success}
+                          color={space.isAvailable ? colors.coralRed : colors.success}
                         />
-                        <Text style={[styles.toggleBtnText, { color: space.isAvailable ? COLORS.coralRed : COLORS.success }]}>
+                        <Text style={[styles.toggleBtnText, { color: space.isAvailable ? colors.coralRed : colors.success }]}>
                           {space.isAvailable ? 'Pause' : 'Resume'}
                         </Text>
                       </>
@@ -431,7 +434,7 @@ export function ProviderSpaceManagementScreen() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Edit Space</Text>
               <TouchableOpacity onPress={() => setEditModal(false)}>
-                <Ionicons name="close" size={24} color={COLORS.textPrimary} />
+                <Ionicons name="close" size={24} color={colors.textPrimary} />
               </TouchableOpacity>
             </View>
 
@@ -443,7 +446,7 @@ export function ProviderSpaceManagementScreen() {
                 value={editForm.name}
                 onChangeText={(v) => setEditForm(p => ({ ...p, name: v }))}
                 placeholder="Park name"
-                placeholderTextColor={COLORS.softSlate}
+                placeholderTextColor={colors.softSlate}
               />
 
               {/* Location auto-fill */}
@@ -454,9 +457,9 @@ export function ProviderSpaceManagementScreen() {
                 activeOpacity={0.7}
               >
                 {locatingGps ? (
-                  <ActivityIndicator size="small" color={COLORS.electricTeal} />
+                  <ActivityIndicator size="small" color={colors.electricTeal} />
                 ) : (
-                  <Ionicons name="locate" size={18} color={COLORS.electricTeal} />
+                  <Ionicons name="locate" size={18} color={colors.electricTeal} />
                 )}
                 <Text style={styles.useLocationBtnText}>
                   {locatingGps ? 'Getting location...' : 'Use my current location'}
@@ -470,7 +473,7 @@ export function ProviderSpaceManagementScreen() {
                 value={editForm.address}
                 onChangeText={(v) => setEditForm(p => ({ ...p, address: v }))}
                 placeholder="Street address"
-                placeholderTextColor={COLORS.softSlate}
+                placeholderTextColor={colors.softSlate}
               />
 
               {/* Postcode */}
@@ -480,7 +483,7 @@ export function ProviderSpaceManagementScreen() {
                 value={editForm.postCode}
                 onChangeText={(v) => setEditForm(p => ({ ...p, postCode: v }))}
                 placeholder="e.g. SW1A 1AA"
-                placeholderTextColor={COLORS.softSlate}
+                placeholderTextColor={colors.softSlate}
               />
 
               {/* Description */}
@@ -490,7 +493,7 @@ export function ProviderSpaceManagementScreen() {
                 value={editForm.description}
                 onChangeText={(v) => setEditForm(p => ({ ...p, description: v }))}
                 placeholder="Describe your space"
-                placeholderTextColor={COLORS.softSlate}
+                placeholderTextColor={colors.softSlate}
                 multiline
               />
 
@@ -501,7 +504,7 @@ export function ProviderSpaceManagementScreen() {
                 value={editForm.hourlyRate}
                 onChangeText={(v) => setEditForm(p => ({ ...p, hourlyRate: v }))}
                 placeholder="e.g. 3.50"
-                placeholderTextColor={COLORS.softSlate}
+                placeholderTextColor={colors.softSlate}
                 keyboardType="decimal-pad"
               />
 
@@ -512,7 +515,7 @@ export function ProviderSpaceManagementScreen() {
                 value={editForm.dailyRate}
                 onChangeText={(v) => setEditForm(p => ({ ...p, dailyRate: v }))}
                 placeholder="e.g. 15.00"
-                placeholderTextColor={COLORS.softSlate}
+                placeholderTextColor={colors.softSlate}
                 keyboardType="decimal-pad"
               />
 
@@ -523,7 +526,7 @@ export function ProviderSpaceManagementScreen() {
                 value={editForm.totalSpots}
                 onChangeText={(v) => setEditForm(p => ({ ...p, totalSpots: v }))}
                 placeholder="e.g. 10"
-                placeholderTextColor={COLORS.softSlate}
+                placeholderTextColor={colors.softSlate}
                 keyboardType="number-pad"
               />
             </ScrollView>
@@ -546,8 +549,8 @@ export function ProviderSpaceManagementScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: COLORS.background },
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: colors.background },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
   header: {
@@ -555,11 +558,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
     paddingTop: Platform.OS === 'android' ? SPACING.xl : SPACING.sm,
     paddingBottom: SPACING.md,
-    borderBottomWidth: 1, borderBottomColor: COLORS.border,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
   },
   backBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
-  headerTitle: { color: COLORS.textPrimary, fontSize: 22, fontWeight: FONT_WEIGHTS.bold },
-  headerSub: { color: COLORS.textSecondary, fontSize: 13, marginTop: 2 },
+  headerTitle: { color: colors.textPrimary, fontSize: 22, fontWeight: FONT_WEIGHTS.bold },
+  headerSub: { color: colors.textSecondary, fontSize: 13, marginTop: 2 },
 
   scrollContent: { padding: SPACING.lg, paddingBottom: 40 },
   errorBanner: {
@@ -571,45 +574,45 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 107, 107, 0.12)',
     borderRadius: BORDER_RADIUS.md,
   },
-  errorBannerText: { flex: 1, color: COLORS.coralRed, fontSize: 13 },
-  retryLink: { color: COLORS.electricTeal, fontWeight: FONT_WEIGHTS.bold, fontSize: 13 },
+  errorBannerText: { flex: 1, color: colors.coralRed, fontSize: 13 },
+  retryLink: { color: colors.electricTeal, fontWeight: FONT_WEIGHTS.bold, fontSize: 13 },
 
   // Section label
   sectionLabel: {
-    color: COLORS.textPrimary, fontSize: 16, fontWeight: FONT_WEIGHTS.bold,
+    color: colors.textPrimary, fontSize: 16, fontWeight: FONT_WEIGHTS.bold,
     marginBottom: SPACING.md, marginTop: SPACING.sm,
   },
 
   // Verification cards
   verifCard: {
-    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.lg,
+    backgroundColor: colors.surface, borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.md, marginBottom: SPACING.sm,
-    borderWidth: 1, borderColor: COLORS.border,
+    borderWidth: 1, borderColor: colors.border,
   },
   verifHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  verifName: { color: COLORS.textPrimary, fontSize: 15, fontWeight: FONT_WEIGHTS.semibold, flex: 1 },
+  verifName: { color: colors.textPrimary, fontSize: 15, fontWeight: FONT_WEIGHTS.semibold, flex: 1 },
   verifBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
   verifBadgeText: { fontSize: 11, fontWeight: FONT_WEIGHTS.bold },
-  verifDetail: { color: COLORS.textSecondary, fontSize: 13, marginTop: 2 },
-  verifRejection: { color: COLORS.coralRed, fontSize: 12, marginTop: 4, fontStyle: 'italic' },
-  verifDate: { color: COLORS.textTertiary, fontSize: 11, marginTop: 4 },
+  verifDetail: { color: colors.textSecondary, fontSize: 13, marginTop: 2 },
+  verifRejection: { color: colors.coralRed, fontSize: 12, marginTop: 4, fontStyle: 'italic' },
+  verifDate: { color: colors.textTertiary, fontSize: 11, marginTop: 4 },
 
   // Empty
   emptyState: { alignItems: 'center', paddingVertical: 80 },
-  emptyTitle: { color: COLORS.textPrimary, fontSize: 20, fontWeight: FONT_WEIGHTS.bold, marginTop: SPACING.lg },
-  emptySub: { color: COLORS.textSecondary, fontSize: 14, textAlign: 'center', marginTop: SPACING.sm, maxWidth: '80%', lineHeight: 20 },
+  emptyTitle: { color: colors.textPrimary, fontSize: 20, fontWeight: FONT_WEIGHTS.bold, marginTop: SPACING.lg },
+  emptySub: { color: colors.textSecondary, fontSize: 14, textAlign: 'center', marginTop: SPACING.sm, maxWidth: '80%', lineHeight: 20 },
 
   // Space Card
   spaceCard: {
-    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.xl,
+    backgroundColor: colors.surface, borderRadius: BORDER_RADIUS.xl,
     padding: SPACING.lg, marginBottom: SPACING.lg,
-    borderWidth: 1, borderColor: COLORS.border,
+    borderWidth: 1, borderColor: colors.border,
     shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08, shadowRadius: 12, elevation: 4,
   },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: SPACING.md },
-  spaceName: { color: COLORS.textPrimary, fontSize: 18, fontWeight: FONT_WEIGHTS.bold },
-  spacePostcode: { color: COLORS.textSecondary, fontSize: 13, marginTop: 2 },
+  spaceName: { color: colors.textPrimary, fontSize: 18, fontWeight: FONT_WEIGHTS.bold },
+  spacePostcode: { color: colors.textSecondary, fontSize: 13, marginTop: 2 },
 
   availBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
   availDot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
@@ -618,48 +621,48 @@ const styles = StyleSheet.create({
   // Occupancy
   occupancySection: { marginBottom: SPACING.md },
   occupancyLabelRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
-  occupancyLabel: { color: COLORS.textSecondary, fontSize: 13 },
+  occupancyLabel: { color: colors.textSecondary, fontSize: 13 },
   occupancyValue: { fontSize: 13, fontWeight: FONT_WEIGHTS.bold },
   occupancyBarBg: {
-    height: 10, borderRadius: 5, backgroundColor: COLORS.surfaceAlt,
+    height: 10, borderRadius: 5, backgroundColor: colors.surfaceAlt,
     overflow: 'hidden', marginBottom: 4,
   },
   occupancyBarFill: { height: '100%', borderRadius: 5 },
-  availSpotsText: { color: COLORS.textSecondary, fontSize: 12 },
+  availSpotsText: { color: colors.textSecondary, fontSize: 12 },
 
   // Stats
   statsGrid: { flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.md },
   statItem: {
-    flex: 1, backgroundColor: COLORS.surfaceAlt, borderRadius: BORDER_RADIUS.md,
+    flex: 1, backgroundColor: colors.surfaceAlt, borderRadius: BORDER_RADIUS.md,
     padding: SPACING.sm, alignItems: 'center',
   },
-  statValue: { color: COLORS.textPrimary, fontSize: 18, fontWeight: FONT_WEIGHTS.bold, marginTop: 4 },
-  statLabel: { color: COLORS.textSecondary, fontSize: 11, marginTop: 2 },
+  statValue: { color: colors.textPrimary, fontSize: 18, fontWeight: FONT_WEIGHTS.bold, marginTop: 4 },
+  statLabel: { color: colors.textSecondary, fontSize: 11, marginTop: 2 },
 
   // Pricing
   pricingRow: { flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.md },
   priceChip: {
-    flex: 1, backgroundColor: `${COLORS.electricTeal}10`, borderRadius: BORDER_RADIUS.md,
+    flex: 1, backgroundColor: `${colors.electricTeal}10`, borderRadius: BORDER_RADIUS.md,
     padding: SPACING.sm, alignItems: 'center',
-    borderWidth: 1, borderColor: `${COLORS.electricTeal}30`,
+    borderWidth: 1, borderColor: `${colors.electricTeal}30`,
   },
-  priceChipLabel: { color: COLORS.textSecondary, fontSize: 11 },
-  priceChipValue: { color: COLORS.electricTeal, fontSize: 15, fontWeight: FONT_WEIGHTS.bold, marginTop: 2 },
+  priceChipLabel: { color: colors.textSecondary, fontSize: 11 },
+  priceChipValue: { color: colors.electricTeal, fontSize: 15, fontWeight: FONT_WEIGHTS.bold, marginTop: 2 },
 
   // Actions
   actionRow: { flexDirection: 'row', gap: SPACING.sm },
   editBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     paddingVertical: 12, borderRadius: BORDER_RADIUS.md,
-    borderWidth: 1, borderColor: COLORS.electricTeal, backgroundColor: COLORS.background,
+    borderWidth: 1, borderColor: colors.electricTeal, backgroundColor: colors.background,
   },
-  editBtnText: { color: COLORS.electricTeal, fontSize: 14, fontWeight: FONT_WEIGHTS.bold },
+  editBtnText: { color: colors.electricTeal, fontSize: 14, fontWeight: FONT_WEIGHTS.bold },
   toggleBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     paddingVertical: 12, borderRadius: BORDER_RADIUS.md,
-    borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.background,
+    borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background,
   },
-  toggleBtnActive: { borderColor: COLORS.success },
+  toggleBtnActive: { borderColor: colors.success },
   toggleBtnText: { fontSize: 14, fontWeight: FONT_WEIGHTS.bold },
 
   // Modal
@@ -668,43 +671,43 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.6)',
   },
   modalContent: {
-    backgroundColor: COLORS.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24,
     padding: SPACING.xl, paddingBottom: SPACING['2xl'],
   },
   modalHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     marginBottom: SPACING.lg,
   },
-  modalTitle: { color: COLORS.textPrimary, fontSize: 20, fontWeight: FONT_WEIGHTS.bold },
+  modalTitle: { color: colors.textPrimary, fontSize: 20, fontWeight: FONT_WEIGHTS.bold },
   useLocationBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.sm,
     paddingVertical: SPACING.md,
     paddingHorizontal: SPACING.lg,
-    backgroundColor: `${COLORS.electricTeal}10`,
+    backgroundColor: `${colors.electricTeal}10`,
     borderRadius: BORDER_RADIUS.md,
     borderWidth: 1,
-    borderColor: `${COLORS.electricTeal}30`,
+    borderColor: `${colors.electricTeal}30`,
     marginTop: SPACING.md,
     marginBottom: SPACING.sm,
   },
   useLocationBtnText: {
-    color: COLORS.electricTeal,
+    color: colors.electricTeal,
     fontSize: FONT_SIZES.label,
     fontWeight: FONT_WEIGHTS.semibold,
   },
-  fieldLabel: { color: COLORS.textSecondary, fontSize: 13, fontWeight: FONT_WEIGHTS.medium, marginBottom: 6, marginTop: SPACING.md },
+  fieldLabel: { color: colors.textSecondary, fontSize: 13, fontWeight: FONT_WEIGHTS.medium, marginBottom: 6, marginTop: SPACING.md },
   input: {
-    backgroundColor: COLORS.surfaceAlt, borderRadius: BORDER_RADIUS.md,
+    backgroundColor: colors.surfaceAlt, borderRadius: BORDER_RADIUS.md,
     paddingHorizontal: SPACING.md, paddingVertical: 12,
-    color: COLORS.textPrimary, fontSize: 15,
-    borderWidth: 1, borderColor: COLORS.border,
+    color: colors.textPrimary, fontSize: 15,
+    borderWidth: 1, borderColor: colors.border,
   },
   saveBtn: {
-    backgroundColor: COLORS.electricTeal, borderRadius: BORDER_RADIUS.lg,
+    backgroundColor: colors.electricTeal, borderRadius: BORDER_RADIUS.lg,
     paddingVertical: 16, alignItems: 'center', marginTop: SPACING.xl,
-    shadowColor: COLORS.electricTeal, shadowOffset: { width: 0, height: 4 },
+    shadowColor: colors.electricTeal, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3, shadowRadius: 8, elevation: 4,
   },
   saveBtnText: { color: '#FFF', fontSize: 16, fontWeight: FONT_WEIGHTS.bold },

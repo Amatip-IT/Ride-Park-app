@@ -64,27 +64,29 @@ export const useChatStore = create<ChatState>((set, get) => ({
       });
 
       socket.on('receive_message', (message: any) => {
+        if (!message) return;
         set((state) => {
           // Prevent exact ID duplicates
-          if (state.activeChatMessages.some(m => m._id === message._id)) return state;
+          if (message._id && state.activeChatMessages.some(m => m?._id === message._id)) return state;
           
           // Replace matching optimistic messages
           const cleanQueue = state.activeChatMessages.filter(
-             m => !(m.isOptimistic && m.content === message.content && m.sender === message.sender)
+             m => m && !(m.isOptimistic && m.content === message.content && m.sender === message.sender)
           );
           return { activeChatMessages: [...cleanQueue, message] };
         });
       });
 
       socket.on('message_sent', (message: any) => {
+        if (!message) return;
         set((state) => {
           // Replace the optimistic temp message with the real one from server
           return {
             activeChatMessages: state.activeChatMessages.map(msg => 
-              (msg.isOptimistic && msg.content === message.content && msg.sender === message.sender) 
+              (msg?.isOptimistic && msg.content === message.content && msg.sender === message.sender) 
                 ? message 
                 : msg
-            )
+            ).filter(Boolean)
           };
         });
       });

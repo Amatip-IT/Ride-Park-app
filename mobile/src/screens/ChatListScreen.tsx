@@ -1,9 +1,10 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, FlatList,
   Platform, SafeAreaView, ActivityIndicator, RefreshControl,
 } from 'react-native';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
+import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, ThemeColors } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/store/authStore';
 import { chatApi } from '@/api';
@@ -11,6 +12,8 @@ import { useNavigation, NavigationProp, useFocusEffect } from '@react-navigation
 import { useChatStore } from '@/store/chatStore';
 
 export function ChatListScreen() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { user } = useAuthStore();
   const navigation = useNavigation<NavigationProp<any>>();
   const [chats, setChats] = useState<any[]>([]);
@@ -59,52 +62,65 @@ export function ChatListScreen() {
   );
 
   const renderChatItem = ({ item }: { item: any }) => {
-    const otherUser = item.user;
+    const otherUser = item?.user;
+    if (!otherUser?._id) {
+      return null;
+    }
+
     const latestMsg = item.latestMessage;
     const isUnread = item.unreadCount > 0;
-    
-    // Formatting the name
-    const name = otherUser ? `${otherUser.firstName} ${otherUser.lastName}` : 'Unknown User';
-    // Format date
+
+    const name =
+      [otherUser.firstName, otherUser.lastName].filter(Boolean).join(' ').trim() ||
+      'Unknown User';
     const dateStr = latestMsg?.createdAt ? new Date(latestMsg.createdAt) : new Date();
     const isToday = new Date().toDateString() === dateStr.toDateString();
-    const timeDisplay = isToday 
+    const timeDisplay = isToday
       ? dateStr.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       : dateStr.toLocaleDateString([], { month: 'short', day: 'numeric' });
 
     return (
       <TouchableOpacity
         style={styles.chatCard}
-        onPress={() => navigation.navigate('Chat', {
-          userId: otherUser._id,
-          userName: name,
-        })}
+        onPress={() =>
+          navigation.navigate('Chat', {
+            userId: otherUser._id,
+            userName: name,
+          })
+        }
         activeOpacity={0.7}
       >
         <View style={styles.avatarCircle}>
           <Text style={styles.avatarLetter}>{name.charAt(0)}</Text>
         </View>
-        
+
         <View style={styles.chatInfo}>
           <View style={styles.chatHeader}>
             <Text style={[styles.chatName, isUnread && styles.unreadText]}>{name}</Text>
             <Text style={[styles.chatTime, isUnread && styles.unreadTime]}>{timeDisplay}</Text>
           </View>
-          
+
           <View style={styles.messageRow}>
             {latestMsg?.sender === user?._id && (
-              <Ionicons name="checkmark-done" size={14} color={COLORS.electricTeal} style={{ marginRight: 4 }} />
+              <Ionicons
+                name="checkmark-done"
+                size={14}
+                color={colors.electricTeal}
+                style={{ marginRight: 4 }}
+              />
             )}
-            <Text 
-              style={[styles.messagePreview, isUnread && styles.unreadText]} 
+            <Text
+              style={[styles.messagePreview, isUnread && styles.unreadText]}
               numberOfLines={1}
             >
               {latestMsg?.content || 'Sent an attachment'}
             </Text>
-            
+
             {isUnread && (
               <View style={styles.unreadBadge}>
-                <Text style={styles.unreadCount}>{item.unreadCount > 99 ? '99+' : item.unreadCount}</Text>
+                <Text style={styles.unreadCount}>
+                  {item.unreadCount > 99 ? '99+' : item.unreadCount}
+                </Text>
               </View>
             )}
           </View>
@@ -113,21 +129,39 @@ export function ChatListScreen() {
     );
   };
 
+  const handleBack = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+      return;
+    }
+    navigation.navigate('ConsumerApp' as never);
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
         <View style={styles.header}>
+          <TouchableOpacity
+            onPress={handleBack}
+            style={styles.backBtn}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+          >
+            <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
+          </TouchableOpacity>
           <Text style={styles.headerTitle}>Messages</Text>
+          <View style={styles.headerSpacer} />
         </View>
 
         {loading ? (
           <View style={styles.emptyState}>
-            <ActivityIndicator size="large" color={COLORS.electricTeal} />
+            <ActivityIndicator size="large" color={colors.electricTeal} />
           </View>
         ) : chats.length === 0 ? (
           <View style={styles.emptyState}>
             <View style={styles.iconCircle}>
-              <Ionicons name="chatbubbles-outline" size={48} color={COLORS.electricTeal} />
+              <Ionicons name="chatbubbles-outline" size={48} color={colors.electricTeal} />
             </View>
             <Text style={styles.emptyStateTitle}>No messages yet</Text>
             <Text style={styles.emptyStateSubtext}>
@@ -142,7 +176,7 @@ export function ChatListScreen() {
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
             refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={() => fetchChats(true)} tintColor={COLORS.electricTeal} />
+              <RefreshControl refreshing={refreshing} onRefresh={() => fetchChats(true)} tintColor={colors.electricTeal} />
             }
           />
         )}
@@ -151,16 +185,31 @@ export function ChatListScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: COLORS.background },
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: colors.background },
   container: { flex: 1 },
   header: {
-    paddingHorizontal: SPACING.xl,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.lg,
     paddingTop: Platform.OS === 'android' ? SPACING.xl : SPACING.sm,
     paddingBottom: SPACING.md,
-    borderBottomWidth: 1, borderBottomColor: COLORS.border,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
   },
-  headerTitle: { color: COLORS.textPrimary, fontSize: FONT_SIZES.hero, fontWeight: FONT_WEIGHTS.bold },
+  backBtn: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    flex: 1,
+    textAlign: 'center',
+    color: colors.textPrimary,
+    fontSize: FONT_SIZES.hero,
+    fontWeight: FONT_WEIGHTS.bold,
+  },
+  headerSpacer: { width: 40 },
   
   listContent: { paddingVertical: SPACING.md },
 
@@ -168,28 +217,28 @@ const styles = StyleSheet.create({
   chatCard: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: SPACING.lg, paddingVertical: SPACING.md,
-    borderBottomWidth: 1, borderBottomColor: COLORS.border,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
   },
   avatarCircle: {
     width: 50, height: 50, borderRadius: 25,
-    backgroundColor: COLORS.surfaceAlt,
+    backgroundColor: colors.surfaceAlt,
     justifyContent: 'center', alignItems: 'center', marginRight: SPACING.md,
-    borderWidth: 1, borderColor: COLORS.border,
+    borderWidth: 1, borderColor: colors.border,
   },
-  avatarLetter: { color: COLORS.electricTeal, fontSize: 20, fontWeight: FONT_WEIGHTS.bold },
+  avatarLetter: { color: colors.electricTeal, fontSize: 20, fontWeight: FONT_WEIGHTS.bold },
   chatInfo: { flex: 1 },
   chatHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
-  chatName: { color: COLORS.textPrimary, fontSize: 16, fontWeight: FONT_WEIGHTS.medium },
-  chatTime: { color: COLORS.textSecondary, fontSize: 12 },
+  chatName: { color: colors.textPrimary, fontSize: 16, fontWeight: FONT_WEIGHTS.medium },
+  chatTime: { color: colors.textSecondary, fontSize: 12 },
   
   messageRow: { flexDirection: 'row', alignItems: 'center' },
-  messagePreview: { color: COLORS.textSecondary, fontSize: 14, flex: 1 },
+  messagePreview: { color: colors.textSecondary, fontSize: 14, flex: 1 },
   
-  unreadText: { fontWeight: FONT_WEIGHTS.bold, color: COLORS.textPrimary },
-  unreadTime: { color: COLORS.electricTeal, fontWeight: FONT_WEIGHTS.bold },
+  unreadText: { fontWeight: FONT_WEIGHTS.bold, color: colors.textPrimary },
+  unreadTime: { color: colors.electricTeal, fontWeight: FONT_WEIGHTS.bold },
   
   unreadBadge: {
-    backgroundColor: COLORS.electricTeal, borderRadius: 10,
+    backgroundColor: colors.electricTeal, borderRadius: 10,
     minWidth: 20, height: 20, justifyContent: 'center', alignItems: 'center', marginLeft: 8,
     paddingHorizontal: 6,
   },
@@ -203,10 +252,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center', marginBottom: SPACING.xl,
   },
   emptyStateTitle: {
-    color: COLORS.textPrimary, fontSize: 22, fontWeight: FONT_WEIGHTS.bold,
+    color: colors.textPrimary, fontSize: 22, fontWeight: FONT_WEIGHTS.bold,
     marginBottom: SPACING.md, textAlign: 'center',
   },
   emptyStateSubtext: {
-    color: COLORS.textSecondary, fontSize: 16, textAlign: 'center', lineHeight: 24,
+    color: colors.textSecondary, fontSize: 16, textAlign: 'center', lineHeight: 24,
   },
 });

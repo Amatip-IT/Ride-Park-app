@@ -1,10 +1,11 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   SafeAreaView, Platform, ActivityIndicator, Alert, Modal,
   TextInput, KeyboardAvoidingView, Linking,
 } from 'react-native';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
+import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, ThemeColors } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { Ionicons } from '@expo/vector-icons';
 import { walletApi, providerApi } from '@/api';
 import { formatCurrency, getApiErrorMessage } from '@/utils/helpers';
@@ -15,13 +16,13 @@ import * as Sharing from 'expo-sharing';
 
 type Period = 'day' | 'week' | 'month' | undefined;
 
-const payoutStatusMeta = (status: string) => {
+const payoutStatusMeta = (status: string, colors: ThemeColors) => {
   if (status === 'paid' || status === 'completed') {
-    return { label: status === 'paid' ? 'Paid' : 'Completed', color: COLORS.success };
+    return { label: status === 'paid' ? 'Paid' : 'Completed', color: colors.success };
   }
   if (status === 'rejected' || status === 'failed' || status === 'payout_failed' || status === 'transfer_failed') {
     const label = status === 'payout_failed' ? 'Payout failed' : status === 'transfer_failed' ? 'Transfer failed' : status;
-    return { label, color: COLORS.error };
+    return { label, color: colors.error };
   }
   const labels: Record<string, string> = {
     pending: 'Awaiting approval',
@@ -30,10 +31,12 @@ const payoutStatusMeta = (status: string) => {
     transferred: 'Ready for payout',
     payout_pending: 'Bank payout pending',
   };
-  return { label: labels[status] || status, color: COLORS.amber };
+  return { label: labels[status] || status, color: colors.amber };
 };
 
 export function ProviderEarningsScreen() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { user } = useAuthStore();
   const navigation = useNavigation<any>();
   const isDriverOrTaxi = user?.role === 'driver' || user?.role === 'taxi_driver';
@@ -106,7 +109,7 @@ export function ProviderEarningsScreen() {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <ActivityIndicator size="large" color={COLORS.electricTeal} />
+          <ActivityIndicator size="large" color={colors.electricTeal} />
         </View>
       </SafeAreaView>
     );
@@ -116,15 +119,15 @@ export function ProviderEarningsScreen() {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: SPACING.xl }}>
-          <Ionicons name="shield-checkmark-outline" size={64} color={COLORS.amber} />
-          <Text style={{ color: COLORS.textPrimary, fontSize: 20, fontWeight: 'bold' as const, marginTop: SPACING.lg, textAlign: 'center' }}>
+          <Ionicons name="shield-checkmark-outline" size={64} color={colors.amber} />
+          <Text style={{ color: colors.textPrimary, fontSize: 20, fontWeight: 'bold' as const, marginTop: SPACING.lg, textAlign: 'center' }}>
             Verification Required
           </Text>
-          <Text style={{ color: COLORS.textSecondary, fontSize: 14, marginTop: SPACING.sm, textAlign: 'center', lineHeight: 20 }}>
+          <Text style={{ color: colors.textSecondary, fontSize: 14, marginTop: SPACING.sm, textAlign: 'center', lineHeight: 20 }}>
             You need to complete your document verification and be approved before you can access your earnings.
           </Text>
           <TouchableOpacity
-            style={{ backgroundColor: COLORS.electricTeal, paddingVertical: 14, paddingHorizontal: 32, borderRadius: 12, marginTop: SPACING.xl }}
+            style={{ backgroundColor: colors.electricTeal, paddingVertical: 14, paddingHorizontal: 32, borderRadius: 12, marginTop: SPACING.xl }}
             onPress={() => navigation.navigate('DriverVerification')}
           >
             <Text style={{ color: '#FFF', fontWeight: 'bold' as const, fontSize: 15 }}>Go to Verification</Text>
@@ -253,11 +256,11 @@ export function ProviderEarningsScreen() {
   const totalCharges = transactions.reduce((sum: number, t: any) => sum + (t.platformFee || 0), 0);
 
   const renderTransaction = (item: any) => {
-    const statusMeta = payoutStatusMeta(item.status);
+    const statusMeta = payoutStatusMeta(item.status, colors);
     return (
     <View key={item._id} style={styles.transactionCard}>
-      <View style={[styles.iconBox, { backgroundColor: item.type === 'withdrawal' ? `${COLORS.amber}20` : `${COLORS.electricTeal}20` }]}>
-        <Ionicons name={item.type === 'withdrawal' ? 'card-outline' : 'car-sport-outline'} size={22} color={item.type === 'withdrawal' ? COLORS.amber : COLORS.electricTeal} />
+      <View style={[styles.iconBox, { backgroundColor: item.type === 'withdrawal' ? `${colors.amber}20` : `${colors.electricTeal}20` }]}>
+        <Ionicons name={item.type === 'withdrawal' ? 'card-outline' : 'car-sport-outline'} size={22} color={item.type === 'withdrawal' ? colors.amber : colors.electricTeal} />
       </View>
       <View style={styles.transactionInfo}>
         <Text style={styles.transactionTitle} numberOfLines={1}>{item.description || item.type}</Text>
@@ -269,7 +272,7 @@ export function ProviderEarningsScreen() {
         </View>
       </View>
       <View style={{ alignItems: 'flex-end' }}>
-        <Text style={[styles.transactionAmount, { color: item.type === 'earning' ? COLORS.success : COLORS.textPrimary }]}>
+        <Text style={[styles.transactionAmount, { color: item.type === 'earning' ? colors.success : colors.textPrimary }]}>
           {item.type === 'earning' ? '+' : '-'}£{Number(item.amount).toFixed(2)}
         </Text>
         {item.platformFee > 0 && <Text style={styles.feeText}>Fee: £{Number(item.platformFee).toFixed(2)}</Text>}
@@ -281,7 +284,7 @@ export function ProviderEarningsScreen() {
   if (loading && !wallet) {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <ActivityIndicator size="large" color={COLORS.electricTeal} style={{ flex: 1 }} />
+        <ActivityIndicator size="large" color={colors.electricTeal} style={{ flex: 1 }} />
       </SafeAreaView>
     );
   }
@@ -291,7 +294,7 @@ export function ProviderEarningsScreen() {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Earnings</Text>
         <TouchableOpacity style={styles.headerBtn} onPress={handleDownloadStatement}>
-          <Ionicons name="download-outline" size={24} color={COLORS.textPrimary} />
+          <Ionicons name="download-outline" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
       </View>
 
@@ -299,7 +302,7 @@ export function ProviderEarningsScreen() {
 
         {fetchError && (
           <View style={styles.errorBanner}>
-            <Ionicons name="alert-circle" size={18} color={COLORS.coralRed} />
+            <Ionicons name="alert-circle" size={18} color={colors.coralRed} />
             <Text style={styles.errorBannerText}>{fetchError}</Text>
             <TouchableOpacity onPress={() => fetchData(selectedPeriod)}>
               <Text style={styles.retryLink}>Retry</Text>
@@ -309,7 +312,7 @@ export function ProviderEarningsScreen() {
 
         {hasBankDetails && connectStatus && connectStatus !== 'active' && (
           <View style={styles.connectBanner}>
-            <Ionicons name="shield-outline" size={18} color={COLORS.amber} />
+            <Ionicons name="shield-outline" size={18} color={colors.amber} />
             <View style={{ flex: 1 }}>
               <Text style={styles.connectBannerTitle}>
                 Payout verification {connectStatus === 'restricted' ? 'required' : 'in progress'}
@@ -325,7 +328,7 @@ export function ProviderEarningsScreen() {
 
         {/* Total Earnings (Gross) */}
         <View style={styles.grossCard}>
-          <Ionicons name="trending-up" size={20} color={COLORS.electricTeal} />
+          <Ionicons name="trending-up" size={20} color={colors.electricTeal} />
           <View style={{ marginLeft: 12, flex: 1 }}>
             <Text style={styles.grossLabel}>Total Earnings (Gross)</Text>
             <Text style={styles.grossValue}>£{(wallet?.totalEarnings || 0).toFixed(2)}</Text>
@@ -347,8 +350,8 @@ export function ProviderEarningsScreen() {
 
         {/* Bank Details */}
         <TouchableOpacity style={styles.bankCard} onPress={() => { if (wallet?.bankDetails) { setBankForm(wallet.bankDetails); } setShowBankModal(true); }}>
-          <View style={[styles.iconBox, { backgroundColor: `${COLORS.info}15` }]}>
-            <Ionicons name="business-outline" size={22} color={COLORS.info} />
+          <View style={[styles.iconBox, { backgroundColor: `${colors.info}15` }]}>
+            <Ionicons name="business-outline" size={22} color={colors.info} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.bankTitle}>{wallet?.bankDetails ? 'Bank Account Linked' : 'Add Bank Details'}</Text>
@@ -358,17 +361,17 @@ export function ProviderEarningsScreen() {
                 : 'Required for withdrawals'}
             </Text>
           </View>
-          <Ionicons name="chevron-forward" size={20} color={COLORS.textTertiary} />
+          <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
         </TouchableOpacity>
 
         {/* Quick Stats */}
         <View style={styles.statsRow}>
           <View style={styles.statBox}>
-            <View style={styles.statHeader}><Ionicons name="briefcase-outline" size={18} color={COLORS.electricTeal} /><Text style={styles.statLabel}>Total Jobs</Text></View>
+            <View style={styles.statHeader}><Ionicons name="briefcase-outline" size={18} color={colors.electricTeal} /><Text style={styles.statLabel}>Total Jobs</Text></View>
             <Text style={styles.statValue}>{totalJobs}</Text>
           </View>
           <View style={styles.statBox}>
-            <View style={styles.statHeader}><Ionicons name="cut-outline" size={18} color={COLORS.coralRed} /><Text style={styles.statLabel}>Total Charges</Text></View>
+            <View style={styles.statHeader}><Ionicons name="cut-outline" size={18} color={colors.coralRed} /><Text style={styles.statLabel}>Total Charges</Text></View>
             <Text style={styles.statValue}>£{totalCharges.toFixed(2)}</Text>
           </View>
         </View>
@@ -386,11 +389,11 @@ export function ProviderEarningsScreen() {
         <View style={styles.historySection}>
           <Text style={styles.sectionTitle}>Transactions</Text>
           <View style={styles.transactionsWrapper}>
-            {loading ? <ActivityIndicator color={COLORS.electricTeal} style={{ padding: 20 }} /> :
+            {loading ? <ActivityIndicator color={colors.electricTeal} style={{ padding: 20 }} /> :
               transactions.length > 0 ? transactions.map(renderTransaction) : (
                 <View style={{ padding: SPACING.xl, alignItems: 'center' }}>
-                  <Ionicons name="receipt-outline" size={32} color={COLORS.softSlate} />
-                  <Text style={{ color: COLORS.softSlate, marginTop: 8 }}>No transactions yet.</Text>
+                  <Ionicons name="receipt-outline" size={32} color={colors.softSlate} />
+                  <Text style={{ color: colors.softSlate, marginTop: 8 }}>No transactions yet.</Text>
                 </View>
               )}
           </View>
@@ -403,12 +406,12 @@ export function ProviderEarningsScreen() {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Bank Details</Text>
-              <TouchableOpacity onPress={() => setShowBankModal(false)}><Ionicons name="close" size={24} color={COLORS.textPrimary} /></TouchableOpacity>
+              <TouchableOpacity onPress={() => setShowBankModal(false)}><Ionicons name="close" size={24} color={colors.textPrimary} /></TouchableOpacity>
             </View>
             <Text style={styles.modalSubtitle}>Enter your UK bank account details for payouts</Text>
-            <TextInput style={styles.modalInput} placeholder="Account Holder Name" placeholderTextColor={COLORS.textTertiary} value={bankForm.accountName} onChangeText={v => setBankForm({ ...bankForm, accountName: v })} />
-            <TextInput style={styles.modalInput} placeholder="Account Number (8 digits)" placeholderTextColor={COLORS.textTertiary} value={bankForm.accountNumber} onChangeText={v => setBankForm({ ...bankForm, accountNumber: v.replace(/\D/g, '').slice(0, 8) })} keyboardType="numeric" maxLength={8} />
-            <TextInput style={styles.modalInput} placeholder="Sort Code (6 digits)" placeholderTextColor={COLORS.textTertiary} value={bankForm.sortCode} onChangeText={v => setBankForm({ ...bankForm, sortCode: v.replace(/\D/g, '').slice(0, 6) })} keyboardType="numeric" maxLength={6} />
+            <TextInput style={styles.modalInput} placeholder="Account Holder Name" placeholderTextColor={colors.textTertiary} value={bankForm.accountName} onChangeText={v => setBankForm({ ...bankForm, accountName: v })} />
+            <TextInput style={styles.modalInput} placeholder="Account Number (8 digits)" placeholderTextColor={colors.textTertiary} value={bankForm.accountNumber} onChangeText={v => setBankForm({ ...bankForm, accountNumber: v.replace(/\D/g, '').slice(0, 8) })} keyboardType="numeric" maxLength={8} />
+            <TextInput style={styles.modalInput} placeholder="Sort Code (6 digits)" placeholderTextColor={colors.textTertiary} value={bankForm.sortCode} onChangeText={v => setBankForm({ ...bankForm, sortCode: v.replace(/\D/g, '').slice(0, 6) })} keyboardType="numeric" maxLength={6} />
             <TouchableOpacity
               style={styles.tosRow}
               onPress={() => setAcceptedStripeTerms(v => !v)}
@@ -417,7 +420,7 @@ export function ProviderEarningsScreen() {
               <Ionicons
                 name={acceptedStripeTerms ? 'checkbox' : 'square-outline'}
                 size={22}
-                color={acceptedStripeTerms ? COLORS.electricTeal : COLORS.textTertiary}
+                color={acceptedStripeTerms ? colors.electricTeal : colors.textTertiary}
               />
               <Text style={styles.tosText}>
                 I agree to the{' '}
@@ -442,10 +445,10 @@ export function ProviderEarningsScreen() {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Withdraw Funds</Text>
-              <TouchableOpacity onPress={() => setShowWithdrawModal(false)}><Ionicons name="close" size={24} color={COLORS.textPrimary} /></TouchableOpacity>
+              <TouchableOpacity onPress={() => setShowWithdrawModal(false)}><Ionicons name="close" size={24} color={colors.textPrimary} /></TouchableOpacity>
             </View>
             <Text style={styles.modalSubtitle}>Available: £{(wallet?.balance || 0).toFixed(2)}</Text>
-            <TextInput style={styles.modalInput} placeholder="Amount (£)" placeholderTextColor={COLORS.textTertiary} value={withdrawAmount} onChangeText={setWithdrawAmount} keyboardType="decimal-pad" />
+            <TextInput style={styles.modalInput} placeholder="Amount (£)" placeholderTextColor={colors.textTertiary} value={withdrawAmount} onChangeText={setWithdrawAmount} keyboardType="decimal-pad" />
             <TouchableOpacity style={[styles.modalBtn, withdrawLoading && { opacity: 0.6 }]} onPress={handleWithdraw} disabled={withdrawLoading}>
               {withdrawLoading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.modalBtnText}>Submit Withdrawal Request</Text>}
             </TouchableOpacity>
@@ -456,11 +459,11 @@ export function ProviderEarningsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: COLORS.background },
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: colors.background },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: SPACING.xl, paddingTop: Platform.OS === 'android' ? SPACING.xl : SPACING.sm, paddingBottom: SPACING.md },
-  headerTitle: { color: COLORS.textPrimary, fontSize: FONT_SIZES.hero, fontWeight: FONT_WEIGHTS.bold },
-  headerBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: COLORS.surface, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: COLORS.border },
+  headerTitle: { color: colors.textPrimary, fontSize: FONT_SIZES.hero, fontWeight: FONT_WEIGHTS.bold },
+  headerBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: colors.border },
   scrollContent: { paddingHorizontal: SPACING.xl, paddingBottom: 100 },
 
   errorBanner: {
@@ -482,70 +485,70 @@ const styles = StyleSheet.create({
     borderRadius: BORDER_RADIUS.md,
   },
   connectBannerTitle: {
-    color: COLORS.amber,
+    color: colors.amber,
     fontWeight: FONT_WEIGHTS.semibold,
     fontSize: FONT_SIZES.label,
     marginBottom: 2,
   },
   connectBannerText: {
-    color: COLORS.textSecondary,
+    color: colors.textSecondary,
     fontSize: FONT_SIZES.small,
     lineHeight: 18,
   },
-  errorBannerText: { flex: 1, color: COLORS.coralRed, fontSize: 13 },
-  retryLink: { color: COLORS.electricTeal, fontWeight: FONT_WEIGHTS.bold, fontSize: 13 },
+  errorBannerText: { flex: 1, color: colors.coralRed, fontSize: 13 },
+  retryLink: { color: colors.electricTeal, fontWeight: FONT_WEIGHTS.bold, fontSize: 13 },
 
-  grossCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.lg, padding: SPACING.lg, marginBottom: SPACING.md, borderWidth: 1, borderColor: COLORS.border },
-  grossLabel: { color: COLORS.textSecondary, fontSize: FONT_SIZES.small, fontWeight: FONT_WEIGHTS.medium },
-  grossValue: { color: COLORS.textPrimary, fontSize: 24, fontWeight: FONT_WEIGHTS.bold, marginTop: 2 },
+  grossCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: BORDER_RADIUS.lg, padding: SPACING.lg, marginBottom: SPACING.md, borderWidth: 1, borderColor: colors.border },
+  grossLabel: { color: colors.textSecondary, fontSize: FONT_SIZES.small, fontWeight: FONT_WEIGHTS.medium },
+  grossValue: { color: colors.textPrimary, fontSize: 24, fontWeight: FONT_WEIGHTS.bold, marginTop: 2 },
 
-  balanceCard: { backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.xl, padding: SPACING.xl, marginBottom: SPACING.md, borderWidth: 1, borderColor: 'rgba(0,180,160,0.4)', shadowColor: COLORS.electricTeal, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 12, elevation: 5 },
-  balanceLabel: { color: COLORS.textSecondary, fontSize: FONT_SIZES.body, marginBottom: 8, fontWeight: FONT_WEIGHTS.medium },
-  balanceValue: { color: COLORS.textPrimary, fontSize: 42, fontWeight: FONT_WEIGHTS.bold, letterSpacing: -1, marginBottom: SPACING.xl },
-  withdrawBtn: { backgroundColor: COLORS.electricTeal, borderRadius: BORDER_RADIUS.full, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: SPACING.md, paddingHorizontal: SPACING.xl, gap: 8 },
+  balanceCard: { backgroundColor: colors.surface, borderRadius: BORDER_RADIUS.xl, padding: SPACING.xl, marginBottom: SPACING.md, borderWidth: 1, borderColor: 'rgba(0,180,160,0.4)', shadowColor: colors.electricTeal, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 12, elevation: 5 },
+  balanceLabel: { color: colors.textSecondary, fontSize: FONT_SIZES.body, marginBottom: 8, fontWeight: FONT_WEIGHTS.medium },
+  balanceValue: { color: colors.textPrimary, fontSize: 42, fontWeight: FONT_WEIGHTS.bold, letterSpacing: -1, marginBottom: SPACING.xl },
+  withdrawBtn: { backgroundColor: colors.electricTeal, borderRadius: BORDER_RADIUS.full, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: SPACING.md, paddingHorizontal: SPACING.xl, gap: 8 },
   withdrawText: { color: '#FFF', fontSize: FONT_SIZES.body, fontWeight: FONT_WEIGHTS.bold },
 
-  bankCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.lg, padding: SPACING.lg, marginBottom: SPACING.xl, borderWidth: 1, borderColor: COLORS.border },
-  bankTitle: { color: COLORS.textPrimary, fontSize: 15, fontWeight: FONT_WEIGHTS.semibold },
-  bankSub: { color: COLORS.textSecondary, fontSize: 13, marginTop: 2 },
+  bankCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: BORDER_RADIUS.lg, padding: SPACING.lg, marginBottom: SPACING.xl, borderWidth: 1, borderColor: colors.border },
+  bankTitle: { color: colors.textPrimary, fontSize: 15, fontWeight: FONT_WEIGHTS.semibold },
+  bankSub: { color: colors.textSecondary, fontSize: 13, marginTop: 2 },
 
   statsRow: { flexDirection: 'row', gap: SPACING.md, marginBottom: SPACING.xl },
-  statBox: { flex: 1, backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.lg, padding: SPACING.lg, borderWidth: 1, borderColor: COLORS.border },
+  statBox: { flex: 1, backgroundColor: colors.surface, borderRadius: BORDER_RADIUS.lg, padding: SPACING.lg, borderWidth: 1, borderColor: colors.border },
   statHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: SPACING.md },
-  statLabel: { color: COLORS.textSecondary, fontSize: FONT_SIZES.small, fontWeight: FONT_WEIGHTS.medium },
-  statValue: { color: COLORS.textPrimary, fontSize: 24, fontWeight: FONT_WEIGHTS.bold },
+  statLabel: { color: colors.textSecondary, fontSize: FONT_SIZES.small, fontWeight: FONT_WEIGHTS.medium },
+  statValue: { color: colors.textPrimary, fontSize: 24, fontWeight: FONT_WEIGHTS.bold },
 
   filterRow: { flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.lg },
-  filterBtn: { flex: 1, paddingVertical: SPACING.sm, borderRadius: BORDER_RADIUS.full, backgroundColor: COLORS.surface, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border },
-  filterBtnActive: { backgroundColor: COLORS.electricTeal, borderColor: COLORS.electricTeal },
-  filterText: { color: COLORS.textSecondary, fontSize: FONT_SIZES.small, fontWeight: FONT_WEIGHTS.semibold },
+  filterBtn: { flex: 1, paddingVertical: SPACING.sm, borderRadius: BORDER_RADIUS.full, backgroundColor: colors.surface, alignItems: 'center', borderWidth: 1, borderColor: colors.border },
+  filterBtnActive: { backgroundColor: colors.electricTeal, borderColor: colors.electricTeal },
+  filterText: { color: colors.textSecondary, fontSize: FONT_SIZES.small, fontWeight: FONT_WEIGHTS.semibold },
   filterTextActive: { color: '#FFF' },
 
   historySection: { flex: 1 },
-  sectionTitle: { color: COLORS.textPrimary, fontSize: 20, fontWeight: FONT_WEIGHTS.bold, marginBottom: SPACING.md },
-  transactionsWrapper: { backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.xl, paddingVertical: SPACING.sm, paddingHorizontal: SPACING.md, borderWidth: 1, borderColor: COLORS.border },
+  sectionTitle: { color: colors.textPrimary, fontSize: 20, fontWeight: FONT_WEIGHTS.bold, marginBottom: SPACING.md },
+  transactionsWrapper: { backgroundColor: colors.surface, borderRadius: BORDER_RADIUS.xl, paddingVertical: SPACING.sm, paddingHorizontal: SPACING.md, borderWidth: 1, borderColor: colors.border },
 
-  transactionCard: { flexDirection: 'row', alignItems: 'center', paddingVertical: SPACING.md, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  transactionCard: { flexDirection: 'row', alignItems: 'center', paddingVertical: SPACING.md, borderBottomWidth: 1, borderBottomColor: colors.border },
   iconBox: { width: 44, height: 44, borderRadius: BORDER_RADIUS.md, justifyContent: 'center', alignItems: 'center', marginRight: SPACING.md },
   transactionInfo: { flex: 1, marginRight: SPACING.sm },
-  transactionTitle: { color: COLORS.textPrimary, fontSize: 15, fontWeight: FONT_WEIGHTS.semibold, marginBottom: 4 },
+  transactionTitle: { color: colors.textPrimary, fontSize: 15, fontWeight: FONT_WEIGHTS.semibold, marginBottom: 4 },
   dateRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  transactionDate: { color: COLORS.textSecondary, fontSize: 13 },
+  transactionDate: { color: colors.textSecondary, fontSize: 13 },
   statusPill: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 },
   statusText: { fontSize: 10, fontWeight: FONT_WEIGHTS.bold },
   transactionAmount: { fontSize: 16, fontWeight: FONT_WEIGHTS.bold },
-  feeText: { color: COLORS.textTertiary, fontSize: 11, marginTop: 2 },
+  feeText: { color: colors.textTertiary, fontSize: 11, marginTop: 2 },
 
   // Modals
   modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
-  modalContent: { backgroundColor: COLORS.background, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: SPACING.xl, paddingBottom: 40 },
+  modalContent: { backgroundColor: colors.background, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: SPACING.xl, paddingBottom: 40 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.sm },
-  modalTitle: { fontSize: FONT_SIZES.section, fontWeight: FONT_WEIGHTS.bold, color: COLORS.textPrimary },
-  modalSubtitle: { color: COLORS.textSecondary, fontSize: FONT_SIZES.body, marginBottom: SPACING.xl },
-  modalInput: { backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.md, padding: SPACING.md, color: COLORS.textPrimary, fontSize: FONT_SIZES.body, borderWidth: 1, borderColor: COLORS.border, height: 50, marginBottom: SPACING.md },
+  modalTitle: { fontSize: FONT_SIZES.section, fontWeight: FONT_WEIGHTS.bold, color: colors.textPrimary },
+  modalSubtitle: { color: colors.textSecondary, fontSize: FONT_SIZES.body, marginBottom: SPACING.xl },
+  modalInput: { backgroundColor: colors.surface, borderRadius: BORDER_RADIUS.md, padding: SPACING.md, color: colors.textPrimary, fontSize: FONT_SIZES.body, borderWidth: 1, borderColor: colors.border, height: 50, marginBottom: SPACING.md },
   tosRow: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm, marginBottom: SPACING.md },
-  tosText: { flex: 1, color: COLORS.textSecondary, fontSize: FONT_SIZES.small, lineHeight: 18 },
-  tosLink: { color: COLORS.electricTeal, textDecorationLine: 'underline' },
-  modalBtn: { backgroundColor: COLORS.electricTeal, borderRadius: BORDER_RADIUS.md, padding: SPACING.lg, alignItems: 'center', marginTop: SPACING.sm },
+  tosText: { flex: 1, color: colors.textSecondary, fontSize: FONT_SIZES.small, lineHeight: 18 },
+  tosLink: { color: colors.electricTeal, textDecorationLine: 'underline' },
+  modalBtn: { backgroundColor: colors.electricTeal, borderRadius: BORDER_RADIUS.md, padding: SPACING.lg, alignItems: 'center', marginTop: SPACING.sm },
   modalBtnText: { color: '#FFF', fontSize: FONT_SIZES.label, fontWeight: FONT_WEIGHTS.bold },
 });

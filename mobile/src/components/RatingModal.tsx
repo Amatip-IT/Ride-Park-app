@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, TextInput,
   Modal, Alert, ActivityIndicator,
 } from 'react-native';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_WEIGHTS } from '@/constants/theme';
+import { SPACING, BORDER_RADIUS, FONT_WEIGHTS, ThemeColors } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { Ionicons } from '@expo/vector-icons';
 import { reviewsApi } from '@/api';
 
@@ -26,9 +27,19 @@ export function RatingModal({
   serviceType,
   title = 'Rate Your Experience',
 }: RatingModalProps) {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (visible) {
+      setRating(0);
+      setComment('');
+      setSubmitting(false);
+    }
+  }, [visible]);
 
   const handleSubmit = async () => {
     if (rating === 0) {
@@ -47,6 +58,8 @@ export function RatingModal({
       });
 
       if (res.data?.success) {
+        setRating(0);
+        setComment('');
         Alert.alert('Thank You!', 'Your review has been submitted.', [
           { text: 'OK', onPress: onClose },
         ]);
@@ -54,7 +67,11 @@ export function RatingModal({
         Alert.alert('Error', res.data?.message || 'Failed to submit review.');
       }
     } catch (err: any) {
-      Alert.alert('Error', 'Something went wrong. Please try again.');
+      const message =
+        err?.message ||
+        err?.response?.data?.message ||
+        'Something went wrong. Please try again.';
+      Alert.alert('Error', typeof message === 'string' ? message : 'Failed to submit review.');
     } finally {
       setSubmitting(false);
     }
@@ -73,7 +90,7 @@ export function RatingModal({
             <Ionicons
               name={star <= rating ? 'star' : 'star-outline'}
               size={40}
-              color={star <= rating ? '#FFD700' : COLORS.textTertiary}
+              color={star <= rating ? '#FFD700' : colors.textTertiary}
             />
           </TouchableOpacity>
         ))}
@@ -107,7 +124,7 @@ export function RatingModal({
           <TextInput
             style={styles.commentInput}
             placeholder="Leave a comment (optional)"
-            placeholderTextColor={COLORS.textTertiary}
+            placeholderTextColor={colors.textTertiary}
             value={comment}
             onChangeText={setComment}
             multiline
@@ -119,17 +136,16 @@ export function RatingModal({
             style={[styles.submitBtn, rating === 0 && styles.submitBtnDisabled]}
             onPress={handleSubmit}
             disabled={submitting || rating === 0}
-            activeOpacity={0.8}
           >
             {submitting ? (
-              <ActivityIndicator size="small" color="#FFF" />
+              <ActivityIndicator color="#FFF" />
             ) : (
               <Text style={styles.submitBtnText}>Submit Review</Text>
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.skipBtn} onPress={onClose}>
-            <Text style={styles.skipBtnText}>Skip</Text>
+          <TouchableOpacity style={styles.skipBtn} onPress={onClose} disabled={submitting}>
+            <Text style={styles.skipBtnText}>Maybe Later</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -137,63 +153,51 @@ export function RatingModal({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   overlay: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'flex-end',
   },
   container: {
-    backgroundColor: COLORS.surface,
-    borderTopLeftRadius: 28, borderTopRightRadius: 28,
-    padding: SPACING.xl, paddingBottom: 40,
-    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: SPACING.xl,
+    paddingBottom: SPACING['3xl'],
   },
   handle: {
-    width: 40, height: 5, borderRadius: 3,
-    backgroundColor: COLORS.border, marginBottom: SPACING.xl,
+    width: 40, height: 4, borderRadius: 2,
+    backgroundColor: colors.border, alignSelf: 'center', marginBottom: SPACING.lg,
   },
   title: {
-    color: COLORS.textPrimary, fontSize: 22,
-    fontWeight: FONT_WEIGHTS.bold, marginBottom: SPACING.xs,
-  },
-  subtitle: {
-    color: COLORS.textSecondary, fontSize: 14, marginBottom: SPACING.xl,
+    color: colors.textPrimary, fontSize: 20, fontWeight: FONT_WEIGHTS.bold,
     textAlign: 'center',
   },
+  subtitle: {
+    color: colors.textSecondary, fontSize: 14, textAlign: 'center',
+    marginTop: SPACING.sm, marginBottom: SPACING.lg,
+  },
   starsRow: {
-    flexDirection: 'row', gap: 8, marginBottom: SPACING.sm,
+    flexDirection: 'row', justifyContent: 'center', gap: SPACING.sm,
   },
   starButton: { padding: 4 },
   ratingLabel: {
-    color: COLORS.electricTeal, fontSize: 15,
-    fontWeight: FONT_WEIGHTS.semibold, marginBottom: SPACING.xl,
+    textAlign: 'center', color: colors.amber, fontWeight: FONT_WEIGHTS.semibold,
+    marginTop: SPACING.sm, marginBottom: SPACING.lg, fontSize: 15,
   },
   commentInput: {
-    width: '100%', minHeight: 80,
-    backgroundColor: COLORS.background,
-    borderRadius: BORDER_RADIUS.lg,
-    borderWidth: 1, borderColor: COLORS.border,
-    padding: SPACING.md, paddingTop: SPACING.md,
-    color: COLORS.textPrimary, fontSize: 14,
-    textAlignVertical: 'top', marginBottom: SPACING.xl,
+    backgroundColor: colors.surfaceAlt, borderRadius: BORDER_RADIUS.lg,
+    borderWidth: 1, borderColor: colors.border,
+    padding: SPACING.md, color: colors.textPrimary, fontSize: 14,
+    minHeight: 80, textAlignVertical: 'top', marginBottom: SPACING.lg,
   },
   submitBtn: {
-    width: '100%', paddingVertical: 16,
-    borderRadius: BORDER_RADIUS.lg, backgroundColor: COLORS.electricTeal,
-    alignItems: 'center',
-    shadowColor: COLORS.electricTeal, shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3, shadowRadius: 8, elevation: 4,
+    backgroundColor: colors.electricTeal, borderRadius: BORDER_RADIUS.lg,
+    paddingVertical: 14, alignItems: 'center',
   },
-  submitBtnDisabled: {
-    backgroundColor: COLORS.textTertiary, shadowOpacity: 0,
-  },
-  submitBtnText: {
-    color: '#FFF', fontSize: 16, fontWeight: FONT_WEIGHTS.bold,
-  },
-  skipBtn: {
-    paddingVertical: SPACING.md, marginTop: SPACING.sm,
-  },
-  skipBtnText: {
-    color: COLORS.textSecondary, fontSize: 14, fontWeight: FONT_WEIGHTS.medium,
-  },
+  submitBtnDisabled: { opacity: 0.5 },
+  submitBtnText: { color: '#FFF', fontWeight: FONT_WEIGHTS.bold, fontSize: 16 },
+  skipBtn: { alignItems: 'center', marginTop: SPACING.md, padding: SPACING.sm },
+  skipBtnText: { color: colors.textSecondary, fontSize: 14 },
 });

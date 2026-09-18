@@ -1,9 +1,10 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
   ActivityIndicator, Alert, TextInput,
 } from 'react-native';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
+import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, ThemeColors } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { Ionicons } from '@expo/vector-icons';
 import { adminApi } from '@/api';
 import { useFocusEffect } from '@react-navigation/native';
@@ -11,6 +12,8 @@ import { AdminScreenLayout } from '@/components/admin/AdminScreenLayout';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export function AdminPlatformSettingsScreen() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [currentFee, setCurrentFee] = useState<number>(10);
   const [newFee, setNewFee] = useState('');
   const [loading, setLoading] = useState(true);
@@ -68,7 +71,7 @@ export function AdminPlatformSettingsScreen() {
   if (loading) {
     return (
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <ActivityIndicator size="large" color={COLORS.electricTeal} style={{ flex: 1 }} />
+        <ActivityIndicator size="large" color={colors.electricTeal} style={{ flex: 1 }} />
       </SafeAreaView>
     );
   }
@@ -78,7 +81,7 @@ export function AdminPlatformSettingsScreen() {
         {/* Current Fee Display */}
         <View style={styles.feeCard}>
           <View style={styles.feeIconContainer}>
-            <Ionicons name="pricetag-outline" size={28} color={COLORS.electricTeal} />
+            <Ionicons name="pricetag-outline" size={28} color={colors.electricTeal} />
           </View>
           <Text style={styles.feeLabel}>Current Service Fee</Text>
           <Text style={styles.feeValue}>{currentFee}%</Text>
@@ -98,7 +101,7 @@ export function AdminPlatformSettingsScreen() {
             <TextInput
               style={styles.feeInput}
               placeholder="e.g. 10"
-              placeholderTextColor={COLORS.textTertiary}
+              placeholderTextColor={colors.textTertiary}
               value={newFee}
               onChangeText={setNewFee}
               keyboardType="decimal-pad"
@@ -123,7 +126,7 @@ export function AdminPlatformSettingsScreen() {
 
         {/* Info */}
         <View style={styles.infoCard}>
-          <Ionicons name="information-circle-outline" size={20} color={COLORS.info} />
+          <Ionicons name="information-circle-outline" size={20} color={colors.info} />
           <Text style={styles.infoText}>
             Example: If a provider earns £100 and the fee is 10%, we deduct £10 and the provider receives £90 in their available balance.
           </Text>
@@ -132,27 +135,27 @@ export function AdminPlatformSettingsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: COLORS.background, justifyContent: 'center' },
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: colors.background, justifyContent: 'center' },
   scrollContent: { paddingTop: SPACING.md, paddingBottom: SPACING.xl },
 
-  feeCard: { backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.xl, padding: SPACING.xl, alignItems: 'center', marginBottom: SPACING.xl, borderWidth: 1, borderColor: 'rgba(0,180,160,0.3)' },
-  feeIconContainer: { width: 56, height: 56, borderRadius: 28, backgroundColor: `${COLORS.electricTeal}12`, justifyContent: 'center', alignItems: 'center', marginBottom: SPACING.md },
-  feeLabel: { color: COLORS.textSecondary, fontSize: FONT_SIZES.body, fontWeight: FONT_WEIGHTS.medium },
-  feeValue: { color: COLORS.electricTeal, fontSize: 48, fontWeight: FONT_WEIGHTS.bold, marginVertical: SPACING.sm },
-  feeDesc: { color: COLORS.textTertiary, fontSize: FONT_SIZES.small, textAlign: 'center', lineHeight: 18 },
+  feeCard: { backgroundColor: colors.surface, borderRadius: BORDER_RADIUS.xl, padding: SPACING.xl, alignItems: 'center', marginBottom: SPACING.xl, borderWidth: 1, borderColor: 'rgba(0,180,160,0.3)' },
+  feeIconContainer: { width: 56, height: 56, borderRadius: 28, backgroundColor: `${colors.electricTeal}12`, justifyContent: 'center', alignItems: 'center', marginBottom: SPACING.md },
+  feeLabel: { color: colors.textSecondary, fontSize: FONT_SIZES.body, fontWeight: FONT_WEIGHTS.medium },
+  feeValue: { color: colors.electricTeal, fontSize: 48, fontWeight: FONT_WEIGHTS.bold, marginVertical: SPACING.sm },
+  feeDesc: { color: colors.textTertiary, fontSize: FONT_SIZES.small, textAlign: 'center', lineHeight: 18 },
 
-  updateCard: { backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.xl, padding: SPACING.xl, marginBottom: SPACING.xl, borderWidth: 1, borderColor: COLORS.border },
-  updateTitle: { color: COLORS.textPrimary, fontSize: 18, fontWeight: FONT_WEIGHTS.bold, marginBottom: SPACING.sm },
-  updateDesc: { color: COLORS.textSecondary, fontSize: FONT_SIZES.label, lineHeight: 20, marginBottom: SPACING.xl },
+  updateCard: { backgroundColor: colors.surface, borderRadius: BORDER_RADIUS.xl, padding: SPACING.xl, marginBottom: SPACING.xl, borderWidth: 1, borderColor: colors.border },
+  updateTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: FONT_WEIGHTS.bold, marginBottom: SPACING.sm },
+  updateDesc: { color: colors.textSecondary, fontSize: FONT_SIZES.label, lineHeight: 20, marginBottom: SPACING.xl },
 
   inputRow: { flexDirection: 'row', alignItems: 'center', marginBottom: SPACING.lg },
-  feeInput: { flex: 1, backgroundColor: COLORS.background, borderRadius: BORDER_RADIUS.md, padding: SPACING.md, color: COLORS.textPrimary, fontSize: 20, fontWeight: FONT_WEIGHTS.bold, borderWidth: 1, borderColor: COLORS.border, height: 54 },
-  percentSign: { color: COLORS.textSecondary, fontSize: 24, fontWeight: FONT_WEIGHTS.bold, marginLeft: SPACING.md },
+  feeInput: { flex: 1, backgroundColor: colors.background, borderRadius: BORDER_RADIUS.md, padding: SPACING.md, color: colors.textPrimary, fontSize: 20, fontWeight: FONT_WEIGHTS.bold, borderWidth: 1, borderColor: colors.border, height: 54 },
+  percentSign: { color: colors.textSecondary, fontSize: 24, fontWeight: FONT_WEIGHTS.bold, marginLeft: SPACING.md },
 
-  saveBtn: { backgroundColor: COLORS.electricTeal, borderRadius: BORDER_RADIUS.md, padding: SPACING.lg, alignItems: 'center' },
+  saveBtn: { backgroundColor: colors.electricTeal, borderRadius: BORDER_RADIUS.md, padding: SPACING.lg, alignItems: 'center' },
   saveBtnText: { color: '#FFF', fontSize: FONT_SIZES.label, fontWeight: FONT_WEIGHTS.bold },
 
-  infoCard: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm, backgroundColor: `${COLORS.info}08`, borderRadius: BORDER_RADIUS.lg, padding: SPACING.lg, borderWidth: 1, borderColor: `${COLORS.info}20` },
-  infoText: { flex: 1, color: COLORS.textSecondary, fontSize: FONT_SIZES.small, lineHeight: 18 },
+  infoCard: { flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm, backgroundColor: `${colors.info}08`, borderRadius: BORDER_RADIUS.lg, padding: SPACING.lg, borderWidth: 1, borderColor: `${colors.info}20` },
+  infoText: { flex: 1, color: colors.textSecondary, fontSize: FONT_SIZES.small, lineHeight: 18 },
 });

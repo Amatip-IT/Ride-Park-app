@@ -1,10 +1,11 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator,
   RefreshControl,
 } from 'react-native';
 import { disputesApi } from '@/api';
-import { COLORS, SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '@/constants/theme';
+import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS, ThemeColors } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { AdminScreenLayout } from '@/components/admin/AdminScreenLayout';
@@ -16,14 +17,17 @@ const STATUS_FILTERS = [
   { id: 'resolved', label: 'Resolved' },
 ];
 
-const STATUS_COLORS: Record<string, string> = {
-  open: COLORS.amber,
-  investigating: COLORS.info,
-  resolved: COLORS.success,
-  closed: COLORS.textTertiary,
-};
+const getStatusColors = (colors: ThemeColors): Record<string, string> => ({
+  open: colors.amber,
+  investigating: colors.info,
+  resolved: colors.success,
+  closed: colors.textTertiary,
+});
 
 export function AdminDisputesScreen() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const STATUS_COLORS = getStatusColors(colors);
   const navigation = useNavigation<any>();
   const [disputes, setDisputes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -71,7 +75,7 @@ export function AdminDisputesScreen() {
       >
         <View style={styles.cardHeader}>
           <Text style={styles.filerName}>{filer.firstName} {filer.lastName}</Text>
-          <View style={[styles.statusPill, { backgroundColor: `${STATUS_COLORS[item.status] || COLORS.textTertiary}20` }]}>
+          <View style={[styles.statusPill, { backgroundColor: `${STATUS_COLORS[item.status] || colors.textTertiary}20` }]}>
             <Text style={[styles.statusText, { color: STATUS_COLORS[item.status] }]}>{item.status}</Text>
           </View>
         </View>
@@ -92,11 +96,11 @@ export function AdminDisputesScreen() {
     >
       {loading ? (
         <View style={styles.center}>
-          <ActivityIndicator size="large" color={COLORS.electricTeal} />
+          <ActivityIndicator size="large" color={colors.electricTeal} />
         </View>
       ) : disputes.length === 0 ? (
         <View style={styles.center}>
-          <Ionicons name="checkmark-done-circle-outline" size={64} color={COLORS.success} />
+          <Ionicons name="checkmark-done-circle-outline" size={64} color={colors.success} />
           <Text style={styles.emptyTitle}>No disputes in this filter</Text>
         </View>
       ) : (
@@ -107,7 +111,7 @@ export function AdminDisputesScreen() {
           contentContainerStyle={styles.list}
           keyboardDismissMode="on-drag"
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={() => fetchDisputes(true)} tintColor={COLORS.electricTeal} />
+            <RefreshControl refreshing={refreshing} onRefresh={() => fetchDisputes(true)} tintColor={colors.electricTeal} />
           }
         />
       )}
@@ -115,29 +119,29 @@ export function AdminDisputesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.xs, padding: SPACING.md },
   filterChip: {
     paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm,
-    borderRadius: BORDER_RADIUS.full, borderWidth: 1, borderColor: COLORS.border,
-    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.full, borderWidth: 1, borderColor: colors.border,
+    backgroundColor: colors.surface,
   },
-  filterChipActive: { backgroundColor: `${COLORS.electricTeal}15`, borderColor: COLORS.electricTeal },
-  filterText: { color: COLORS.textSecondary, fontSize: FONT_SIZES.small },
-  filterTextActive: { color: COLORS.electricTeal },
+  filterChipActive: { backgroundColor: `${colors.electricTeal}15`, borderColor: colors.electricTeal },
+  filterText: { color: colors.textSecondary, fontSize: FONT_SIZES.small },
+  filterTextActive: { color: colors.electricTeal },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: SPACING.xl },
-  emptyTitle: { color: COLORS.textSecondary, marginTop: SPACING.md },
+  emptyTitle: { color: colors.textSecondary, marginTop: SPACING.md },
   list: { padding: SPACING.md, paddingBottom: SPACING.xl },
   card: {
-    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.lg,
+    backgroundColor: colors.surface, borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.md, marginBottom: SPACING.sm,
-    borderWidth: 1, borderColor: COLORS.border,
+    borderWidth: 1, borderColor: colors.border,
   },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: SPACING.xs },
-  filerName: { color: COLORS.textPrimary, fontWeight: FONT_WEIGHTS.semibold, flex: 1 },
+  filerName: { color: colors.textPrimary, fontWeight: FONT_WEIGHTS.semibold, flex: 1 },
   statusPill: { paddingHorizontal: SPACING.sm, paddingVertical: 2, borderRadius: BORDER_RADIUS.sm },
   statusText: { fontSize: 11, fontWeight: FONT_WEIGHTS.bold, textTransform: 'capitalize' },
-  category: { color: COLORS.amber, fontSize: FONT_SIZES.small, textTransform: 'capitalize', marginBottom: 4 },
-  desc: { color: COLORS.textSecondary, fontSize: FONT_SIZES.small },
-  date: { color: COLORS.textTertiary, fontSize: 11, marginTop: SPACING.sm },
+  category: { color: colors.amber, fontSize: FONT_SIZES.small, textTransform: 'capitalize', marginBottom: 4 },
+  desc: { color: colors.textSecondary, fontSize: FONT_SIZES.small },
+  date: { color: colors.textTertiary, fontSize: 11, marginTop: SPACING.sm },
 });

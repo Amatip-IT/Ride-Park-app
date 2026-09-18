@@ -1,19 +1,20 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator,
   RefreshControl, Platform,
 } from 'react-native';
 import { disputesApi } from '@/api';
-import { COLORS, SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS } from '@/constants/theme';
+import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS, ThemeColors } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 
-const STATUS_COLORS: Record<string, string> = {
-  open: COLORS.amber,
-  investigating: COLORS.info,
-  resolved: COLORS.success,
-  closed: COLORS.textTertiary,
-};
+const getStatusColors = (colors: ThemeColors): Record<string, string> => ({
+  open: colors.amber,
+  investigating: colors.info,
+  resolved: colors.success,
+  closed: colors.textTertiary,
+});
 
 const CATEGORY_LABELS: Record<string, string> = {
   unfair_rejection: 'Unfair Rejection',
@@ -36,6 +37,9 @@ type Dispute = {
 };
 
 export function DisputesScreen() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const STATUS_COLORS = getStatusColors(colors);
   const navigation = useNavigation<any>();
   const [disputes, setDisputes] = useState<Dispute[]>([]);
   const [loading, setLoading] = useState(true);
@@ -65,8 +69,8 @@ export function DisputesScreen() {
     >
       <View style={styles.cardHeader}>
         <Text style={styles.categoryText}>{CATEGORY_LABELS[item.category] || item.category}</Text>
-        <View style={[styles.statusPill, { backgroundColor: `${STATUS_COLORS[item.status] || COLORS.textTertiary}20` }]}>
-          <Text style={[styles.statusText, { color: STATUS_COLORS[item.status] || COLORS.textTertiary }]}>
+        <View style={[styles.statusPill, { backgroundColor: `${STATUS_COLORS[item.status] || colors.textTertiary}20` }]}>
+          <Text style={[styles.statusText, { color: STATUS_COLORS[item.status] || colors.textTertiary }]}>
             {item.status}
           </Text>
         </View>
@@ -82,7 +86,7 @@ export function DisputesScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
+          <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>My Disputes</Text>
@@ -94,10 +98,10 @@ export function DisputesScreen() {
       </View>
 
       {loading ? (
-        <View style={styles.center}><ActivityIndicator size="large" color={COLORS.electricTeal} /></View>
+        <View style={styles.center}><ActivityIndicator size="large" color={colors.electricTeal} /></View>
       ) : disputes.length === 0 ? (
         <View style={styles.center}>
-          <Ionicons name="document-text-outline" size={64} color={COLORS.textTertiary} />
+          <Ionicons name="document-text-outline" size={64} color={colors.textTertiary} />
           <Text style={styles.emptyTitle}>No disputes yet</Text>
           <Text style={styles.emptySub}>File a complaint if something went wrong.</Text>
           <TouchableOpacity style={styles.primaryBtn} onPress={() => navigation.navigate('FileDispute')}>
@@ -111,7 +115,7 @@ export function DisputesScreen() {
           renderItem={renderItem}
           contentContainerStyle={styles.list}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={() => fetchDisputes(true)} tintColor={COLORS.electricTeal} />
+            <RefreshControl refreshing={refreshing} onRefresh={() => fetchDisputes(true)} tintColor={colors.electricTeal} />
           }
         />
       )}
@@ -119,40 +123,40 @@ export function DisputesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: SPACING.lg,
     paddingTop: Platform.OS === 'android' ? SPACING.xl : SPACING.sm,
     paddingBottom: SPACING.md,
-    borderBottomWidth: 1, borderBottomColor: COLORS.border,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
   },
   backBtn: { padding: SPACING.xs, marginRight: SPACING.sm },
   addBtn: {
-    backgroundColor: COLORS.electricTeal, borderRadius: BORDER_RADIUS.full,
+    backgroundColor: colors.electricTeal, borderRadius: BORDER_RADIUS.full,
     width: 36, height: 36, justifyContent: 'center', alignItems: 'center',
   },
-  headerTitle: { color: COLORS.textPrimary, fontSize: FONT_SIZES.section, fontWeight: FONT_WEIGHTS.bold },
-  headerSub: { color: COLORS.textSecondary, fontSize: FONT_SIZES.small, marginTop: 2 },
+  headerTitle: { color: colors.textPrimary, fontSize: FONT_SIZES.section, fontWeight: FONT_WEIGHTS.bold },
+  headerSub: { color: colors.textSecondary, fontSize: FONT_SIZES.small, marginTop: 2 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: SPACING.xl },
-  emptyTitle: { color: COLORS.textPrimary, fontSize: 18, fontWeight: FONT_WEIGHTS.bold, marginTop: SPACING.md },
-  emptySub: { color: COLORS.textSecondary, marginTop: SPACING.sm, textAlign: 'center' },
+  emptyTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: FONT_WEIGHTS.bold, marginTop: SPACING.md },
+  emptySub: { color: colors.textSecondary, marginTop: SPACING.sm, textAlign: 'center' },
   primaryBtn: {
-    marginTop: SPACING.lg, backgroundColor: COLORS.electricTeal,
+    marginTop: SPACING.lg, backgroundColor: colors.electricTeal,
     paddingHorizontal: SPACING.xl, paddingVertical: SPACING.md, borderRadius: BORDER_RADIUS.md,
   },
   primaryBtnText: { color: '#FFF', fontWeight: FONT_WEIGHTS.semibold },
   list: { padding: SPACING.lg },
   card: {
-    backgroundColor: COLORS.surface, borderRadius: BORDER_RADIUS.lg,
+    backgroundColor: colors.surface, borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.md, marginBottom: SPACING.sm,
-    borderWidth: 1, borderColor: COLORS.border,
+    borderWidth: 1, borderColor: colors.border,
   },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: SPACING.xs },
-  categoryText: { color: COLORS.textPrimary, fontWeight: FONT_WEIGHTS.semibold, flex: 1 },
+  categoryText: { color: colors.textPrimary, fontWeight: FONT_WEIGHTS.semibold, flex: 1 },
   statusPill: { paddingHorizontal: SPACING.sm, paddingVertical: 2, borderRadius: BORDER_RADIUS.sm },
   statusText: { fontSize: 11, fontWeight: FONT_WEIGHTS.bold, textTransform: 'capitalize' },
-  descText: { color: COLORS.textSecondary, fontSize: FONT_SIZES.small, marginBottom: SPACING.xs },
-  dateText: { color: COLORS.textTertiary, fontSize: 11 },
+  descText: { color: colors.textSecondary, fontSize: FONT_SIZES.small, marginBottom: SPACING.xs },
+  dateText: { color: colors.textTertiary, fontSize: 11 },
 });

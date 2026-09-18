@@ -1,9 +1,10 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   SafeAreaView, Platform, RefreshControl, ActivityIndicator, Alert,
 } from 'react-native';
-import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS } from '@/constants/theme';
+import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, ThemeColors } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/useThemeColors';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 
@@ -21,15 +22,20 @@ interface Notification {
   data?: Record<string, any>;
 }
 
-const ICON_MAP: Record<string, { icon: keyof typeof Ionicons.glyphMap; color: string }> = {
-  ride: { icon: 'car-sport', color: COLORS.info },
-  booking: { icon: 'calendar', color: COLORS.electricTeal },
-  payment: { icon: 'card', color: COLORS.success },
-  system: { icon: 'settings', color: COLORS.amber },
+const getIconMap = (
+  colors: ThemeColors,
+): Record<string, { icon: keyof typeof Ionicons.glyphMap; color: string }> => ({
+  ride: { icon: 'car-sport', color: colors.info },
+  booking: { icon: 'calendar', color: colors.electricTeal },
+  payment: { icon: 'card', color: colors.success },
+  system: { icon: 'settings', color: colors.amber },
   promo: { icon: 'megaphone', color: '#9B59B6' },
-};
+});
 
 export function NotificationsScreen() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const ICON_MAP = getIconMap(colors);
   const navigation = useNavigation<any>();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -125,7 +131,7 @@ export function NotificationsScreen() {
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
+          <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Notifications</Text>
         {unreadCount > 0 ? (
@@ -139,11 +145,11 @@ export function NotificationsScreen() {
 
       {loading ? (
         <View style={styles.emptyContainer}>
-          <ActivityIndicator size="large" color={COLORS.electricTeal} />
+          <ActivityIndicator size="large" color={colors.electricTeal} />
         </View>
       ) : fetchError ? (
         <View style={styles.emptyContainer}>
-          <Ionicons name="alert-circle-outline" size={64} color={COLORS.coralRed} />
+          <Ionicons name="alert-circle-outline" size={64} color={colors.coralRed} />
           <Text style={styles.emptyTitle}>Could not load</Text>
           <Text style={styles.emptyText}>{fetchError}</Text>
           <TouchableOpacity style={styles.retryBtn} onPress={fetchNotifications}>
@@ -152,7 +158,7 @@ export function NotificationsScreen() {
         </View>
       ) : notifications.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Ionicons name="notifications-off-outline" size={64} color={COLORS.textTertiary} />
+          <Ionicons name="notifications-off-outline" size={64} color={colors.textTertiary} />
           <Text style={styles.emptyTitle}>No Notifications</Text>
           <Text style={styles.emptyText}>You are all caught up! We will notify you about ride updates, bookings, and payments.</Text>
         </View>
@@ -164,7 +170,7 @@ export function NotificationsScreen() {
           contentContainerStyle={styles.listContainer}
           showsVerticalScrollIndicator={false}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.electricTeal} />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.electricTeal} />
           }
         />
       )}
@@ -172,18 +178,18 @@ export function NotificationsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: COLORS.background },
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: SPACING.lg,
     paddingTop: Platform.OS === 'android' ? SPACING.xl : SPACING.md,
     paddingBottom: SPACING.md,
-    borderBottomWidth: 1, borderBottomColor: COLORS.border,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
   },
   backBtn: { padding: SPACING.xs },
-  headerTitle: { color: COLORS.textPrimary, fontSize: 18, fontWeight: FONT_WEIGHTS.bold },
-  markAllRead: { color: COLORS.electricTeal, fontSize: 13, fontWeight: FONT_WEIGHTS.semibold },
+  headerTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: FONT_WEIGHTS.bold },
+  markAllRead: { color: colors.electricTeal, fontSize: 13, fontWeight: FONT_WEIGHTS.semibold },
 
   listContainer: { padding: SPACING.lg },
 
@@ -191,18 +197,18 @@ const styles = StyleSheet.create({
     flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: SPACING.xl,
   },
   emptyTitle: {
-    color: COLORS.textPrimary, fontSize: 20, fontWeight: FONT_WEIGHTS.bold,
+    color: colors.textPrimary, fontSize: 20, fontWeight: FONT_WEIGHTS.bold,
     marginTop: SPACING.lg,
   },
   emptyText: {
-    color: COLORS.textSecondary, fontSize: 14, textAlign: 'center', marginTop: SPACING.sm,
+    color: colors.textSecondary, fontSize: 14, textAlign: 'center', marginTop: SPACING.sm,
     lineHeight: 20,
   },
   retryBtn: {
     marginTop: SPACING.lg,
     paddingHorizontal: SPACING.xl,
     paddingVertical: SPACING.md,
-    backgroundColor: COLORS.electricTeal,
+    backgroundColor: colors.electricTeal,
     borderRadius: BORDER_RADIUS.full,
   },
   retryBtnText: {
@@ -212,13 +218,13 @@ const styles = StyleSheet.create({
   },
 
   card: {
-    flexDirection: 'row', backgroundColor: COLORS.surface,
+    flexDirection: 'row', backgroundColor: colors.surface,
     borderRadius: BORDER_RADIUS.lg, padding: SPACING.lg,
-    marginBottom: SPACING.sm, borderWidth: 1, borderColor: COLORS.border,
+    marginBottom: SPACING.sm, borderWidth: 1, borderColor: colors.border,
   },
   cardUnread: {
-    backgroundColor: `${COLORS.electricTeal}06`,
-    borderColor: `${COLORS.electricTeal}30`,
+    backgroundColor: `${colors.electricTeal}06`,
+    borderColor: `${colors.electricTeal}30`,
   },
   iconCircle: {
     width: 44, height: 44, borderRadius: 22,
@@ -227,16 +233,16 @@ const styles = StyleSheet.create({
   cardContent: { flex: 1 },
   cardHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.xs },
   cardTitle: {
-    flex: 1, color: COLORS.textPrimary, fontSize: 15, fontWeight: FONT_WEIGHTS.semibold,
+    flex: 1, color: colors.textPrimary, fontSize: 15, fontWeight: FONT_WEIGHTS.semibold,
   },
   cardTitleUnread: { fontWeight: FONT_WEIGHTS.bold },
   unreadDot: {
-    width: 8, height: 8, borderRadius: 4, backgroundColor: COLORS.electricTeal,
+    width: 8, height: 8, borderRadius: 4, backgroundColor: colors.electricTeal,
   },
   cardBody: {
-    color: COLORS.textSecondary, fontSize: 13, marginTop: 3, lineHeight: 18,
+    color: colors.textSecondary, fontSize: 13, marginTop: 3, lineHeight: 18,
   },
   cardTime: {
-    color: COLORS.textTertiary, fontSize: 11, marginTop: 4,
+    color: colors.textTertiary, fontSize: 11, marginTop: 4,
   },
 });

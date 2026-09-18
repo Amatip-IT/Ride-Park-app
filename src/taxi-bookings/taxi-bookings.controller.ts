@@ -244,7 +244,7 @@ export class TaxiBookingsController {
    */
   @Get(':id/receipt')
   async getRequestReceipt(@Param('id') id: string, @Req() req: any) {
-    const userId = req.user._id || req.user.id;
+    const userId = getRequestUserId(req);
     const result = await this.ridesService.getReceiptByTaxiRequest(id, userId);
     if (!result.success) {
       throw new HttpException(result, HttpStatus.BAD_REQUEST);
