@@ -1,28 +1,50 @@
 {
   "expo": {
-    "name": "Gleezip",
-    "slug": "gleezip-mobile",
+    "name": "Ride & Park",
+    "slug": "gleezip",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "rideandpark",
+    "scheme": "gleezip",
     "userInterfaceStyle": "dark",
-    "extra": {
-      "eas": {
-        "projectId": "133474a7-8ff5-4d49-8688-e83a4a9ae76c"
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/images/splash-icon.png",
+      "imageWidth": 200,
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff",
+      "dark": {
+        "backgroundColor": "#000000"
       }
     },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.gleezip.mobile",
+      "bundleIdentifier": "com.gleezip.app",
+      "buildNumber": "1",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Gleezip uses your location to find nearby parking and track rides.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "Gleezip uses your location to provide ride tracking for drivers and passengers."
+        "NSLocationWhenInUseUsageDescription": "Gleezip uses your location to provide nearby ride services and parking spaces.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Gleezip uses your location to provide nearby ride services and parking spaces.",
+        "NSUserNotificationsUsageDescription": "Gleezip sends ride updates, booking confirmations, and important notifications.",
+        "NSCameraUsageDescription": "Gleezip uses the camera for profile photos, document uploads, and identity verification.",
+        "NSPhotoLibraryUsageDescription": "Gleezip accesses your photo library for profile uploads and document submissions.",
+        "NSMicrophoneUsageDescription": "Gleezip needs access to your microphone for voice features and chat.",
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        },
+        "ITSAppUsesNonExemptEncryption": false,
+        "UIBackgroundModes": [
+          "location",
+          "fetch",
+          "remote-notification"
+        ]
       }
     },
     "android": {
-      "package": "com.gleezip.mobile",
-      "usesCleartextTraffic": true,
+      "package": "com.gleezip.app",
+      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -32,16 +54,28 @@
       "permissions": [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
-        "POST_NOTIFICATIONS"
+        "ACCESS_BACKGROUND_LOCATION",
+        "POST_NOTIFICATIONS",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "RECORD_AUDIO",
+        "INTERNET",
+        "ACCESS_NETWORK_STATE",
+        "WAKE_LOCK",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE"
       ],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
     "web": {
+      "bundler": "metro",
       "output": "single",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
+      "expo-router",
       [
         "expo-splash-screen",
         {
@@ -54,29 +88,72 @@
           }
         }
       ],
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/images/icon.png",
-          "color": "#00C2A8"
-        }
-      ],
-      [
-        "expo-location",
-        {
-          "locationWhenInUsePermission": "Allow Gleezip to use your location to find parking and rides nearby."
-        }
-      ],
+      "@react-native-community/datetimepicker",
+      "expo-secure-store",
+      "expo-web-browser",
       [
         "@stripe/stripe-react-native",
         {
-          "merchantIdentifier": "merchant.com.gleezip.mobile",
+          "merchantIdentifier": "merchant.com.gleezip.app",
           "enableGooglePay": true
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "kotlinVersion": "2.0.21",
+            "agpVersion": "8.5.2"
+          }
+        }
+      ],
+      "expo-font",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Gleezip uses your location to provide nearby ride services and parking spaces.",
+          "locationAlwaysPermission": "Gleezip uses your location to provide nearby ride services and parking spaces.",
+          "locationWhenInUsePermission": "Gleezip uses your location to provide nearby ride services and parking spaces."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Gleezip needs access to your photos to upload documents and profile pictures.",
+          "cameraPermission": "Gleezip needs access to your camera to take photos of documents and profile pictures."
+        }
+      ],
+      [
+      "expo-notifications",
+      ],
+      [
+        "expo-document-picker",
+        {
+          "iCloudContainerEnvironment": "Production"
         }
       ]
     ],
     "experiments": {
+      "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "apiUrl": "https://www.gleezip.com/api",
+      "environment": "production",
+      "eas": {
+        "projectId": "abf770af-6f99-43f3-9cc7-c2b354d85316"
+      }
+    },
+    "owner": "amatip-it",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/abf770af-6f99-43f3-9cc7-c2b354d85316",
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
     }
   }
 }
+
