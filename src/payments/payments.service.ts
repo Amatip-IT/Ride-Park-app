@@ -90,6 +90,31 @@ export class PaymentsService {
     };
   }
 
+  /** Drop mock ids and accidental quotes so a stale value is not sent to Stripe. */
+  private normalizeStoredCustomerId(value?: string | null): string | null {
+    if (!value) return null;
+    const id = value.trim().replace(/^['"]+|['"]+$/g, '');
+    if (!/^cus_[A-Za-z0-9]+$/.test(id) || id.startsWith('cus_mock_')) {
+      return null;
+    }
+    return id;
+  }
+
+  private isMissingStripeCustomer(error: unknown): boolean {
+    if (!error || typeof error !== 'object') return false;
+    const err = error as { code?: string; message?: string };
+    return (
+      err.code === 'resource_missing' ||
+      /no such customer/i.test(err.message || '')
+    );
+  }
+
+  /**
+   * Reuse the consumer's Stripe customer only when it still exists on the
+   * current Stripe account. A stored id from another account, a deleted
+   * customer, or a leftover mock id is replaced instead of failing every
+   * card call with "No such customer".
+   */
   async getOrCreateCustomer(userId: string): Promise<string> {
     if (this.mockPayments) {
       return `cus_mock_${userId}`;
@@ -100,13 +125,39 @@ export class PaymentsService {
       .select('+stripeCustomerId');
     if (!user) throw new HttpException('User not found', HttpStatus.NOT_FOUND);
 
-    if (user.stripeCustomerId) {
-      return user.stripeCustomerId;
+    const stripe = this.requireStripe();
+    const storedId = this.normalizeStoredCustomerId(user.stripeCustomerId);
+
+    if (storedId) {
+      try {
+        const existing = await stripe.customers.retrieve(storedId);
+        if (!('deleted' in existing && existing.deleted)) {
+          if (user.stripeCustomerId !== storedId) {
+            user.stripeCustomerId = storedId;
+            await user.save();
+          }
+          return storedId;
+        }
+        this.logger.warn(
+          `Stripe customer ${storedId} for user ${userId} was deleted; creating a replacement`,
+        );
+      } catch (error) {
+        if (!this.isMissingStripeCustomer(error)) {
+          throw error;
+        }
+        this.logger.warn(
+          `Stored Stripe customer ${storedId} is not on the current Stripe account for user ${userId}; creating a replacement`,
+        );
+      }
+    } else if (user.stripeCustomerId) {
+      this.logger.warn(
+        `Discarding unusable Stripe customer id for user ${userId}`,
+      );
     }
 
-    const customer = await this.requireStripe().customers.create({
+    const customer = await stripe.customers.create({
       email: user.email,
-      name: `${user.firstName} ${user.lastName}`,
+      name: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
       metadata: { userId: user._id.toString() },
     });
 

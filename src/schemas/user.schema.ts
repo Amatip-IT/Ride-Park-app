@@ -149,8 +149,8 @@ export class User {
 export const UserSchema: MongooseSchema<User> =
   SchemaFactory.createForClass(User);
 
-// Normalize username before validation (fixes legacy accounts registered with uppercase)
-UserSchema.pre('save', function (next) {
+// Normalize username before validation (legacy accounts may be mixed-case or padded)
+UserSchema.pre('validate', function (next) {
   if (typeof this.username === 'string') {
     this.username = this.username.toLowerCase().trim();
   }

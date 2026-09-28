@@ -193,11 +193,20 @@ export function AuthScreen() {
       });
       return true;
     }
+    if (res.success && res.data?.available === false) {
+      setUsernameStatus({
+        checking: false,
+        available: false,
+        message: res.message || 'This username is already taken.',
+        suggestions: res.data?.suggestions || [],
+      });
+      return false;
+    }
     setUsernameStatus({
       checking: false,
-      available: false,
-      message: res.message || 'This username is already taken.',
-      suggestions: res.data?.suggestions || [],
+      available: null,
+      message: res.message || 'Could not check that username. Please try again.',
+      suggestions: [],
     });
     return false;
   };
@@ -205,6 +214,12 @@ export function AuthScreen() {
   useEffect(() => {
     const usernameClean = formData.username.toLowerCase().trim();
     if (usernameClean.length < 3 || !/^[a-z0-9_]+$/.test(usernameClean)) {
+      setUsernameStatus({
+        checking: false,
+        available: null,
+        message: '',
+        suggestions: [],
+      });
       return;
     }
 
@@ -215,7 +230,7 @@ export function AuthScreen() {
       if (!cancelled) {
         applyUsernameCheck(res);
       }
-    }, 450);
+    }, 250);
 
     return () => {
       cancelled = true;
@@ -273,11 +288,12 @@ export function AuthScreen() {
     setSubmitting(true);
     try {
       const res = await authService.checkUsername(usernameClean);
+      const taken = Boolean(res.success && res.data?.available === false);
       if (!applyUsernameCheck(res)) {
         Alert.alert(
-          'Username Taken',
-          `${res.message || 'This username is already taken.'}${
-            res.data?.suggestions?.length
+          taken ? 'Username Taken' : 'Could not check username',
+          `${res.message || 'Could not check that username. Please try again.'}${
+            taken && res.data?.suggestions?.length
               ? `\n\nTry one of these:\n• ${res.data.suggestions.join('\n• ')}`
               : ''
           }`,
@@ -888,6 +904,8 @@ export function AuthScreen() {
                     </View>
                   )}
                 </View>
+              ) : usernameStatus.message ? (
+                <Text style={styles.usernameTaken}>{usernameStatus.message}</Text>
               ) : null}
             </View>
 

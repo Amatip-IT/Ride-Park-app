@@ -110,6 +110,32 @@ describe('UsersService auth hardening', () => {
       expect(result.data.available).toBe(false);
       expect(result.message).toMatch(/already taken/i);
       expect(Array.isArray(result.data.suggestions)).toBe(true);
+      expect(
+        result.data.suggestions.every((suggestion: string) =>
+          /^[a-z0-9_]{3,30}$/.test(suggestion),
+        ),
+      ).toBe(true);
+    });
+
+    it('keeps suggestions valid when a long username is taken', async () => {
+      mockUserModel.findOne.mockReturnValue({
+        lean: jest.fn().mockResolvedValue({ username: 'a'.repeat(30) }),
+      });
+      mockUserModel.find.mockReturnValue({
+        select: jest.fn().mockReturnValue({
+          lean: jest.fn().mockResolvedValue([]),
+        }),
+      });
+
+      const result = await service.checkUsernameAvailability('a'.repeat(30));
+
+      expect(result.data.available).toBe(false);
+      expect(result.data.suggestions.length).toBeGreaterThan(0);
+      expect(
+        result.data.suggestions.every((suggestion: string) =>
+          /^[a-z0-9_]{3,30}$/.test(suggestion),
+        ),
+      ).toBe(true);
     });
 
     it('rejects invalid usernames', async () => {
