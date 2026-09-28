@@ -158,6 +158,166 @@ export class ReviewsService {
     }
   }
 
+  /**
+   * Profile id, user id, and sibling listings that belong to the same provider.
+   * Reviews may have been stored against any of those ids.
+   */
+  private async relatedServiceIds(
+    serviceType: string,
+    serviceId: string,
+  ): Promise<string[]> {
+    const ids = new Set<string>();
+    if (serviceId) ids.add(String(serviceId));
+    if (!Types.ObjectId.isValid(serviceId)) return [];
+
+    if (serviceType === 'parking') {
+      const space = await this.parkingSpaceModel
+        .findById(serviceId)
+        .select('owner')
+        .lean();
+      const ownerId = space?.owner ? String(space.owner) : serviceId;
+      ids.add(ownerId);
+      const spaces = await this.parkingSpaceModel
+        .find({ owner: ownerId })
+        .select('_id')
+        .lean();
+      spaces.forEach((row) => ids.add(String(row._id)));
+    }
+
+    if (serviceType === 'driver') {
+      const profile = await this.chauffeurModel
+        .findById(serviceId)
+        .select('user')
+        .lean();
+      const userId = profile?.user ? String(profile.user) : serviceId;
+      ids.add(userId);
+      const profiles = await this.chauffeurModel
+        .find({ user: userId })
+        .select('_id')
+        .lean();
+      profiles.forEach((row) => ids.add(String(row._id)));
+    }
+
+    if (serviceType === 'taxi') {
+      const profile = await this.taxiModel
+        .findById(serviceId)
+        .select('user')
+        .lean();
+      const userId = profile?.user ? String(profile.user) : serviceId;
+      ids.add(userId);
+      const profiles = await this.taxiModel
+        .find({ user: userId })
+        .select('_id')
+        .lean();
+      profiles.forEach((row) => ids.add(String(row._id)));
+    }
+
+    return [...ids].filter((id) => Types.ObjectId.isValid(id));
+  }
+
+  async decorateListings(
+    serviceType: 'parking' | 'driver' | 'taxi',
+    items: any[],
+  ): Promise<any[]> {
+    const plains = items.map((item) =>
+      typeof item?.toObject === 'function' ? item.toObject() : { ...item },
+    );
+    if (plains.length === 0) return plains;
+
+    const personIdOf = (item: any) => {
+      const person = serviceType === 'parking' ? item.owner : item.user;
+      if (!person) return '';
+      if (person._id) return String(person._id);
+      return String(person);
+    };
+
+    const idToPerson = new Map<string, string>();
+    for (const item of plains) {
+      const listingId = String(item._id || '');
+      const personId = personIdOf(item);
+      if (listingId) idToPerson.set(listingId, personId || listingId);
+      if (personId) idToPerson.set(personId, personId);
+    }
+
+    const personIds = [
+      ...new Set(
+        plains.map(personIdOf).filter((id) => Types.ObjectId.isValid(id)),
+      ),
+    ];
+
+    if (personIds.length > 0 && serviceType === 'parking') {
+      const spaces = await this.parkingSpaceModel
+        .find({ owner: { $in: personIds } })
+        .select('_id owner')
+        .lean();
+      spaces.forEach((row) => {
+        idToPerson.set(String(row._id), String(row.owner));
+      });
+    }
+
+    if (personIds.length > 0 && serviceType === 'driver') {
+      const profiles = await this.chauffeurModel
+        .find({ user: { $in: personIds } })
+        .select('_id user')
+        .lean();
+      profiles.forEach((row) => {
+        idToPerson.set(String(row._id), String(row.user));
+      });
+    }
+
+    if (personIds.length > 0 && serviceType === 'taxi') {
+      const profiles = await this.taxiModel
+        .find({ user: { $in: personIds } })
+        .select('_id user')
+        .lean();
+      profiles.forEach((row) => {
+        idToPerson.set(String(row._id), String(row.user));
+      });
+    }
+
+    const matchIds = [...idToPerson.keys()].filter((id) =>
+      Types.ObjectId.isValid(id),
+    );
+    const buckets = new Map<string, { sum: number; count: number }>();
+
+    if (matchIds.length > 0) {
+      const rows = await this.reviewModel.aggregate([
+        {
+          $match: {
+            serviceType,
+            serviceId: { $in: matchIds.map((id) => new Types.ObjectId(id)) },
+          },
+        },
+        {
+          $group: {
+            _id: '$serviceId',
+            sum: { $sum: '$rating' },
+            count: { $sum: 1 },
+          },
+        },
+      ]);
+
+      for (const row of rows) {
+        const person = idToPerson.get(String(row._id)) || String(row._id);
+        const bucket = buckets.get(person) || { sum: 0, count: 0 };
+        bucket.sum += row.sum;
+        bucket.count += row.count;
+        buckets.set(person, bucket);
+      }
+    }
+
+    return plains.map((item) => {
+      const listingId = String(item._id || '');
+      const personId = personIdOf(item) || idToPerson.get(listingId) || listingId;
+      const bucket = buckets.get(personId);
+      const totalReviews = bucket?.count || 0;
+      const averageRating = totalReviews
+        ? Math.round((bucket!.sum / totalReviews) * 10) / 10
+        : 0;
+      return { ...item, averageRating, totalReviews };
+    });
+  }
+
   async getReviewsForService(
     serviceType: string,
     serviceId: string,
@@ -165,18 +325,13 @@ export class ReviewsService {
     limit = 20,
   ): Promise<Response> {
     try {
-      const resolved = await this.resolveServiceId(serviceType, serviceId);
-      const lookupId = resolved.ok ? resolved.serviceId : serviceId;
+      const relatedIds = await this.relatedServiceIds(serviceType, serviceId);
       const skip = (page - 1) * limit;
 
       const match = {
         serviceType,
         serviceId: {
-          $in: Array.from(
-            new Set(
-              [lookupId, serviceId].filter((id) => Types.ObjectId.isValid(id)),
-            ),
-          ),
+          $in: relatedIds.map((id) => new Types.ObjectId(id)),
         },
       };
 
