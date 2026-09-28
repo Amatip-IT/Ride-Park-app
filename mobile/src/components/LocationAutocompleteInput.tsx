@@ -16,6 +16,7 @@ import { useThemeColors } from '@/hooks/useThemeColors';
 import {
   searchLocationByText,
   getPlaceById,
+  consumeLocationSearchError,
   PlaceSuggestion,
   LocationSearchOptions,
 } from '@/api/amazonLocation';
@@ -48,6 +49,7 @@ export function LocationAutocompleteInput({
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const requestId = useRef(0);
 
@@ -77,6 +79,7 @@ export function LocationAutocompleteInput({
       if (text.trim().length < minChars) {
         setSuggestions([]);
         setShowSuggestions(false);
+        setSearchError(null);
         setLoading(false);
         return;
       }
@@ -86,6 +89,8 @@ export function LocationAutocompleteInput({
       searchTimeout.current = setTimeout(async () => {
         const results = await searchLocationByText(text, stableSearchOptions);
         if (id !== requestId.current) return;
+        const error = consumeLocationSearchError();
+        setSearchError(results.length > 0 ? null : error);
         setSuggestions(results);
         setShowSuggestions(results.length > 0);
         setLoading(false);
@@ -133,6 +138,7 @@ export function LocationAutocompleteInput({
         ) : null}
       </View>
 
+      {searchError ? <Text style={styles.searchError}>{searchError}</Text> : null}
       {showSuggestions && suggestions.length > 0 && (
         <View style={styles.suggestionsContainer}>
           {suggestions.map((item, i) => (
@@ -172,6 +178,11 @@ const makeStyles = (colors: ThemeColors) =>
       position: 'absolute',
       right: 12,
       top: 14,
+    },
+    searchError: {
+      color: colors.coralRed,
+      fontSize: FONT_SIZES.small,
+      marginTop: 4,
     },
     suggestionsContainer: {
       backgroundColor: colors.surface,

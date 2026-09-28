@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, TextInput,
-  Modal, Alert, ActivityIndicator,
+  Modal, Alert, ActivityIndicator, Pressable, Keyboard, Platform,
+  ScrollView, useWindowDimensions,
 } from 'react-native';
 import { SPACING, BORDER_RADIUS, FONT_WEIGHTS, ThemeColors } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
@@ -16,6 +17,7 @@ interface RatingModalProps {
   bookingId?: string;
   serviceType: 'taxi' | 'driver' | 'parking';
   title?: string;
+  onSubmitted?: () => void;
 }
 
 export function RatingModal({
@@ -26,12 +28,15 @@ export function RatingModal({
   bookingId,
   serviceType,
   title = 'Rate Your Experience',
+  onSubmitted,
 }: RatingModalProps) {
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { height: windowHeight } = useWindowDimensions();
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   useEffect(() => {
     if (visible) {
@@ -40,6 +45,29 @@ export function RatingModal({
       setSubmitting(false);
     }
   }, [visible]);
+
+  useEffect(() => {
+    if (!visible) {
+      setKeyboardHeight(0);
+      return;
+    }
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const showSub = Keyboard.addListener(showEvent, (event) => {
+      setKeyboardHeight(event.endCoordinates.height);
+    });
+    const hideSub = Keyboard.addListener(hideEvent, () => setKeyboardHeight(0));
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, [visible]);
+
+  const closeSheet = () => {
+    if (submitting) return;
+    Keyboard.dismiss();
+    onClose();
+  };
 
   const handleSubmit = async () => {
     if (rating === 0) {
@@ -60,6 +88,7 @@ export function RatingModal({
       if (res.data?.success) {
         setRating(0);
         setComment('');
+        onSubmitted?.();
         Alert.alert('Thank You!', 'Your review has been submitted.', [
           { text: 'OK', onPress: onClose },
         ]);
@@ -110,43 +139,58 @@ export function RatingModal({
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide">
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={closeSheet}>
       <View style={styles.overlay}>
-        <View style={styles.container}>
-          <View style={styles.handle} />
-
-          <Text style={styles.title}>{title}</Text>
-          <Text style={styles.subtitle}>How was your experience with {subjectName}?</Text>
-
-          {renderStars()}
-          <Text style={styles.ratingLabel}>{getRatingLabel()}</Text>
-
-          <TextInput
-            style={styles.commentInput}
-            placeholder="Leave a comment (optional)"
-            placeholderTextColor={colors.textTertiary}
-            value={comment}
-            onChangeText={setComment}
-            multiline
-            maxLength={500}
-            numberOfLines={3}
-          />
-
-          <TouchableOpacity
-            style={[styles.submitBtn, rating === 0 && styles.submitBtnDisabled]}
-            onPress={handleSubmit}
-            disabled={submitting || rating === 0}
+        <Pressable style={styles.backdrop} onPress={closeSheet} />
+        <View
+          style={[
+            styles.container,
+            {
+              marginBottom: keyboardHeight,
+              maxHeight: Math.max(280, windowHeight - keyboardHeight - 24),
+            },
+          ]}
+        >
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            bounces={false}
+            showsVerticalScrollIndicator={false}
           >
-            {submitting ? (
-              <ActivityIndicator color="#FFF" />
-            ) : (
-              <Text style={styles.submitBtnText}>Submit Review</Text>
-            )}
-          </TouchableOpacity>
+            <View style={styles.handle} />
 
-          <TouchableOpacity style={styles.skipBtn} onPress={onClose} disabled={submitting}>
-            <Text style={styles.skipBtnText}>Maybe Later</Text>
-          </TouchableOpacity>
+            <Text style={styles.title}>{title}</Text>
+            <Text style={styles.subtitle}>How was your experience with {subjectName}?</Text>
+
+            {renderStars()}
+            <Text style={styles.ratingLabel}>{getRatingLabel()}</Text>
+
+            <TextInput
+              style={styles.commentInput}
+              placeholder="Leave a comment (optional)"
+              placeholderTextColor={colors.textTertiary}
+              value={comment}
+              onChangeText={setComment}
+              multiline
+              maxLength={500}
+              numberOfLines={3}
+            />
+
+            <TouchableOpacity
+              style={[styles.submitBtn, rating === 0 && styles.submitBtnDisabled]}
+              onPress={handleSubmit}
+              disabled={submitting || rating === 0}
+            >
+              {submitting ? (
+                <ActivityIndicator color="#FFF" />
+              ) : (
+                <Text style={styles.submitBtnText}>Submit Review</Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.skipBtn} onPress={closeSheet} disabled={submitting}>
+              <Text style={styles.skipBtnText}>Maybe Later</Text>
+            </TouchableOpacity>
+          </ScrollView>
         </View>
       </View>
     </Modal>
@@ -159,12 +203,16 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'flex-end',
   },
+  backdrop: {
+    flex: 1,
+  },
   container: {
     backgroundColor: colors.surface,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    padding: SPACING.xl,
-    paddingBottom: SPACING['3xl'],
+    paddingHorizontal: SPACING.xl,
+    paddingTop: SPACING.xl,
+    paddingBottom: SPACING.lg,
   },
   handle: {
     width: 40, height: 4, borderRadius: 2,

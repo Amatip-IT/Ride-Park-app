@@ -38,6 +38,21 @@ export class ReviewsController {
   }
 
   /**
+   * GET /reviews/mine
+   * Booking ids the signed-in user has already reviewed
+   */
+  @Get('mine')
+  @UseGuards(AuthGuard)
+  async getMine(@Req() req: any) {
+    const userId = req.user._id || req.user.id;
+    const result = await this.reviewsService.getReviewedBookingIds(String(userId));
+    if (!result.success) {
+      throw new HttpException(result, HttpStatus.BAD_REQUEST);
+    }
+    return result;
+  }
+
+  /**
    * GET /reviews/:serviceType/:serviceId
    * Get all reviews for a specific service
    */

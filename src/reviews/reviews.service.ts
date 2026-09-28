@@ -127,6 +127,37 @@ export class ReviewsService {
     }
   }
 
+  async getReviewedBookingIds(reviewerId: string): Promise<Response> {
+    try {
+      if (!Types.ObjectId.isValid(reviewerId)) {
+        return { success: true, message: 'No reviews yet', data: { bookingIds: [] } };
+      }
+
+      const reviews = await this.reviewModel
+        .find({
+          reviewer: reviewerId,
+          booking: { $exists: true, $ne: null },
+        })
+        .select('booking')
+        .lean();
+
+      return {
+        success: true,
+        message: 'Reviews loaded',
+        data: {
+          bookingIds: reviews
+            .map((review) => (review.booking ? String(review.booking) : ''))
+            .filter(Boolean),
+        },
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: `Failed to load reviews: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      };
+    }
+  }
+
   async getReviewsForService(
     serviceType: string,
     serviceId: string,
