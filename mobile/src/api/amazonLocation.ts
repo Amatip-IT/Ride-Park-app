@@ -38,12 +38,21 @@ function biasLngLat(options: LocationSearchOptions): [number, number] {
   return DEFAULT_BIAS;
 }
 
+let lastSearchError: string | null = null;
+
+export function consumeLocationSearchError(): string | null {
+  const error = lastSearchError;
+  lastSearchError = null;
+  return error;
+}
+
 function mapResultItem(item: any): PlaceSuggestion {
-  const address = item.Address || {};
-  const position = item.Position; // [lng, lat]
+  const place = item.Place || item;
+  const address = place.Address || item.Address || {};
+  const position = place.Position || item.Position; // [lng, lat]
   return {
-    label: address.Label || item.Title || '',
-    placeId: item.PlaceId,
+    label: address.Label || item.Title || place.Title || '',
+    placeId: place.PlaceId || item.PlaceId,
     addressNumber: address.AddressNumber,
     street: address.Street,
     neighborhood: address.District || address.Neighborhood,
@@ -81,6 +90,7 @@ export const searchLocationByText = async (
   options: LocationSearchOptions = {},
 ): Promise<PlaceSuggestion[]> => {
   if (!AWS_API_KEY) {
+    lastSearchError = 'Address suggestions are not configured on this build.';
     console.warn('Amazon Location Service API key is missing.');
     return [];
   }
@@ -88,7 +98,6 @@ export const searchLocationByText = async (
   const trimmed = query.trim();
   if (trimmed.length < 2) return [];
 
-  const endpoint = `${placesBaseUrl()}/v2/search-text?key=${AWS_API_KEY}`;
   const body: Record<string, unknown> = {
     QueryText: trimmed,
     MaxResults: options.maxResults ?? 8,
@@ -99,25 +108,48 @@ export const searchLocationByText = async (
     body.Filter = { IncludeCountries: options.filterCountries };
   }
 
-  try {
-    const response = await axios.post(endpoint, body, {
-      headers: { 'Content-Type': 'application/json' },
-    });
+  const headers = { 'Content-Type': 'application/json' };
+  lastSearchError = null;
 
+  try {
+    const suggestResponse = await axios.post(
+      `${placesBaseUrl()}/v2/suggest?key=${AWS_API_KEY}`,
+      body,
+      { headers, timeout: 8000 },
+    );
+    const suggested = suggestResponse.data?.ResultItems;
+    if (Array.isArray(suggested) && suggested.length > 0) {
+      return suggested.map(mapResultItem).filter((p: PlaceSuggestion) => !!p.label);
+    }
+  } catch (error: any) {
+    lastSearchError = locationErrorMessage(error);
+  }
+
+  try {
+    const response = await axios.post(
+      `${placesBaseUrl()}/v2/search-text?key=${AWS_API_KEY}`,
+      body,
+      { headers, timeout: 8000 },
+    );
     const items = response.data?.ResultItems;
-    if (!Array.isArray(items)) return [];
+    if (!Array.isArray(items) || items.length === 0) return [];
+    lastSearchError = null;
     return items.map(mapResultItem).filter((p: PlaceSuggestion) => !!p.label);
   } catch (error: any) {
-    const status = error.response?.status;
-    if (status === 403 || status === 401) {
-      console.warn(
-        'Amazon Location Service: unauthorized. Check API key, region (us-east-1), and Places API v2 permissions.',
-      );
-    } else {
-      console.error('Amazon Location search failed:', error.response?.data || error.message);
-    }
+    lastSearchError = lastSearchError || locationErrorMessage(error);
     return [];
   }
+}
+
+function locationErrorMessage(error: any): string {
+  const status = error.response?.status;
+  if (status === 403 || status === 401) {
+    return 'Address suggestions were rejected. Check the Amazon Location key.';
+  }
+  if (error?.code === 'ECONNABORTED') {
+    return 'Address suggestions timed out. Try again.';
+  }
+  return 'Address suggestions are unavailable right now.';
 };
 
 export interface ReverseGeocodeResult {

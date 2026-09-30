@@ -195,11 +195,57 @@ describe('PaymentsService', () => {
     });
   });
 
+  it('replaces a stored Stripe customer that is missing on the current account', async () => {
+    const user = {
+      _id: { toString: () => '507f1f77bcf86cd799439011' },
+      email: 'rider@example.com',
+      firstName: 'Ada',
+      lastName: 'Lovelace',
+      stripeCustomerId: 'cus_Uq3ECZnqaE57HL',
+      save: jest.fn().mockResolvedValue(undefined),
+    };
+    mockUserModel.findById.mockReturnValue({
+      select: jest.fn().mockResolvedValue(user),
+    });
+    const missing = Object.assign(
+      new Error("No such customer: 'cus_Uq3ECZnqaE57HL'"),
+      { code: 'resource_missing', statusCode: 404 },
+    );
+    const customers = {
+      retrieve: jest.fn().mockRejectedValue(missing),
+      create: jest.fn().mockResolvedValue({ id: 'cus_new' }),
+    };
+    (service as any).stripe = {
+      customers,
+      ephemeralKeys: {
+        create: jest.fn().mockResolvedValue({ secret: 'ek_test' }),
+      },
+      setupIntents: {
+        create: jest.fn().mockResolvedValue({ client_secret: 'seti_secret' }),
+      },
+    };
+
+    const result = await service.createSetupIntent('507f1f77bcf86cd799439011');
+
+    expect(customers.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        email: 'rider@example.com',
+        metadata: { userId: '507f1f77bcf86cd799439011' },
+      }),
+    );
+    expect(user.stripeCustomerId).toBe('cus_new');
+    expect(user.save).toHaveBeenCalled();
+    expect(result.customer).toBe('cus_new');
+  });
+
   it('does not treat a non-succeeded PaymentIntent as a completed charge', async () => {
     mockUserModel.findById.mockReturnValue({
       select: jest.fn().mockResolvedValue({ stripeCustomerId: 'cus_123' }),
     });
     (service as any).stripe = {
+      customers: {
+        retrieve: jest.fn().mockResolvedValue({ id: 'cus_123' }),
+      },
       paymentMethods: {
         list: jest.fn().mockResolvedValue({ data: [{ id: 'pm_123' }] }),
       },

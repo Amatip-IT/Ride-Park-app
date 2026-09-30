@@ -6,7 +6,7 @@ import {
 import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, ThemeColors } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { Ionicons } from '@expo/vector-icons';
-import { bookingsApi, taxiBookingsApi, ridesApi } from '@/api';
+import { bookingsApi, taxiBookingsApi, ridesApi, reviewsApi } from '@/api';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { RatingModal } from '@/components/RatingModal';
 import { getApiErrorMessage } from '@/utils/helpers';
@@ -46,7 +46,16 @@ export function BookingsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [ratingTarget, setRatingTarget] = useState<RatingTarget | null>(null);
+  const [reviewedBookingIds, setReviewedBookingIds] = useState<Set<string>>(new Set());
   const [processingAction, setProcessingAction] = useState<string | null>(null);
+
+  const markReviewed = (bookingId?: string) => {
+    if (!bookingId) return;
+    setReviewedBookingIds((prev) => new Set(prev).add(String(bookingId)));
+  };
+
+  const hasReview = (bookingId?: string) =>
+    !!bookingId && reviewedBookingIds.has(String(bookingId));
 
   const fetchBookings = async (isRefresh = false, background = false) => {
     if (isRefresh) setRefreshing(true);
@@ -54,10 +63,19 @@ export function BookingsScreen() {
 
     try {
       setFetchError(null);
-      const [bookingsRes, ridesRes] = await Promise.all([
+      const [bookingsRes, ridesRes, reviewsRes] = await Promise.all([
         bookingsApi.getMyBookings(),
         taxiBookingsApi.getMyRequests(),
+        reviewsApi.getMine().catch(() => null),
       ]);
+      if (reviewsRes?.data?.success) {
+        const ids = (reviewsRes.data.data?.bookingIds || []).map(String);
+        setReviewedBookingIds((prev) => {
+          const next = new Set(ids);
+          prev.forEach((id) => next.add(id));
+          return next;
+        });
+      }
       if (bookingsRes.data?.success) {
         setBookings(bookingsRes.data.data || []);
       }
@@ -277,7 +295,7 @@ export function BookingsScreen() {
                         rideId: String(rideRecordId),
                       }),
                     },
-                    {
+                    ...(!hasReview(ride._id) ? [{
                       text: 'Leave a Review',
                       onPress: () => {
                         const driverId = ride.acceptedDriver?._id || ride.acceptedDriver;
@@ -286,12 +304,12 @@ export function BookingsScreen() {
                             subjectName: `${ride.acceptedDriver?.firstName || ''} ${ride.acceptedDriver?.lastName || ''}`.trim() || 'Your driver',
                             subjectId: String(driverId),
                             bookingId: ride._id,
-                            serviceType: 'taxi',
+                            serviceType: 'taxi' as const,
                             title: 'Rate Your Ride',
                           });
                         }
                       },
-                    },
+                    }] : []),
                     { text: 'OK' },
                   ],
                 );
@@ -460,7 +478,7 @@ export function BookingsScreen() {
               <Ionicons name="receipt-outline" size={16} color={colors.electricTeal} />
               <Text style={styles.trackBtnText}>View Receipt</Text>
             </TouchableOpacity>
-            {booking.provider?._id && (
+            {booking.provider?._id && !hasReview(booking._id) && (
               <TouchableOpacity
                 style={styles.trackBtn}
                 onPress={() => setRatingTarget({
@@ -632,7 +650,7 @@ export function BookingsScreen() {
               <Ionicons name="receipt-outline" size={16} color={colors.electricTeal} />
               <Text style={styles.trackBtnText}>View Receipt</Text>
             </TouchableOpacity>
-            {driverId && (
+            {driverId && !hasReview(ride._id) && (
               <TouchableOpacity
                 style={styles.trackBtn}
                 onPress={() => setRatingTarget({
@@ -726,6 +744,7 @@ export function BookingsScreen() {
         <RatingModal
           visible={!!ratingTarget}
           onClose={() => setRatingTarget(null)}
+          onSubmitted={() => markReviewed(ratingTarget.bookingId)}
           subjectName={ratingTarget.subjectName}
           subjectId={ratingTarget.subjectId}
           bookingId={ratingTarget.bookingId}

@@ -12,6 +12,7 @@ import { searchApi, bookingsApi } from '@/api';
 import { calculateBookingPrice, formatCurrency, getApiErrorMessage, openMapsNavigation } from '@/utils/helpers';
 import { useAuthStore } from '@/store/authStore';
 import { AmazonMap } from '@/components/AmazonMap';
+import { ProviderRating } from '@/components/ProviderRating';
 
 type ParkingDetailParams = {
   ParkingDetail: { spaceId: string; space?: any };
@@ -362,8 +363,15 @@ export function ParkingDetailScreen() {
             }
             activeOpacity={0.7}
           >
-            <Ionicons name="star-outline" size={18} color={colors.electricTeal} />
-            <Text style={styles.reviewsLinkText}>Browse reviews</Text>
+            <View style={{ flex: 1, gap: 4 }}>
+              <ProviderRating
+                averageRating={space.averageRating}
+                totalReviews={space.totalReviews}
+                starColor={colors.amber}
+                textColor={colors.textSecondary}
+              />
+              <Text style={styles.reviewsLinkText}>See reviews</Text>
+            </View>
             <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
           </TouchableOpacity>
         </View>

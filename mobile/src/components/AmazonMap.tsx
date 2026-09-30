@@ -23,29 +23,29 @@ interface AmazonMapProps {
   focusToken?: number;
 }
 
-/** Light, Google-like streets style with OSM raster fallback if vector tiles fail. */
+/** OpenStreetMap raster tiles. No API key. */
 const MAP_STYLE_JSON = JSON.stringify({
   version: 8,
   name: 'Gleezip Streets',
   glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
   sources: {
-    carto: {
+    osm: {
       type: 'raster',
       tiles: [
-        'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-        'https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-        'https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+        'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png',
       ],
       tileSize: 256,
-      attribution: '© OpenStreetMap © CARTO',
-      maxzoom: 20,
+      attribution: '© OpenStreetMap contributors',
+      maxzoom: 19,
     },
   },
   layers: [
     {
-      id: 'carto-voyager',
+      id: 'osm',
       type: 'raster',
-      source: 'carto',
+      source: 'osm',
       minzoom: 0,
       maxzoom: 22,
     },
@@ -214,7 +214,7 @@ export function AmazonMap({
               zoom: 14,
               pitch: 0,
               bearing: 0,
-              attributionControl: false
+              attributionControl: true
             });
             window.__gleezipMap = map;
 

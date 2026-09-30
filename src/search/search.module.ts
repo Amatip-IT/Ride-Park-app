@@ -9,9 +9,11 @@ import {
 import { Chauffeur, ChauffeurSchema } from 'src/schemas/chauffeur.schema';
 import { Taxi, TaxiSchema } from 'src/schemas/taxi.schema';
 import { User, UserSchema } from 'src/schemas/user.schema';
+import { ReviewsModule } from 'src/reviews/reviews.module';
 
 @Module({
   imports: [
+    ReviewsModule,
     MongooseModule.forFeature([
       { name: ParkingSpace.name, schema: ParkingSpaceSchema },
       { name: Chauffeur.name, schema: ChauffeurSchema },

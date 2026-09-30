@@ -7,10 +7,32 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { SearchService } from './search.service';
+import { ReviewsService } from 'src/reviews/reviews.service';
+import { Response } from 'src/common/interfaces/response.interface';
 
 @Controller('search')
 export class SearchController {
-  constructor(private readonly searchService: SearchService) {}
+  constructor(
+    private readonly searchService: SearchService,
+    private readonly reviewsService: ReviewsService,
+  ) {}
+
+  private async withRatings(
+    serviceType: 'parking' | 'driver' | 'taxi',
+    result: Response,
+  ): Promise<Response> {
+    if (!result?.success || result.data == null) return result;
+    if (Array.isArray(result.data)) {
+      return {
+        ...result,
+        data: await this.reviewsService.decorateListings(serviceType, result.data),
+      };
+    }
+    const [item] = await this.reviewsService.decorateListings(serviceType, [
+      result.data,
+    ]);
+    return { ...result, data: item };
+  }
 
   /**
    * GET /search/parking?q=bournemouth&page=1&limit=10
@@ -29,10 +51,13 @@ export class SearchController {
       );
     }
 
-    return this.searchService.searchParkingSpaces(
-      query,
-      parseInt(page || '1', 10),
-      parseInt(limit || '20', 10),
+    return this.withRatings(
+      'parking',
+      await this.searchService.searchParkingSpaces(
+        query,
+        parseInt(page || '1', 10),
+        parseInt(limit || '20', 10),
+      ),
     );
   }
 
@@ -64,11 +89,14 @@ export class SearchController {
       );
     }
 
-    return this.searchService.searchParkingByLocation(
-      parsedLat,
-      parsedLng,
-      parseInt(page || '1', 10),
-      parseInt(limit || '20', 10),
+    return this.withRatings(
+      'parking',
+      await this.searchService.searchParkingByLocation(
+        parsedLat,
+        parsedLng,
+        parseInt(page || '1', 10),
+        parseInt(limit || '20', 10),
+      ),
     );
   }
 
@@ -84,10 +112,13 @@ export class SearchController {
   ) {
     const q = query || '';
 
-    return this.searchService.searchDrivers(
-      q,
-      parseInt(page || '1', 10),
-      parseInt(limit || '20', 10),
+    return this.withRatings(
+      'driver',
+      await this.searchService.searchDrivers(
+        q,
+        parseInt(page || '1', 10),
+        parseInt(limit || '20', 10),
+      ),
     );
   }
 
@@ -112,11 +143,14 @@ export class SearchController {
         HttpStatus.BAD_REQUEST,
       );
     }
-    return this.searchService.searchDriversByLocation(
-      parsedLat,
-      parsedLng,
-      parseInt(page || '1', 10),
-      parseInt(limit || '20', 10),
+    return this.withRatings(
+      'driver',
+      await this.searchService.searchDriversByLocation(
+        parsedLat,
+        parsedLng,
+        parseInt(page || '1', 10),
+        parseInt(limit || '20', 10),
+      ),
     );
   }
 
@@ -132,10 +166,13 @@ export class SearchController {
   ) {
     const q = query || '';
 
-    return this.searchService.searchTaxis(
-      q,
-      parseInt(page || '1', 10),
-      parseInt(limit || '20', 10),
+    return this.withRatings(
+      'taxi',
+      await this.searchService.searchTaxis(
+        q,
+        parseInt(page || '1', 10),
+        parseInt(limit || '20', 10),
+      ),
     );
   }
 
@@ -160,11 +197,14 @@ export class SearchController {
         HttpStatus.BAD_REQUEST,
       );
     }
-    return this.searchService.searchTaxisByLocation(
-      parsedLat,
-      parsedLng,
-      parseInt(page || '1', 10),
-      parseInt(limit || '20', 10),
+    return this.withRatings(
+      'taxi',
+      await this.searchService.searchTaxisByLocation(
+        parsedLat,
+        parsedLng,
+        parseInt(page || '1', 10),
+        parseInt(limit || '20', 10),
+      ),
     );
   }
 
@@ -181,6 +221,6 @@ export class SearchController {
         HttpStatus.NOT_FOUND,
       );
     }
-    return result;
+    return this.withRatings('parking', result);
   }
 }

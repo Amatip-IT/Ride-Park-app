@@ -47,9 +47,16 @@ class AuthService {
     try {
       const response = await this.api.get('/users/check-username', {
         params: { username },
+        timeout: 3000,
       });
       return response.data;
     } catch (error: any) {
+      if (error?.code === 'ECONNABORTED') {
+        return {
+          success: false,
+          message: 'Username check timed out. Please try again.',
+        };
+      }
       const axiosData = error?.response?.data;
       if (axiosData && typeof axiosData === 'object') {
         const msg = Array.isArray(axiosData.message)

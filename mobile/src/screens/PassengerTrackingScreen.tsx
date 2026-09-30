@@ -7,7 +7,7 @@ import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, ThemeColors } from '@
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
-import { taxiBookingsApi, ridesApi } from '@/api';
+import { taxiBookingsApi, ridesApi, reviewsApi } from '@/api';
 import { AmazonMap } from '@/components/AmazonMap';
 import { useTaxiStore } from '@/store/taxiStore';
 import { useAuthStore } from '@/store/authStore';
@@ -31,6 +31,7 @@ export function PassengerTrackingScreen() {
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [showRating, setShowRating] = useState(false);
   const [ratingDismissed, setRatingDismissed] = useState(false);
+  const [alreadyReviewed, setAlreadyReviewed] = useState(false);
   const [payLoading, setPayLoading] = useState(false);
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [cancelLoading, setCancelLoading] = useState(false);
@@ -86,14 +87,30 @@ export function PassengerTrackingScreen() {
   );
 
   useEffect(() => {
-    if (
-      request?.status === 'completed' &&
-      !ratingDismissed &&
-      request.acceptedDriver?._id
-    ) {
-      setShowRating(true);
+    if (request?.status !== 'completed' || !request.acceptedDriver?._id || ratingDismissed || alreadyReviewed) {
+      return;
     }
-  }, [request?.status, request?.acceptedDriver?._id, ratingDismissed]);
+
+    let cancelled = false;
+    reviewsApi.getMine()
+      .then((res) => {
+        if (cancelled) return;
+        const ids = (res.data?.data?.bookingIds || []).map(String);
+        if (ids.includes(String(requestId))) {
+          setAlreadyReviewed(true);
+          setShowRating(false);
+          return;
+        }
+        setShowRating(true);
+      })
+      .catch(() => {
+        if (!cancelled) setShowRating(true);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [request?.status, request?.acceptedDriver?._id, requestId, ratingDismissed, alreadyReviewed]);
 
   // Pulsing animation for live status
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -510,10 +527,15 @@ export function PassengerTrackingScreen() {
         </View>
       </View>
 
-      {driverId && (
+      {driverId && !alreadyReviewed && (
         <RatingModal
           visible={showRating}
           onClose={() => {
+            setShowRating(false);
+            setRatingDismissed(true);
+          }}
+          onSubmitted={() => {
+            setAlreadyReviewed(true);
             setShowRating(false);
             setRatingDismissed(true);
           }}

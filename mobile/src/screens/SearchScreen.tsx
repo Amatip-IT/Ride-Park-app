@@ -13,6 +13,7 @@ import { searchApi } from '@/api';
 import { searchLocationByText, PlaceSuggestion } from '@/api/amazonLocation';
 import { useLocationBias } from '@/hooks/useLocationBias';
 import { getApiErrorMessage } from '@/utils/helpers';
+import { ProviderRating } from '@/components/ProviderRating';
 
 type ServiceType = 'parking' | 'driver' | 'taxi';
 
@@ -322,7 +323,13 @@ export function SearchScreen() {
       {item.description ? (
         <Text style={styles.cardDescription} numberOfLines={2}>{item.description}</Text>
       ) : null}
-      <View style={styles.cardFooter}>
+      <ProviderRating
+        averageRating={item.averageRating}
+        totalReviews={item.totalReviews}
+        starColor={colors.amber}
+        textColor={colors.textSecondary}
+      />
+      <View style={[styles.cardFooter, { marginTop: SPACING.sm }]}>
         <View style={styles.badge}>
           <Ionicons name="location-outline" size={13} color={colors.textSecondary} />
           <Text style={styles.badgeText}>{item.town || item.postCode}</Text>
@@ -355,7 +362,13 @@ export function SearchScreen() {
             <Text style={[styles.statusOnlineText, !isOnline && { color: colors.textTertiary }]}>{isOnline ? 'Online' : 'Offline'}</Text>
           </View>
         </View>
-        <View style={styles.cardFooter}>
+        <ProviderRating
+          averageRating={item.averageRating}
+          totalReviews={item.totalReviews}
+          starColor={colors.amber}
+          textColor={colors.textSecondary}
+        />
+        <View style={[styles.cardFooter, { marginTop: SPACING.sm }]}>
           <View style={styles.badge}>
             <Ionicons name="location-outline" size={13} color={colors.textSecondary} />
             <Text style={styles.badgeText}>{user.address?.town || user.postCode || 'N/A'}</Text>
@@ -391,7 +404,13 @@ export function SearchScreen() {
             {item.vehicleInfo.make} {item.vehicleInfo.model}
           </Text>
         )}
-        <View style={styles.cardFooter}>
+        <ProviderRating
+          averageRating={item.averageRating}
+          totalReviews={item.totalReviews}
+          starColor={colors.amber}
+          textColor={colors.textSecondary}
+        />
+        <View style={[styles.cardFooter, { marginTop: SPACING.sm }]}>
           <View style={styles.badge}>
             <Ionicons name="location-outline" size={13} color={colors.textSecondary} />
             <Text style={styles.badgeText}>{user.address?.town || user.postCode || 'N/A'}</Text>
@@ -660,6 +679,33 @@ export function SearchScreen() {
                     </Text>
                   </View>
 
+                  <View style={{ marginTop: SPACING.sm, marginBottom: SPACING.sm }}>
+                    <ProviderRating
+                      averageRating={selectedDriver.averageRating}
+                      totalReviews={selectedDriver.totalReviews}
+                      starColor={colors.amber}
+                      textColor={colors.textSecondary}
+                      size={16}
+                    />
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.reviewsLink}
+                    onPress={() => {
+                      const driver = selectedDriver;
+                      const name = `${driver.user?.firstName || ''} ${driver.user?.lastName || ''}`.trim();
+                      setSelectedDriver(null);
+                      navigation.navigate('ServiceReviews', {
+                        serviceType,
+                        serviceId: driver._id,
+                        serviceName: name || (serviceType === 'taxi' ? 'Taxi' : 'Chauffeur'),
+                      });
+                    }}
+                  >
+                    <Text style={styles.reviewsLinkText}>See reviews</Text>
+                    <Ionicons name="chevron-forward" size={16} color={colors.electricTeal} />
+                  </TouchableOpacity>
+
                   {!isDriverOnline && (
                     <View style={styles.modalOfflineBanner}>
                       <Ionicons name="radio-button-off" size={16} color={colors.coralRed} />
@@ -913,6 +959,11 @@ const makeStyles = (colors: ThemeColors) =>
       borderRadius: BORDER_RADIUS.full, marginBottom: SPACING.lg, borderWidth: 1, borderColor: colors.border,
     },
     modalDriverNumberText: { fontSize: 12, fontWeight: FONT_WEIGHTS.semibold, color: colors.textSecondary },
+    reviewsLink: {
+      flexDirection: 'row', alignItems: 'center', gap: 4,
+      marginBottom: SPACING.md, paddingVertical: 4,
+    },
+    reviewsLinkText: { color: colors.electricTeal, fontSize: 14, fontWeight: FONT_WEIGHTS.semibold },
     modalVehicleCard: {
       backgroundColor: colors.surfaceAlt, borderRadius: BORDER_RADIUS.lg, padding: SPACING.lg,
       width: '100%', borderWidth: 1, borderColor: colors.border, marginBottom: SPACING.md,

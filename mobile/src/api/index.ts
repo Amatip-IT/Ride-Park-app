@@ -418,6 +418,9 @@ export const reviewsApi = {
 
   getReviews: (serviceType: string, serviceId: string, page = 1) =>
     api.get<ApiResponse>(`/reviews/${serviceType}/${serviceId}?page=${page}`),
+
+  getMine: () =>
+    api.get<ApiResponse<{ bookingIds: string[] }>>('/reviews/mine'),
 };
 
 // ── Rides API ──

@@ -53,31 +53,74 @@ export class UsersService {
     private emailVerificationService: EmailVerificationService,
   ) {}
 
+  private normalizeUsername(username?: string | null): string {
+    return typeof username === 'string' ? username.toLowerCase().trim() : '';
+  }
+
+  private isAcceptableUsername(username: string): boolean {
+    return /^[a-z0-9_]{3,30}$/.test(username);
+  }
+
+  /** Exact match so the unique username index answers immediately. */
+  private usernameLookup(normalizedUsername: string) {
+    return { username: normalizedUsername };
+  }
+
+  private withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('timeout')), ms);
+      work.then(
+        (value) => {
+          clearTimeout(timer);
+          resolve(value);
+        },
+        (error) => {
+          clearTimeout(timer);
+          reject(error);
+        },
+      );
+    });
+  }
+
   /**
    * Generate alternative username suggestions when the desired one is taken.
+   * Every suggestion has to pass the same rules as a new username.
    */
   private async generateUsernameSuggestions(base: string): Promise<string[]> {
+    const normalized = this.normalizeUsername(base).replace(/[^a-z0-9_]/g, '');
+    const stripped = normalized.replace(/\d+$/, '');
+    const stem = (stripped || normalized).slice(0, 24);
     const candidates: string[] = [];
-    const stripped = base.replace(/\d+$/, '');
+    const push = (value: string) => {
+      if (
+        this.isAcceptableUsername(value) &&
+        value !== normalized &&
+        !candidates.includes(value)
+      ) {
+        candidates.push(value);
+      }
+    };
 
-    for (let i = 0; candidates.length < 5 && i < 20; i++) {
+    for (let i = 0; candidates.length < 8 && i < 24; i++) {
       const suffix = Math.floor(Math.random() * 9000) + 1000;
-      candidates.push(`${stripped}${suffix}`);
+      push(`${stem}${suffix}`);
     }
-    candidates.push(`${stripped}_x`);
-    candidates.push(`the_${stripped}`);
+    push(`${stem}_1`);
+    push(`the_${stem}`);
 
     const taken = await this.userModel
       .find({ username: { $in: candidates } })
       .select('username')
       .lean();
-    const takenSet = new Set(taken.map((u) => u.username));
+    const takenSet = new Set(
+      taken.map((u) => this.normalizeUsername(u.username)),
+    );
 
     return candidates.filter((c) => !takenSet.has(c)).slice(0, 4);
   }
 
   async checkUsernameAvailability(username: string): Promise<Response> {
-    const normalizedUsername = username?.toLowerCase().trim() || '';
+    const normalizedUsername = this.normalizeUsername(username);
 
     if (normalizedUsername.length < 3 || normalizedUsername.length > 30) {
       return {
@@ -86,7 +129,7 @@ export class UsersService {
       };
     }
 
-    if (!/^[a-z0-9_]+$/.test(normalizedUsername)) {
+    if (!this.isAcceptableUsername(normalizedUsername)) {
       return {
         success: false,
         message:
@@ -94,9 +137,18 @@ export class UsersService {
       };
     }
 
-    const usernameTaken = await this.userModel
-      .findOne({ username: normalizedUsername })
-      .lean();
+    let usernameTaken: { username?: string } | null;
+    try {
+      usernameTaken = await this.withTimeout(
+        this.userModel.findOne(this.usernameLookup(normalizedUsername)).lean(),
+        2000,
+      );
+    } catch {
+      return {
+        success: false,
+        message: 'Could not check that username. Please try again.',
+      };
+    }
 
     if (usernameTaken) {
       const suggestions =
@@ -118,12 +170,12 @@ export class UsersService {
   /* METHOD TO CREATE A NEW USER (NON-ADMIN) */
   async createUser(createUserDTO: CreateUserDto): Promise<Response> {
     try {
-      const normalizedUsername = createUserDTO.username.toLowerCase().trim();
+      const normalizedUsername = this.normalizeUsername(createUserDTO.username);
       const normalizedEmail = createUserDTO.email.toLowerCase().trim();
 
       const [emailTaken, usernameTaken] = await Promise.all([
         this.userModel.findOne({ email: normalizedEmail }).lean(),
-        this.userModel.findOne({ username: normalizedUsername }).lean(),
+        this.userModel.findOne(this.usernameLookup(normalizedUsername)).lean(),
       ]);
 
       if (emailTaken) {
@@ -249,9 +301,46 @@ export class UsersService {
         message: 'User created successfully',
       };
     } catch (error) {
+      const mongoCode =
+        error && typeof error === 'object' && 'code' in error
+          ? (error as { code?: number }).code
+          : undefined;
+      const keyPattern =
+        error && typeof error === 'object' && 'keyPattern' in error
+          ? (error as { keyPattern?: Record<string, unknown> }).keyPattern
+          : undefined;
+      const normalizedUsername = this.normalizeUsername(createUserDTO.username);
+
+      if (mongoCode === 11000 && keyPattern?.username) {
+        const suggestions =
+          await this.generateUsernameSuggestions(normalizedUsername);
+        return {
+          success: false,
+          message: `The username "${normalizedUsername}" is already taken.`,
+          data: { suggestions },
+        };
+      }
+
+      if (mongoCode === 11000 && keyPattern?.email) {
+        return {
+          success: false,
+          message:
+            'An account with this email address already exists. Please sign in or use a different email.',
+        };
+      }
+
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      if (/username/i.test(message) && /invalid/i.test(message)) {
+        return {
+          success: false,
+          message:
+            'Username can only contain lowercase letters, numbers, and underscores',
+        };
+      }
+
       return {
         success: false,
-        message: `An error occurred while creating the user: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        message: `An error occurred while creating the user: ${message}`,
       };
     }
   }
