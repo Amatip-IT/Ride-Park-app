@@ -13,6 +13,14 @@ const getBaseUrl = () => {
   }
 };
 
+export interface RideCancelledNotice {
+  requestId: string;
+  rideReference: string;
+  title: string;
+  message: string;
+  cancelledAt?: string;
+}
+
 interface TaxiState {
   socket: Socket | null;
   isConnected: boolean;
@@ -20,6 +28,10 @@ interface TaxiState {
   joinedRideIds: string[];
   activeRequest: any | null;
   driverLocation: { lat: number; lng: number; rotation: number } | null;
+  /** Customer cancellations waiting to be shown to the driver (deduplicated by request). */
+  cancelNotices: RideCancelledNotice[];
+  addCancelNotice: (notice: RideCancelledNotice) => void;
+  dismissCancelNotice: (requestId: string) => void;
   
   // Actions
   connect: (userId: string) => void;
@@ -43,6 +55,15 @@ export const useTaxiStore = create<TaxiState>((set, get) => ({
   joinedRideIds: [],
   activeRequest: null,
   driverLocation: null,
+  cancelNotices: [],
+
+  addCancelNotice: (notice) => {
+    if (get().cancelNotices.some((n) => n.requestId === notice.requestId)) return;
+    set({ cancelNotices: [...get().cancelNotices, notice] });
+  },
+
+  dismissCancelNotice: (requestId) =>
+    set({ cancelNotices: get().cancelNotices.filter((n) => n.requestId !== requestId) }),
 
   connect: (userId: string) => {
     const existingSocket = get().socket;
@@ -99,6 +120,16 @@ export const useTaxiStore = create<TaxiState>((set, get) => ({
       set({ driverLocation: data });
     });
 
+    // Sent to the assigned driver directly (and replayed on reconnect until acknowledged)
+    socket.on('ride_cancelled', (notice: RideCancelledNotice) => {
+      if (!notice?.requestId) return;
+      get().addCancelNotice(notice);
+      const active = get().activeRequest;
+      if (active?._id?.toString() === notice.requestId && active.status !== 'cancelled') {
+        set({ activeRequest: { ...active, status: 'cancelled' } });
+      }
+    });
+
     set({ socket });
   },
 
@@ -113,6 +144,7 @@ export const useTaxiStore = create<TaxiState>((set, get) => ({
         joinedRideIds: [],
         activeRequest: null,
         driverLocation: null,
+        cancelNotices: [],
       });
     }
   },

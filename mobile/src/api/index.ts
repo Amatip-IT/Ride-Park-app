@@ -24,6 +24,12 @@ export const usersApi = {
 };
 
 export const searchApi = {
+  // Driving route polyline + distance/duration (Amazon Location Routes via backend)
+  getRoute: (from: { lat: number; lng: number }, to: { lat: number; lng: number }) =>
+    api.get<ApiResponse>(
+      `/search/route?fromLat=${from.lat}&fromLng=${from.lng}&toLat=${to.lat}&toLng=${to.lng}`,
+    ),
+
   // Search parking spaces by location query (postcode, town name, etc.)
   searchParking: (query: string, page = 1, limit = 20) =>
     api.get<ApiResponse>(`/search/parking?q=${encodeURIComponent(query)}&page=${page}&limit=${limit}`),
@@ -224,6 +230,19 @@ export const adminApi = {
   updatePlatformFee: (percentage: number) =>
     api.post<ApiResponse>('/admin/verifications/settings/fee', { percentage }),
 
+  // Ride pricing (all values in pence)
+  getRidePricing: () =>
+    api.get<ApiResponse>('/admin/verifications/settings/pricing'),
+
+  updateRidePricing: (data: {
+    ratePerMilePence?: number;
+    ratePerMinuteTaxiPence?: number;
+    minimumFarePence?: number;
+    customerStopRatePencePerMinute?: number;
+    driverStopRatePencePerMinute?: number;
+    vehicleSurchargePence?: { small?: number; medium?: number; large?: number };
+  }) => api.patch<ApiResponse>('/admin/verifications/settings/pricing', data),
+
   // ── Payouts (Withdrawals) ──
   getPendingWithdrawals: () =>
     api.get<ApiResponse>('/admin/verifications/withdrawals'),
@@ -378,17 +397,38 @@ export const disputesApi = {
     api.get<ApiResponse>(`/disputes/${id}`),
 
   // Admin
-  getAdminDisputes: (params?: { status?: string; category?: string; page?: number }) => {
+  getAdminDisputes: (params?: {
+    status?: string;
+    category?: string;
+    page?: number;
+    from?: string;
+    to?: string;
+    ride?: string;
+    customerId?: string;
+    driverId?: string;
+    filedByRole?: string;
+  }) => {
     const query = new URLSearchParams();
-    if (params?.status) query.set('status', params.status);
-    if (params?.category) query.set('category', params.category);
-    if (params?.page) query.set('page', String(params.page));
+    Object.entries(params || {}).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && String(value).trim() !== '') {
+        query.set(key, String(value).trim());
+      }
+    });
     const qs = query.toString();
     return api.get<ApiResponse>(`/admin/disputes${qs ? `?${qs}` : ''}`);
   },
 
   getAdminDispute: (id: string) =>
     api.get<ApiResponse>(`/admin/disputes/${id}`),
+
+  assignDispute: (id: string, adminId?: string) =>
+    api.post<ApiResponse>(`/admin/disputes/${id}/assign`, { adminId }),
+
+  addDisputeNote: (id: string, note: string) =>
+    api.post<ApiResponse>(`/admin/disputes/${id}/notes`, { note }),
+
+  rejectDispute: (id: string, reason: string) =>
+    api.post<ApiResponse>(`/admin/disputes/${id}/reject`, { reason }),
 
   investigateDispute: (id: string, adminNotes?: string) =>
     api.post<ApiResponse>(`/admin/disputes/${id}/investigate`, { adminNotes }),
@@ -425,8 +465,22 @@ export const reviewsApi = {
 
 // ── Rides API ──
 export const ridesApi = {
-  getEstimate: (serviceType: 'driver' | 'taxi', distanceMiles: number, durationMinutes: number) =>
-    api.post<ApiResponse>('/rides/estimate', { serviceType, distanceMiles, durationMinutes }),
+  getEstimate: (
+    serviceType: 'driver' | 'taxi',
+    distanceMiles: number,
+    durationMinutes: number,
+    vehicleCategory?: string,
+  ) =>
+    api.post<ApiResponse>('/rides/estimate', { serviceType, distanceMiles, durationMinutes, vehicleCategory }),
+
+  // Road-route quote (driver approach + trip) for all vehicle categories
+  getQuote: (data: {
+    pickupLat: number;
+    pickupLng: number;
+    destinationLat: number;
+    destinationLng: number;
+    targetDriverId?: string;
+  }) => api.post<ApiResponse>('/rides/quote', data),
 
   startRide: (data: {
     passengerId: string;
@@ -502,6 +556,17 @@ export const taxiBookingsApi = {
 
   getReceipt: (requestId: string) =>
     api.get<ApiResponse>(`/taxi-bookings/${requestId}/receipt`),
+
+  // Passenger or driver starts/ends a stop (server-timed)
+  startStop: (requestId: string) =>
+    api.patch<ApiResponse>(`/taxi-bookings/${requestId}/stops/start`),
+
+  endStop: (requestId: string) =>
+    api.patch<ApiResponse>(`/taxi-bookings/${requestId}/stops/end`),
+
+  // Driver has seen the "customer cancelled" popup
+  acknowledgeCancellation: (requestId: string) =>
+    api.post<ApiResponse>(`/taxi-bookings/${requestId}/cancel-ack`),
 
   // Admin: all active requests
   getAdminActive: () =>

@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { ridesApi, taxiBookingsApi, bookingsApi } from '@/api';
 import { formatCurrency, formatDate, getApiErrorMessage } from '@/utils/helpers';
+import { FareBreakdown, fareLines, formatElapsed, formatPence } from '@/utils/fare';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 
@@ -50,6 +51,9 @@ type ReceiptData = {
   ratePerMinute?: number;
   paymentStatus?: string;
   paymentNote?: string;
+  paymentMethod?: string;
+  fareBreakdown?: FareBreakdown | null;
+  stops?: Array<{ initiatedBy: string; durationSeconds?: number; chargePence?: number }>;
   vehicle?: {
     make?: string;
     model?: string;
@@ -321,12 +325,28 @@ export function TripReceiptScreen() {
             {!isBookingReceipt && receipt.durationMinutes != null && (
               <ReceiptRow label="Duration" value={`${Math.round(receipt.durationMinutes)} min`} />
             )}
-            {!isBookingReceipt && receipt.distanceCost != null && (
-              <ReceiptRow label="Distance charge" value={formatCurrency(receipt.distanceCost)} />
+            {!isBookingReceipt && receipt.fareBreakdown ? (
+              fareLines(receipt.fareBreakdown).map((line) => (
+                <ReceiptRow key={line.label} label={line.label} value={line.value} />
+              ))
+            ) : (
+              <>
+                {!isBookingReceipt && receipt.distanceCost != null && (
+                  <ReceiptRow label="Distance charge" value={formatCurrency(receipt.distanceCost)} />
+                )}
+                {!isBookingReceipt && receipt.timeCost != null && (
+                  <ReceiptRow label="Time charge" value={formatCurrency(receipt.timeCost)} />
+                )}
+              </>
             )}
-            {!isBookingReceipt && receipt.timeCost != null && (
-              <ReceiptRow label="Time charge" value={formatCurrency(receipt.timeCost)} />
-            )}
+            {!isBookingReceipt &&
+              (receipt.stops || []).map((stop, i) => (
+                <ReceiptRow
+                  key={`stop-${i}`}
+                  label={`Stop ${i + 1} (${stop.initiatedBy === 'customer' ? 'requested by you' : 'driver'}) ${formatElapsed(stop.durationSeconds || 0)}`}
+                  value={formatPence(stop.chargePence)}
+                />
+              ))}
             {isBookingReceipt && receipt.quotedPrice != null && (
               <ReceiptRow
                 label="Rate"
@@ -372,6 +392,23 @@ export function TripReceiptScreen() {
               </>
             )}
           </TouchableOpacity>
+
+          {!isBookingReceipt && (receipt.rideId || receipt.requestId) ? (
+            <TouchableOpacity
+              style={styles.reportLink}
+              onPress={() =>
+                navigation.navigate('FileDispute', {
+                  category: 'payment_issue',
+                  relatedServiceType: 'ride',
+                  relatedServiceId: receipt.rideId || receipt.requestId,
+                  metadata: { requestId: receipt.requestId },
+                })
+              }
+            >
+              <Ionicons name="flag-outline" size={14} color={colors.textSecondary} />
+              <Text style={styles.reportLinkText}>Report an issue with this ride</Text>
+            </TouchableOpacity>
+          ) : null}
         </ScrollView>
       ) : null}
     </SafeAreaView>
@@ -380,6 +417,11 @@ export function TripReceiptScreen() {
 
 const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.background },
+  reportLink: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    paddingVertical: SPACING.md,
+  },
+  reportLinkText: { color: colors.textSecondary, fontSize: 13, textDecorationLine: 'underline' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

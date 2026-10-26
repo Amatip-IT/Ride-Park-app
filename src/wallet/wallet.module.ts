@@ -3,6 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { WalletController } from './wallet.controller';
 import { WalletWebhookController } from './wallet-webhook.controller';
 import { WalletService } from './wallet.service';
+import { RideWalletService } from './ride-wallet.service';
 import { ProviderGuard } from 'src/guards/provider.guard';
 import { Wallet, WalletSchema } from 'src/schemas/wallet.schema';
 import { Transaction, TransactionSchema } from 'src/schemas/transaction.schema';
@@ -27,7 +28,7 @@ import { WithdrawalRecoveryTask } from './withdrawal-recovery.task';
     WebhookEventsModule,
   ],
   controllers: [WalletController, WalletWebhookController],
-  providers: [WalletService, ProviderGuard, WithdrawalRecoveryTask],
-  exports: [WalletService],
+  providers: [WalletService, RideWalletService, ProviderGuard, WithdrawalRecoveryTask],
+  exports: [WalletService, RideWalletService],
 })
 export class WalletModule {}

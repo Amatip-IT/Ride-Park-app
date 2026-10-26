@@ -87,6 +87,8 @@ export class NotificationsService {
           sound: 'default',
           title,
           body,
+          priority: 'high',
+          channelId: 'default',
           data: { ...data, notificationId: notification._id, type },
         },
       ];

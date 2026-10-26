@@ -21,6 +21,8 @@ import { PaymentsModule } from './payments/payments.module';
 import { WalletModule } from './wallet/wallet.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { DisputesModule } from './disputes/disputes.module';
+import { PricingModule } from './pricing/pricing.module';
+import { RoutingModule } from './search/routing.module';
 import { AccountStatusGuard } from './guards/account-status.guard';
 import { AuthModule } from './guards/auth.module';
 import { DocumentExpiryTask } from './tasks/document-expiry.task';
@@ -43,6 +45,8 @@ import { RequestObservabilityInterceptor } from './observability/request-observa
       { name: Taxi.name, schema: TaxiSchema },
     ]),
     AuthModule,
+    PricingModule,
+    RoutingModule,
     ObservabilityModule,
     DatabaseModule,
     UsersModule,

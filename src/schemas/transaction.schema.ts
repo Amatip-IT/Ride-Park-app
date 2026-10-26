@@ -26,8 +26,27 @@ export class Transaction {
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   providerId: Types.ObjectId;
 
-  @Prop({ required: true, enum: ['earning', 'withdrawal', 'deposit'] })
+  @Prop({
+    required: true,
+    enum: [
+      'earning',
+      'withdrawal',
+      'deposit',
+      // Customer ride payments from the wallet
+      'ride_hold',
+      'ride_hold_release',
+      'ride_payment',
+      'refund',
+    ],
+  })
   type: string;
+
+  /** Exact amount in pence for ride ledger entries (amount stays in GBP for compatibility). */
+  @Prop({ type: Number })
+  amountPence?: number;
+
+  @Prop({ type: Object })
+  metadata?: Record<string, unknown>;
 
   @Prop({ required: true })
   amount: number; // For earning, this is the GROSS amount

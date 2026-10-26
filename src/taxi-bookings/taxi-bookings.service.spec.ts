@@ -10,6 +10,13 @@ import { PaymentsService } from 'src/payments/payments.service';
 import { WalletService } from 'src/wallet/wallet.service';
 import { TaxiBookingsGateway } from './taxi-bookings.gateway';
 import { Ride } from 'src/schemas/ride.schema';
+import { RidesService } from 'src/rides/rides.service';
+import { RidePricingService } from 'src/rides/ride-pricing.service';
+import { DEFAULT_PRICING_RULES } from 'src/pricing/fare';
+
+const leanExec = (value: any) => ({
+  select: () => ({ lean: () => ({ exec: jest.fn().mockResolvedValue(value) }) }),
+});
 
 describe('TaxiBookingsService', () => {
   let service: TaxiBookingsService;
@@ -30,6 +37,18 @@ describe('TaxiBookingsService', () => {
   const mockTaxiGateway = {
     pushRequestUpdate: jest.fn(),
     pushNewRequestToDriver: jest.fn(),
+    pushRideCancelledToDriver: jest.fn(),
+  };
+
+  const mockRidesService = {
+    releaseHoldForRide: jest.fn().mockResolvedValue(true),
+  };
+
+  const mockRidePricing = {
+    getRules: jest.fn().mockResolvedValue(DEFAULT_PRICING_RULES),
+    quote: jest.fn(),
+    leg: jest.fn(),
+    driverPosition: jest.fn().mockReturnValue(null),
   };
 
   let mockTaxiRequestModel: any;
@@ -44,8 +63,14 @@ describe('TaxiBookingsService', () => {
     findOne: jest.fn(),
     updateOne: jest.fn().mockResolvedValue({}),
   };
-  const mockRideModel = { updateOne: jest.fn().mockResolvedValue({}) };
-  const mockUserModel = {};
+  const mockRideModel: any = {
+    updateOne: jest.fn().mockResolvedValue({}),
+    findById: jest.fn(),
+    findOne: jest.fn(),
+  };
+  const mockUserModel: any = {
+    findById: jest.fn(() => leanExec({ taxiType: 'Normal car' })),
+  };
 
   beforeEach(async () => {
     mockTaxiRequestModel = jest.fn().mockImplementation((dto) => ({
@@ -77,11 +102,17 @@ describe('TaxiBookingsService', () => {
         { provide: WalletService, useValue: mockWalletService },
         { provide: NotificationsService, useValue: mockNotificationsService },
         { provide: TaxiBookingsGateway, useValue: mockTaxiGateway },
+        { provide: RidesService, useValue: mockRidesService },
+        { provide: RidePricingService, useValue: mockRidePricing },
       ],
     }).compile();
 
     service = module.get<TaxiBookingsService>(TaxiBookingsService);
     jest.clearAllMocks();
+    mockRidePricing.getRules.mockResolvedValue(DEFAULT_PRICING_RULES);
+    mockRidePricing.driverPosition.mockReturnValue(null);
+    mockUserModel.findById.mockImplementation(() => leanExec({ taxiType: 'Normal car' }));
+    mockRidesService.releaseHoldForRide.mockResolvedValue(true);
   });
 
   describe('createRideRequest (targeted)', () => {
@@ -202,6 +233,7 @@ describe('TaxiBookingsService', () => {
       mockChauffeurModel.findOne.mockResolvedValue(null);
       mockTaxiRequestModel.findById.mockResolvedValue({
         _id: requestId,
+        status: 'searching',
         targetDriver: '507f1f77bcf86cd799439014',
       });
 
@@ -237,6 +269,7 @@ describe('TaxiBookingsService', () => {
       mockTaxiRequestModel.findById
         .mockResolvedValueOnce({
           _id: requestId,
+          status: 'searching',
           targetDriver: driverUserId,
           passenger: driverUserId,
         })
@@ -382,51 +415,99 @@ describe('TaxiBookingsService', () => {
   });
 
   describe('cancelRideRequest', () => {
-    it('allows passenger to cancel an arrived ride', async () => {
-      const requestId = '507f1f77bcf86cd799439011';
-      const passengerId = '507f1f77bcf86cd799439013';
-      const driverId = '507f1f77bcf86cd799439014';
+    const requestId = '507f1f77bcf86cd799439011';
+    const passengerId = '507f1f77bcf86cd799439013';
+    const driverId = '507f1f77bcf86cd799439014';
+    const rideId = '507f1f77bcf86cd799439015';
 
+    it('cancels atomically, releases any hold, and tells the assigned driver immediately', async () => {
       const request = {
         _id: requestId,
         status: 'arrived',
         passenger: passengerId,
         acceptedDriver: driverId,
-        ride: '507f1f77bcf86cd799439015',
-        save: jest.fn().mockResolvedValue(true),
+        ride: rideId,
+      };
+      const cancelled = {
+        ...request,
+        _id: { toString: () => requestId },
+        acceptedDriver: { toString: () => driverId },
+        ride: { toString: () => rideId },
+        passenger: { toString: () => passengerId },
+        status: 'cancelled',
+        cancelledAt: new Date(),
       };
 
       mockTaxiRequestModel.findById.mockResolvedValue(request);
+      mockTaxiRequestModel.findOneAndUpdate.mockResolvedValue(cancelled);
+      mockRideModel.findById.mockReturnValue(leanExec({ _id: rideId }));
 
       const result = await service.cancelRideRequest(requestId, passengerId);
 
       expect(result.success).toBe(true);
-      expect(request.status).toBe('cancelled');
-      expect(mockRideModel.updateOne).toHaveBeenCalled();
+      expect(mockTaxiRequestModel.findOneAndUpdate).toHaveBeenCalledWith(
+        { _id: requestId, status: { $in: ['searching', 'accepted', 'arrived'] } },
+        { $set: expect.objectContaining({ status: 'cancelled', cancelledBy: 'passenger' }) },
+        { new: true },
+      );
+      expect(mockRidesService.releaseHoldForRide).toHaveBeenCalledWith(rideId, expect.any(String));
       expect(mockTaxiModel.updateOne).toHaveBeenCalled();
+      expect(mockTaxiGateway.pushRideCancelledToDriver).toHaveBeenCalledWith(
+        driverId,
+        expect.objectContaining({
+          requestId,
+          rideReference: 'GZ-439011',
+          message: 'The customer has cancelled this booking.',
+        }),
+      );
+    });
+
+    it('is idempotent: a second cancel does not notify the driver again', async () => {
+      mockTaxiRequestModel.findById.mockResolvedValue({
+        _id: requestId,
+        status: 'cancelled',
+        passenger: passengerId,
+        acceptedDriver: driverId,
+      });
+
+      const result = await service.cancelRideRequest(requestId, passengerId);
+
+      expect(result.success).toBe(true);
+      expect(result.message).toContain('already cancelled');
+      expect(mockTaxiRequestModel.findOneAndUpdate).not.toHaveBeenCalled();
+      expect(mockTaxiGateway.pushRideCancelledToDriver).not.toHaveBeenCalled();
+      expect(mockNotificationsService.sendNotification).not.toHaveBeenCalled();
+    });
+
+    it('loses cleanly to a concurrent status change (e.g. ride started)', async () => {
+      mockTaxiRequestModel.findById
+        .mockResolvedValueOnce({ _id: requestId, status: 'arrived', passenger: passengerId })
+        .mockResolvedValueOnce({ _id: requestId, status: 'in_progress', passenger: passengerId });
+      mockTaxiRequestModel.findOneAndUpdate.mockResolvedValue(null);
+
+      const result = await service.cancelRideRequest(requestId, passengerId);
+
+      expect(result.success).toBe(false);
+      expect(mockTaxiGateway.pushRideCancelledToDriver).not.toHaveBeenCalled();
     });
 
     it('allows cancel when passenger id from auth is an ObjectId', async () => {
-      const requestId = '507f1f77bcf86cd799439011';
-      const passengerId = '507f1f77bcf86cd799439013';
       const objectIdLike = { toString: () => passengerId };
-
-      const request = {
-        _id: requestId,
-        status: 'searching',
-        passenger: passengerId,
-        save: jest.fn().mockResolvedValue(true),
-      };
+      const request = { _id: requestId, status: 'searching', passenger: passengerId };
 
       mockTaxiRequestModel.findById.mockResolvedValue(request);
+      mockTaxiRequestModel.findOneAndUpdate.mockResolvedValue({
+        ...request,
+        _id: { toString: () => requestId },
+        passenger: { toString: () => passengerId },
+        status: 'cancelled',
+      });
+      mockRideModel.findOne.mockReturnValue(leanExec(null));
 
-      const result = await service.cancelRideRequest(
-        requestId,
-        objectIdLike as any,
-      );
+      const result = await service.cancelRideRequest(requestId, objectIdLike as any);
 
       expect(result.success).toBe(true);
-      expect(request.status).toBe('cancelled');
+      expect(mockTaxiGateway.pushRideCancelledToDriver).not.toHaveBeenCalled();
     });
   });
 });

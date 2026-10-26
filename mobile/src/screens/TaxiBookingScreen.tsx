@@ -1,22 +1,41 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Platform, SafeAreaView, ActivityIndicator, Alert, TextInput, Modal
 } from 'react-native';
 import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, ThemeColors } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
-import { AmazonMap } from '@/components/AmazonMap';
+import { LiveMap } from '@/components/LiveMap';
 import { LocationAutocompleteInput } from '@/components/LocationAutocompleteInput';
 import { useLocationBias } from '@/hooks/useLocationBias';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, NavigationProp, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
 import { taxiBookingsApi, ridesApi } from '@/api';
 import * as Location from 'expo-location';
-import { getApiErrorMessage, haversineDistanceMiles, estimateDurationMinutes } from '@/utils/helpers';
+import { getApiErrorMessage } from '@/utils/helpers';
+import {
+  FareBreakdown,
+  fareLines,
+  formatPence,
+  metersToMilesLabel,
+  secondsToMinutesLabel,
+  VEHICLE_OPTIONS,
+  VehicleCategory,
+} from '@/utils/fare';
 import { canCancelRide, getCancelRideMessage } from '@/utils/cancellation';
 import { PlatformDateTimePicker } from '@/components/PlatformDateTimePicker';
 
 type TimingType = 'now' | 'leave_at' | 'arrive_by';
+
+type RideQuote = {
+  trip: { distanceMeters: number; durationSeconds: number; roadRoute: boolean };
+  approach: Record<
+    VehicleCategory,
+    { distanceMeters: number; durationSeconds: number; roadRoute: boolean; source: string }
+  >;
+  fares: Record<VehicleCategory, FareBreakdown>;
+  rules: { minimumFarePence: number };
+};
 
 type RouteParams = {
   TaxiBooking: { serviceId?: string; prefilledName?: string };
@@ -59,6 +78,15 @@ export function TaxiBookingScreen() {
 
   // Taxi Type
   const [taxiType, setTaxiType] = useState<'Normal car' | 'Mini Bus' | 'Bus'>('Normal car');
+  const selectedCategory: VehicleCategory =
+    VEHICLE_OPTIONS.find((o) => o.taxiType === taxiType)?.category || 'small';
+  const [quote, setQuote] = useState<RideQuote | null>(null);
+  const selectedFare = quote?.fares[selectedCategory];
+  const selectedApproach = quote?.approach[selectedCategory];
+
+  useEffect(() => {
+    if (quote) setEstimatedCost(quote.fares[selectedCategory].totalPence / 100);
+  }, [quote, selectedCategory]);
 
   // Submission
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -185,39 +213,38 @@ export function TaxiBookingScreen() {
 
     setCalculatingEstimate(true);
     try {
-      let miles = 4;
-      let mins = 12;
-
       const pickup = await resolvePickupCoordinates();
       const destination = await resolveDestinationCoordinates();
 
-      if (pickup && destination) {
-        miles = haversineDistanceMiles(
-          pickup.lat,
-          pickup.lng,
-          destination.lat,
-          destination.lng,
+      if (!pickup || !destination) {
+        Alert.alert(
+          'Location needed',
+          'We could not find the exact pickup or destination. Please use GPS or pick an address from the suggestions.',
         );
-        mins = estimateDurationMinutes(miles);
+        return;
       }
 
-      miles = Math.max(0.5, Math.round(miles * 10) / 10);
-      mins = Math.max(5, mins);
-
-      const res = await ridesApi.getEstimate('taxi', miles, mins);
-      if (res.data?.success && res.data.data) {
-        setEstimatedMiles(res.data.data.distanceMiles ?? miles);
-        setEstimatedDuration(res.data.data.durationMinutes ?? mins);
-        setEstimatedCost(res.data.data.totalCost ?? 0);
-      } else {
-        setEstimatedMiles(miles);
-        setEstimatedDuration(mins);
-        setEstimatedCost(Math.round((miles * 1.1 + mins * 0.2) * 100) / 100);
+      // Road-route price for all three vehicle sizes, calculated by the server
+      const res = await ridesApi.getQuote({
+        pickupLat: pickup.lat,
+        pickupLng: pickup.lng,
+        destinationLat: destination.lat,
+        destinationLng: destination.lng,
+        targetDriverId: targetServiceId || undefined,
+      });
+      if (!res.data?.success || !res.data.data) {
+        Alert.alert('Price unavailable', res.data?.message || 'Could not calculate a price. Please try again.');
+        return;
       }
 
+      const nextQuote = res.data.data as RideQuote;
+      setQuote(nextQuote);
+      setEstimatedMiles(nextQuote.trip.distanceMeters / 1609.344);
+      setEstimatedDuration(Math.max(1, Math.round(nextQuote.trip.durationSeconds / 60)));
+      setEstimatedCost(nextQuote.fares[selectedCategory].totalPence / 100);
       setShowPreviewModal(true);
-    } catch {
-      Alert.alert('Error', 'Could not calculate fare estimate. Please try again.');
+    } catch (err) {
+      Alert.alert('Error', getApiErrorMessage(err, 'Could not calculate fare estimate. Please try again.'));
     } finally {
       setCalculatingEstimate(false);
     }
@@ -254,6 +281,7 @@ export function TaxiBookingScreen() {
         scheduledTime: timingType !== 'now' ? scheduledTime.toISOString() : undefined,
         passengerNote: passengerNote || undefined,
         taxiType,
+        vehicleCategory: selectedCategory,
         targetDriverId: targetServiceId || undefined,
         estimatedDistanceMiles: estimatedMiles,
         estimatedDurationMinutes: estimatedDuration,
@@ -647,8 +675,8 @@ export function TaxiBookingScreen() {
           <View style={styles.timingRow}>
             {([
               { value: 'Normal car', label: '🚗 Normal Car', seats: '4 seats' },
-              { value: 'Mini Bus', label: '🚐 Mini Bus', seats: '6 seats' },
-              { value: 'Bus', label: '🚌 Bus', seats: '8 seats' },
+              { value: 'Mini Bus', label: '🚐 Mini Bus', seats: '6 seats · +£2' },
+              { value: 'Bus', label: '🚌 Bus', seats: '8 seats · +£4' },
             ] as const).map((opt) => (
               <TouchableOpacity
                 key={opt.value}
@@ -681,7 +709,9 @@ export function TaxiBookingScreen() {
           <View style={styles.pricingInfo}>
             <Ionicons name="information-circle-outline" size={18} color={colors.textSecondary} />
             <Text style={styles.pricingText}>
-              Fare: £1.10/mile + £0.20/min. Final cost calculated at trip end.
+              Your price covers the driver's road distance to you plus your trip, with a minimum fare.
+              You'll see the full breakdown before you confirm. The estimate is held in your wallet when the
+              ride starts and settled at the final fare.
             </Text>
           </View>
 
@@ -714,11 +744,12 @@ export function TaxiBookingScreen() {
       >
         <View style={styles.modalContainer}>
           {/* Map Background */}
-          <AmazonMap
+          <LiveMap
             pickupLat={pickupCoords?.lat ?? 51.5074}
             pickupLng={pickupCoords?.lng ?? -0.1278}
             destinationLat={destinationCoords?.lat ?? 51.515}
             destinationLng={destinationCoords?.lng ?? -0.12}
+            overlayPadding={{ bottom: 340 }}
           />
 
           <View style={styles.matchCard}>
@@ -738,9 +769,50 @@ export function TaxiBookingScreen() {
               <Text style={styles.matchPrice}>£{estimatedCost.toFixed(2)}</Text>
             </View>
 
-            <View style={styles.feeBadge}>
-              <Text style={styles.feeText}>£0.77 est. holiday entitlement included</Text>
-            </View>
+            {quote && (
+              <View style={styles.categoryRow}>
+                {VEHICLE_OPTIONS.map((opt) => (
+                  <TouchableOpacity
+                    key={opt.category}
+                    style={[styles.categoryChip, selectedCategory === opt.category && styles.categoryChipActive]}
+                    onPress={() => setTaxiType(opt.taxiType)}
+                  >
+                    <Text
+                      style={[styles.categoryChipLabel, selectedCategory === opt.category && styles.categoryChipLabelActive]}
+                    >
+                      {opt.label}
+                    </Text>
+                    <Text
+                      style={[styles.categoryChipPrice, selectedCategory === opt.category && styles.categoryChipLabelActive]}
+                    >
+                      {formatPence(quote.fares[opt.category].totalPence)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
+            {selectedApproach && (
+              <Text style={styles.approachText}>
+                {selectedApproach.source === 'none'
+                  ? 'No drivers online nearby right now — the driver distance is added when one accepts.'
+                  : `Nearest driver ${metersToMilesLabel(selectedApproach.distanceMeters)} away · arrives in about ${secondsToMinutesLabel(selectedApproach.durationSeconds)}${selectedApproach.roadRoute ? '' : ' (estimate)'}`}
+              </Text>
+            )}
+
+            {selectedFare && (
+              <View style={styles.breakdownBox}>
+                {fareLines(selectedFare).map((line) => (
+                  <View key={line.label} style={styles.breakdownRow}>
+                    <Text style={[styles.breakdownLabel, line.muted && { opacity: 0.6 }]}>{line.label}</Text>
+                    <Text style={styles.breakdownValue}>{line.value}</Text>
+                  </View>
+                ))}
+                <Text style={styles.breakdownNote}>
+                  Final fare uses the actual trip and any waiting you request. The driver's distance is updated when they accept.
+                </Text>
+              </View>
+            )}
 
             <View style={styles.matchRoute}>
               <View style={styles.matchRouteItem}>
@@ -755,7 +827,7 @@ export function TaxiBookingScreen() {
               <View style={styles.matchRouteItem}>
                 <View style={[styles.matchNode, { backgroundColor: '#EF4444', borderColor: '#EF4444' }]} />
                 <Text style={styles.matchRouteText} numberOfLines={2}>
-                  {estimatedDuration} mins ({estimatedMiles.toFixed(1)} mi){'\n'}
+                  {estimatedDuration} mins ({estimatedMiles.toFixed(1)} mi by road){'\n'}
                   {destinationAddress || destinationPostcode}
                 </Text>
               </View>
@@ -1002,6 +1074,21 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   matchCardTitle: { color: '#6B7280', fontSize: 15, fontWeight: 'bold' as any },
   closeBtn: { padding: 4 },
   matchPrice: { color: '#111827', fontSize: 44, fontWeight: 'bold' as any, letterSpacing: -1 },
+  categoryRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  categoryChip: {
+    flex: 1, paddingVertical: 8, paddingHorizontal: 6, borderRadius: 12,
+    borderWidth: 1, borderColor: '#E5E7EB', alignItems: 'center',
+  },
+  categoryChipActive: { backgroundColor: '#111827', borderColor: '#111827' },
+  categoryChipLabel: { color: '#374151', fontSize: 12, fontWeight: '600' as any },
+  categoryChipPrice: { color: '#111827', fontSize: 14, fontWeight: 'bold' as any, marginTop: 2 },
+  categoryChipLabelActive: { color: '#FFFFFF' },
+  approachText: { color: '#4B5563', fontSize: 13, marginTop: 10 },
+  breakdownBox: { backgroundColor: '#F9FAFB', borderRadius: 12, padding: 12, marginTop: 10, marginBottom: 12 },
+  breakdownRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, paddingVertical: 2 },
+  breakdownLabel: { flex: 1, color: '#4B5563', fontSize: 12 },
+  breakdownValue: { color: '#111827', fontSize: 12, fontWeight: '600' as any },
+  breakdownNote: { color: '#6B7280', fontSize: 11, marginTop: 6 },
   feeBadge: { backgroundColor: '#F3F4F6', alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, marginTop: 12, marginBottom: 20 },
   feeText: { color: '#6B7280', fontSize: 12, fontWeight: 'bold' as any },
   matchRoute: { marginBottom: 24, paddingLeft: 4 },

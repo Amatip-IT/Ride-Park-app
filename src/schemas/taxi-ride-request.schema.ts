@@ -117,6 +117,55 @@ export class TaxiRideRequest {
   @Prop({ type: Date })
   passengerConfirmedAt?: Date;
 
+  // ── Pricing (all money in pence, all distances in metres) ──
+  @Prop({ enum: ['small', 'medium', 'large'], default: 'small' })
+  vehicleCategory: string;
+
+  /** Pricing rules locked when the passenger was quoted; later admin changes don't alter this ride. */
+  @Prop({ type: Object })
+  pricingSnapshot?: Record<string, any>;
+
+  /** Road route pickup → destination at booking time. */
+  @Prop({ type: Number })
+  estimatedTripMeters?: number;
+
+  @Prop({ type: Number })
+  estimatedTripSeconds?: number;
+
+  /** Driver → pickup road distance: nearest-driver estimate at booking, replaced at acceptance. */
+  @Prop({ type: Number })
+  approachMeters?: number;
+
+  @Prop({ type: Number })
+  approachSeconds?: number;
+
+  @Prop({ enum: ['nearest_driver', 'target_driver', 'accepted_driver', 'none'] })
+  approachSource?: string;
+
+  /** Driver position captured when they accepted (start of the billable approach). */
+  @Prop({ type: Object })
+  driverStartLocation?: { lat: number; lng: number; capturedAt: Date };
+
+  @Prop({ type: Object })
+  quoteBreakdown?: Record<string, any>;
+
+  @Prop({ type: Number })
+  estimatedCostPence?: number;
+
+  // ── Cancellation ──
+  @Prop({ type: Date })
+  cancelledAt?: Date;
+
+  @Prop({ enum: ['passenger', 'driver', 'admin', 'system'] })
+  cancelledBy?: string;
+
+  @Prop({ type: String })
+  cancellationReason?: string;
+
+  /** Set when the driver has seen the cancellation popup; until then it is replayed on reconnect. */
+  @Prop({ type: Date, default: null })
+  driverCancelAcknowledgedAt?: Date | null;
+
   createdAt?: Date;
   updatedAt?: Date;
 }

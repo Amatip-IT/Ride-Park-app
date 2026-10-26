@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { adminApi } from '@/api';
 import { useFocusEffect } from '@react-navigation/native';
 import { AdminScreenLayout } from '@/components/admin/AdminScreenLayout';
+import { RidePricingSettings } from '@/components/admin/RidePricingSettings';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export function AdminPlatformSettingsScreen() {
@@ -77,7 +78,8 @@ export function AdminPlatformSettingsScreen() {
   }
 
   return (
-    <AdminScreenLayout title="Platform Settings" subtitle="Service fee & platform config" scroll contentContainerStyle={styles.scrollContent}>
+    <AdminScreenLayout title="Platform Settings" subtitle="Service fee, ride pricing & platform config" scroll contentContainerStyle={styles.scrollContent}>
+        <RidePricingSettings />
         {/* Current Fee Display */}
         <View style={styles.feeCard}>
           <View style={styles.feeIconContainer}>

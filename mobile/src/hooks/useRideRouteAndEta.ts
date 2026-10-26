@@ -1,10 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
-import {
-  computeLiveEtaMinutes,
-  fetchDrivingRoute,
-  getRouteEndpoints,
-  LatLng,
-} from '@/utils/routing';
+import { useMemo } from 'react';
+import { computeLiveEtaMinutes, getRouteEndpoints, LatLng } from '@/utils/routing';
+import { useLiveRoute } from '@/hooks/useLiveRoute';
 
 type RideRequestLike = {
   status?: string;
@@ -19,8 +15,6 @@ export function useRideRouteAndEta(
   request: RideRequestLike | null | undefined,
   driverLocation: { lat: number; lng: number } | null | undefined,
 ) {
-  const [routeCoordinates, setRouteCoordinates] = useState<LatLng[]>([]);
-
   const pickup = useMemo<LatLng | null>(() => {
     if (request?.pickupLat == null || request?.pickupLng == null) return null;
     return { lat: request.pickupLat, lng: request.pickupLng };
@@ -36,50 +30,39 @@ export function useRideRouteAndEta(
     return { lat: driverLocation.lat, lng: driverLocation.lng };
   }, [driverLocation?.lat, driverLocation?.lng]);
 
-  const routeEndpoints = useMemo(
+  const endpoints = useMemo(
     () => getRouteEndpoints(pickup, destination, driver, request?.status),
     [pickup, destination, driver, request?.status],
   );
 
-  useEffect(() => {
-    let cancelled = false;
-
-    const loadRoute = async () => {
-      if (!routeEndpoints) {
-        setRouteCoordinates([]);
-        return;
-      }
-
-      const coords = await fetchDrivingRoute(routeEndpoints.from, routeEndpoints.to);
-      if (!cancelled) {
-        setRouteCoordinates(coords);
-      }
-    };
-
-    loadRoute();
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    routeEndpoints?.from.lat,
-    routeEndpoints?.from.lng,
-    routeEndpoints?.to.lat,
-    routeEndpoints?.to.lng,
-  ]);
+  const driverLeg = !!driver && endpoints?.from === driver;
+  const {
+    coordinates: routeCoordinates,
+    remainingMeters,
+    etaMinutes: routeEtaMinutes,
+  } = useLiveRoute(
+    endpoints?.from || null,
+    endpoints?.to || null,
+    `${request?.status}:${driverLeg ? 'driver' : 'overview'}`,
+    driverLeg,
+  );
 
   const liveEtaMinutes = useMemo(() => {
     if (!request) return null;
 
-    if (
+    const live =
       driver &&
       (request.status === 'accepted' ||
         request.status === 'arrived' ||
-        request.status === 'in_progress')
-    ) {
-      const target =
-        request.status === 'in_progress' ? destination : pickup;
+        request.status === 'in_progress');
+
+    if (live) {
+      if (request.status === 'arrived') return 0;
+      if (driverLeg && routeEtaMinutes != null) return routeEtaMinutes;
+
+      const target = request.status === 'in_progress' ? destination : pickup;
       if (target?.lat) {
-        return computeLiveEtaMinutes(driver, target);
+        return computeLiveEtaMinutes(driver!, target);
       }
     }
 
@@ -88,24 +71,19 @@ export function useRideRouteAndEta(
     }
 
     return null;
-  }, [
-    request?.status,
-    request?.driverEtaMinutes,
-    driver,
-    pickup,
-    destination,
-  ]);
+  }, [request?.status, request?.driverEtaMinutes, driver, pickup, destination, driverLeg, routeEtaMinutes]);
 
   const etaLabel = useMemo(() => {
     if (liveEtaMinutes == null) return null;
+    if (request?.status === 'arrived') return 'Driver is at the pickup';
     if (request?.status === 'in_progress') {
       return `~${liveEtaMinutes} min to destination`;
     }
-    if (request?.status === 'accepted' || request?.status === 'arrived') {
+    if (request?.status === 'accepted') {
       return `~${liveEtaMinutes} min to pickup`;
     }
     return `~${liveEtaMinutes} min`;
   }, [liveEtaMinutes, request?.status]);
 
-  return { routeCoordinates, liveEtaMinutes, etaLabel };
+  return { routeCoordinates, liveEtaMinutes, etaLabel, remainingMeters };
 }

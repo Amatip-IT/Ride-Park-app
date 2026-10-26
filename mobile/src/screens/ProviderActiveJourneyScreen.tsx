@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, SafeAreaView,
-  ActivityIndicator, Alert, Linking,
+  ActivityIndicator, Alert, Linking, ScrollView,
 } from 'react-native';
 import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, ThemeColors } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { taxiBookingsApi, ridesApi } from '@/api';
-import { AmazonMap } from '@/components/AmazonMap';
+import { LiveMap } from '@/components/LiveMap';
+import { RideStopControl } from '@/components/RideStopControl';
+import { FareBreakdownCard } from '@/components/FareBreakdownCard';
 import * as Location from 'expo-location';
 import { useTaxiStore } from '@/store/taxiStore';
 import { useAuthStore } from '@/store/authStore';
@@ -18,7 +20,13 @@ import {
 } from '@/utils/helpers';
 import { useRideRouteAndEta } from '@/hooks/useRideRouteAndEta';
 
-type JourneyState = 'accepted' | 'arrived' | 'in_progress' | 'awaiting_payment' | 'completed';
+type JourneyState =
+  | 'accepted'
+  | 'arrived'
+  | 'in_progress'
+  | 'awaiting_payment'
+  | 'completed'
+  | 'cancelled';
 
 type ParamList = {
   ProviderActiveJourney: {
@@ -37,6 +45,8 @@ function mapRequestStatusToJourney(status?: string): JourneyState {
       return 'awaiting_payment';
     case 'completed':
       return 'completed';
+    case 'cancelled':
+      return 'cancelled';
     default:
       return 'accepted';
   }
@@ -76,6 +86,16 @@ export function ProviderActiveJourneyScreen() {
     setRequestItem(data);
     if (data?.status) {
       setJourneyState(mapRequestStatusToJourney(data.status));
+    }
+    // Covers a missed realtime event: polling or a refresh still raises the popup
+    if (data?.status === 'cancelled' && data?.cancelledBy === 'passenger' && !data?.driverCancelAcknowledgedAt) {
+      const id = String(data._id);
+      useTaxiStore.getState().addCancelNotice({
+        requestId: id,
+        rideReference: `GZ-${id.slice(-6).toUpperCase()}`,
+        title: 'Ride Cancelled',
+        message: 'The customer has cancelled this booking.',
+      });
     }
     const linkedRide = data?.ride?._id || data?.ride;
     if (linkedRide) {
@@ -309,7 +329,7 @@ export function ProviderActiveJourneyScreen() {
         } else {
           Alert.alert('Error', res.data?.message || 'Failed to complete ride');
         }
-      } else if (journeyState === 'completed') {
+      } else if (journeyState === 'completed' || journeyState === 'cancelled') {
         navigation.navigate('ProviderTabs', { screen: 'ProviderHome' });
       }
     } catch (err: unknown) {
@@ -370,6 +390,8 @@ export function ProviderActiveJourneyScreen() {
             : 'Waiting for Passenger Payment';
       case 'completed':
         return 'Finish & Return Home';
+      case 'cancelled':
+        return 'Ride cancelled — Return Home';
       default:
         return 'Continue';
     }
@@ -432,10 +454,7 @@ export function ProviderActiveJourneyScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.mapContainer}>
-        <TouchableOpacity style={styles.mapBackBtn} onPress={goHome} activeOpacity={0.8}>
-          <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
-        </TouchableOpacity>
-        <AmazonMap
+        <LiveMap
           pickupLat={requestItem.pickupLat}
           pickupLng={requestItem.pickupLng}
           destinationLat={requestItem.destinationLat}
@@ -445,10 +464,20 @@ export function ProviderActiveJourneyScreen() {
           driverRotation={driverLocation?.rotation}
           routeCoordinates={routeCoordinates}
           focusToken={mapFocusToken}
+          followDriver
+          overlayPadding={{ top: 48 }}
         />
+        {/* Rendered after the map so it stays above the native map view */}
+        <TouchableOpacity style={styles.mapBackBtn} onPress={goHome} activeOpacity={0.8}>
+          <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
+        </TouchableOpacity>
       </View>
 
-      <View style={styles.detailsContainer}>
+      <ScrollView
+        style={styles.detailsContainer}
+        contentContainerStyle={styles.detailsContent}
+        bounces={false}
+      >
         {fetchError && (
           <TouchableOpacity style={styles.errorBanner} onPress={() => fetchRequest()}>
             <Ionicons name="cloud-offline-outline" size={18} color={colors.coralRed} />
@@ -505,6 +534,36 @@ export function ProviderActiveJourneyScreen() {
           </Text>
         </TouchableOpacity>
 
+        {journeyState === 'in_progress' && requestItem?.ride && typeof requestItem.ride === 'object' && (
+          <RideStopControl
+            requestId={requestId}
+            ride={requestItem.ride}
+            role="driver"
+            onChanged={() => fetchRequest(false)}
+          />
+        )}
+
+        {journeyState === 'awaiting_payment' && requestItem?.ride?.fareBreakdown && (
+          <FareBreakdownCard fare={requestItem.ride.fareBreakdown} title="Trip fare" />
+        )}
+
+        {['awaiting_payment', 'completed', 'cancelled'].includes(journeyState) && (
+          <TouchableOpacity
+            style={styles.reportLink}
+            onPress={() =>
+              navigation.navigate('FileDispute', {
+                category: 'payment_issue',
+                relatedServiceType: 'ride',
+                relatedServiceId: rideId || requestId,
+                metadata: { requestId, rideReference: `GZ-${String(requestId).slice(-6).toUpperCase()}` },
+              })
+            }
+          >
+            <Ionicons name="flag-outline" size={14} color={colors.textSecondary} />
+            <Text style={styles.reportLinkText}>Report an issue with this ride</Text>
+          </TouchableOpacity>
+        )}
+
         {journeyState === 'completed' && requestItem?.ride?.paymentStatus === 'charged' && (
           <TouchableOpacity
             style={styles.receiptBtn}
@@ -528,7 +587,7 @@ export function ProviderActiveJourneyScreen() {
             <Text style={styles.mainBtnText}>{getActionText()}</Text>
           )}
         </TouchableOpacity>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -571,9 +630,20 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     shadowRadius: 4,
     elevation: 4,
   },
+  detailsContent: { padding: SPACING.xl },
+  reportLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: SPACING.sm,
+    marginBottom: SPACING.sm,
+  },
+  reportLinkText: { color: colors.textSecondary, fontSize: 13, textDecorationLine: 'underline' },
   detailsContainer: {
+    flexGrow: 0,
+    maxHeight: '62%',
     backgroundColor: colors.surface,
-    padding: SPACING.xl,
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
     shadowColor: '#000',

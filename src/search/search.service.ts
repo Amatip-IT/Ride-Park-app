@@ -11,6 +11,7 @@ import { User, UserDocument } from 'src/schemas/user.schema';
 import { Response } from 'src/common/interfaces/response.interface';
 import { What3WordsService } from 'src/utility/what3words.service';
 import { AmazonLocationService } from 'src/utility/amazon-location.service';
+import { RoutesService } from './routes.service';
 
 /** Escape special regex characters to prevent ReDoS attacks */
 function escapeRegex(str: string): string {
@@ -76,7 +77,42 @@ export class SearchService {
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     private readonly what3wordsService: What3WordsService,
     private readonly amazonLocationService: AmazonLocationService,
+    private readonly routesService: RoutesService,
   ) {}
+
+  /** Adds road distance and drive time from each provider to the customer. */
+  private async withRoadEta<T extends NearbyProviderRecord>(
+    items: T[],
+    lat: number,
+    lng: number,
+  ): Promise<Array<T & { roadDistanceMeters?: number; etaSeconds?: number; etaIsEstimate?: boolean }>> {
+    const withCoords = items.filter((item) => {
+      const c = item.location?.coordinates;
+      return c?.lat != null && c?.lng != null;
+    });
+    if (withCoords.length === 0) return items;
+
+    const legs = await this.routesService.getMatrixToDestination(
+      withCoords.map((item) => ({
+        lat: item.location!.coordinates!.lat!,
+        lng: item.location!.coordinates!.lng!,
+      })),
+      { lat, lng },
+    );
+
+    const byItem = new Map(withCoords.map((item, i) => [item, legs[i]]));
+    return items.map((item) => {
+      const leg = byItem.get(item);
+      return leg
+        ? {
+            ...item,
+            roadDistanceMeters: leg.distanceMeters,
+            etaSeconds: leg.durationSeconds,
+            etaIsEstimate: !leg.roadRoute,
+          }
+        : item;
+    });
+  }
 
   /**
    * Search parking spaces by location query (postcode, town name, etc.)
@@ -421,7 +457,11 @@ export class SearchService {
 
       if (ranked.length > 0) {
         const total = ranked.length;
-        const pageItems = ranked.slice(skip, skip + limit);
+        const pageItems = await this.withRoadEta(
+          ranked.slice(skip, skip + limit),
+          lat,
+          lng,
+        );
         return {
           success: true,
           data: pageItems,
@@ -629,7 +669,11 @@ export class SearchService {
 
       if (ranked.length > 0) {
         const total = ranked.length;
-        const pageItems = ranked.slice(skip, skip + limit);
+        const pageItems = await this.withRoadEta(
+          ranked.slice(skip, skip + limit),
+          lat,
+          lng,
+        );
         return {
           success: true,
           data: pageItems,

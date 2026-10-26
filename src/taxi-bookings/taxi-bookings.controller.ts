@@ -54,6 +54,8 @@ export class TaxiBookingsController {
       estimatedDistanceMiles?: number;
       estimatedDurationMinutes?: number;
       estimatedCost?: number;
+      taxiType?: string;
+      vehicleCategory?: string;
     },
   ) {
     const passengerId = getRequestUserId(req);
@@ -217,6 +219,43 @@ export class TaxiBookingsController {
       throw new HttpException(result, HttpStatus.BAD_REQUEST);
     }
     return result;
+  }
+
+  /**
+   * PATCH /taxi-bookings/:id/stops/start | /stops/end
+   * Passenger or driver starts/ends a stop on the active trip (server-timed).
+   */
+  @Patch(':id/stops/:action')
+  @RateLimit({ limit: 30, windowMs: 60_000 })
+  async changeStop(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Param('action') action: string,
+  ) {
+    if (action !== 'start' && action !== 'end') {
+      throw new HttpException(
+        { success: false, message: 'Unknown stop action' },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    const result = await this.taxiBookingsService.changeStop(
+      id,
+      getRequestUserId(req),
+      action,
+    );
+    if (!result.success) {
+      throw new HttpException(result, HttpStatus.BAD_REQUEST);
+    }
+    return result;
+  }
+
+  /**
+   * POST /taxi-bookings/:id/cancel-ack
+   * Driver has seen the "customer cancelled" popup; stop replaying it on reconnect.
+   */
+  @Post(':id/cancel-ack')
+  async acknowledgeCancellation(@Req() req: any, @Param('id') id: string) {
+    return this.taxiBookingsService.acknowledgeCancellation(id, getRequestUserId(req));
   }
 
   /**

@@ -1,8 +1,10 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ActivityIndicator,
-  Alert, TextInput,
+  Alert, TextInput, Linking,
 } from 'react-native';
+import { FareBreakdownCard } from '@/components/FareBreakdownCard';
+import { formatElapsed, formatPence, metersToMilesLabel } from '@/utils/fare';
 import { disputesApi } from '@/api';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS, ThemeColors } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
@@ -14,7 +16,7 @@ import { AdminFormModal } from '@/components/admin/AdminFormModal';
 const RESOLUTIONS = [
   { id: 'override_driver_approval', label: 'Approve Driver', needsRecord: true },
   { id: 'override_provider_approval', label: 'Approve Provider', needsRecord: true },
-  { id: 'issue_refund', label: 'Issue Refund', needsRefund: true },
+  { id: 'issue_refund', label: 'Refund / Fare Adjustment', needsRefund: true },
   { id: 'suspend_user', label: 'Suspend User', needsSuspend: true },
   { id: 'close_no_action', label: 'Close (No Action)' },
   { id: 'other', label: 'Other Resolution' },
@@ -120,7 +122,51 @@ export function AdminDisputeDetailScreen() {
     }
   };
 
+  const runAction = async (fn: () => Promise<any>, done: string) => {
+    setProcessing(true);
+    try {
+      const res = await fn();
+      if (res.data?.success) {
+        Alert.alert('Done', res.data.message || done);
+        loadDispute();
+      } else {
+        Alert.alert('Error', res.data?.message || 'Action failed');
+      }
+    } catch (err: any) {
+      Alert.alert('Error', err?.response?.data?.message || 'Action failed');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleAddNote = () => {
+    if (!adminNotes.trim()) {
+      Alert.alert('Note', 'Type a note first.');
+      return;
+    }
+    runAction(() => disputesApi.addDisputeNote(disputeId, adminNotes.trim()), 'Note added').then(() =>
+      setAdminNotes(''),
+    );
+  };
+
+  const handleReject = () => {
+    if (!adminNotes.trim()) {
+      Alert.alert('Reason needed', 'Write the reason for rejecting in the notes box first. It is sent to the user.');
+      return;
+    }
+    Alert.alert('Reject dispute?', 'No money will move. The user is told the dispute was not upheld.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Reject',
+        style: 'destructive',
+        onPress: () => runAction(() => disputesApi.rejectDispute(disputeId, adminNotes.trim()), 'Dispute rejected'),
+      },
+    ]);
+  };
+
   const resolutionMeta = RESOLUTIONS.find(r => r.id === selectedResolution);
+  const ctx = dispute?.rideContext;
+  const ride = ctx?.ride;
 
   if (loading) {
     return (
@@ -150,13 +196,135 @@ export function AdminDisputeDetailScreen() {
     <AdminScreenLayout title="Dispute Case" subtitle={dispute.category?.replace(/_/g, ' ')} scroll contentContainerStyle={styles.scroll}>
         <View style={styles.badgeRow}>
           <View style={[styles.badge, { backgroundColor: `${colors.amber}20` }]}>
-            <Text style={[styles.badgeText, { color: colors.amber }]}>{dispute.status}</Text>
+            <Text style={[styles.badgeText, { color: colors.amber }]}>
+              {({ investigating: 'Under Review' } as Record<string, string>)[dispute.status] || dispute.status}
+            </Text>
           </View>
           <Text style={styles.category}>{dispute.category?.replace(/_/g, ' ')}</Text>
         </View>
 
         <Text style={styles.label}>Filed By</Text>
-        <Text style={styles.value}>{filer.firstName} {filer.lastName} · {filer.email}</Text>
+        <Text style={styles.value}>
+          {filer.firstName} {filer.lastName} · {filer.email}
+          {dispute.filedByRole && dispute.filedByRole !== 'other' ? ` (${dispute.filedByRole})` : ''}
+        </Text>
+
+        {dispute.assignedTo && (
+          <>
+            <Text style={styles.label}>Assigned To</Text>
+            <Text style={styles.value}>
+              {dispute.assignedTo.firstName} {dispute.assignedTo.lastName}
+            </Text>
+          </>
+        )}
+
+        {ctx && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Ride {ctx.rideReference || ''}</Text>
+            {ride ? (
+              <>
+                <Text style={styles.value}>
+                  {ride.status} · payment {ride.paymentStatus} ({ride.paymentMethod || 'card'}) ·{' '}
+                  {ride.vehicleCategory}
+                </Text>
+                <Text style={styles.small}>
+                  {ride.pickup?.address || 'Pickup'} → {ride.dropoff?.address || 'Drop-off'}
+                </Text>
+                <Text style={styles.small}>
+                  Passenger: {ride.passenger?.firstName} {ride.passenger?.lastName} · Driver: {ride.driver?.firstName}{' '}
+                  {ride.driver?.lastName}
+                </Text>
+                <Text style={styles.small}>
+                  Distance — approach {metersToMilesLabel(ride.approachMeters)}, estimated trip{' '}
+                  {metersToMilesLabel(ride.estimatedTripMeters)}, GPS recorded {metersToMilesLabel(ride.recordedTripMeters)},
+                  billed trip {metersToMilesLabel(ride.billedTripMeters)}
+                  {ride.fareBreakdown?.tripDistanceBasis ? ` (${ride.fareBreakdown.tripDistanceBasis})` : ''}
+                </Text>
+                {ride.startedAt && (
+                  <Text style={styles.small}>
+                    {new Date(ride.startedAt).toLocaleString()} →{' '}
+                    {ride.completedAt ? new Date(ride.completedAt).toLocaleString() : 'not completed'}
+                  </Text>
+                )}
+                {ride.fareBreakdown && (
+                  <View style={{ marginTop: SPACING.sm }}>
+                    <FareBreakdownCard fare={ride.fareBreakdown} title="Fare charged" />
+                  </View>
+                )}
+                {ride.hold && ride.hold.status !== 'none' && (
+                  <Text style={styles.small}>
+                    Wallet hold: {formatPence(ride.hold.amountPence)} · {ride.hold.status}
+                    {ride.hold.capturedAmountPence != null ? ` · captured ${formatPence(ride.hold.capturedAmountPence)}` : ''}
+                    {ride.hold.failureReason ? ` · ${ride.hold.failureReason}` : ''}
+                  </Text>
+                )}
+                {(ride.stops || []).length > 0 && (
+                  <>
+                    <Text style={styles.label}>Stops</Text>
+                    {ride.stops.map((s: any, i: number) => (
+                      <Text key={`stop-${i}`} style={styles.small}>
+                        {i + 1}. {s.initiatedBy} · {new Date(s.startedAt).toLocaleTimeString()}–
+                        {s.endedAt ? new Date(s.endedAt).toLocaleTimeString() : 'open'} ·{' '}
+                        {formatElapsed(s.durationSeconds || 0)} · {formatPence(s.chargePence)}
+                      </Text>
+                    ))}
+                  </>
+                )}
+              </>
+            ) : (
+              <Text style={styles.small}>
+                Ride never started · request {ctx.request?.status}
+                {ctx.request?.cancelledBy ? ` (cancelled by ${ctx.request.cancelledBy})` : ''}
+              </Text>
+            )}
+            {(ctx.walletTransactions || []).length + (ctx.driverEarnings || []).length > 0 && (
+              <>
+                <Text style={styles.label}>Transactions</Text>
+                {[...(ctx.walletTransactions || []), ...(ctx.driverEarnings || [])].map((t: any) => (
+                  <Text key={t._id} style={styles.small}>
+                    {t.createdAt ? new Date(t.createdAt).toLocaleString() : ''} · {t.type.replace(/_/g, ' ')} ·{' '}
+                    {t.amountPence != null ? formatPence(t.amountPence) : `£${Number(t.amount || 0).toFixed(2)}`} ·{' '}
+                    {t.status}
+                  </Text>
+                ))}
+              </>
+            )}
+          </View>
+        )}
+
+        {(dispute.evidenceUrls || []).length > 0 && (
+          <>
+            <Text style={styles.label}>Evidence</Text>
+            {dispute.evidenceUrls.map((url: string, i: number) => (
+              <TouchableOpacity key={`${url}-${i}`} onPress={() => Linking.openURL(url)}>
+                <Text style={[styles.small, { color: colors.electricTeal }]}>Evidence {i + 1} (open)</Text>
+              </TouchableOpacity>
+            ))}
+          </>
+        )}
+
+        {(dispute.internalNotes || []).length > 0 && (
+          <>
+            <Text style={styles.label}>Internal note history</Text>
+            {dispute.internalNotes.map((n: any, i: number) => (
+              <Text key={`note-${i}`} style={styles.small}>
+                {new Date(n.at).toLocaleString()} · {n.note}
+              </Text>
+            ))}
+          </>
+        )}
+
+        {(dispute.statusHistory || []).length > 0 && (
+          <>
+            <Text style={styles.label}>Status history</Text>
+            {dispute.statusHistory.map((h: any, i: number) => (
+              <Text key={`hist-${i}`} style={styles.small}>
+                {new Date(h.at).toLocaleString()} · {h.status}
+                {h.note ? ` — ${h.note}` : ''}
+              </Text>
+            ))}
+          </>
+        )}
 
         {about && (
           <>
@@ -195,19 +363,44 @@ export function AdminDisputeDetailScreen() {
           blurOnSubmit
         />
 
-        {dispute.status !== 'resolved' && dispute.status !== 'closed' && (
-          <View style={styles.actions}>
-            {dispute.status === 'open' && (
-              <TouchableOpacity style={styles.investigateBtn} onPress={handleInvestigate} disabled={processing}>
-                <Ionicons name="search-outline" size={18} color={colors.info} />
-                <Text style={[styles.actionText, { color: colors.info }]}>Investigate</Text>
+        <TouchableOpacity style={styles.noteBtn} onPress={handleAddNote} disabled={processing}>
+          <Ionicons name="create-outline" size={16} color={colors.electricTeal} />
+          <Text style={[styles.actionText, { color: colors.electricTeal }]}>Save internal note</Text>
+        </TouchableOpacity>
+
+        {!['resolved', 'closed', 'rejected'].includes(dispute.status) && (
+          <>
+            <View style={styles.actions}>
+              {dispute.status === 'open' && (
+                <TouchableOpacity style={styles.investigateBtn} onPress={handleInvestigate} disabled={processing}>
+                  <Ionicons name="search-outline" size={18} color={colors.info} />
+                  <Text style={[styles.actionText, { color: colors.info }]}>Investigate</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={styles.investigateBtn}
+                onPress={() => runAction(() => disputesApi.assignDispute(disputeId), 'Assigned to you')}
+                disabled={processing}
+              >
+                <Ionicons name="person-add-outline" size={18} color={colors.info} />
+                <Text style={[styles.actionText, { color: colors.info }]}>Assign to me</Text>
               </TouchableOpacity>
-            )}
-            <TouchableOpacity style={styles.resolveBtn} onPress={() => setResolveModal(true)} disabled={processing}>
-              <Ionicons name="checkmark-circle-outline" size={18} color="#FFF" />
-              <Text style={styles.resolveBtnText}>Resolve</Text>
-            </TouchableOpacity>
-          </View>
+            </View>
+            <View style={styles.actions}>
+              <TouchableOpacity
+                style={[styles.investigateBtn, { borderColor: colors.coralRed }]}
+                onPress={handleReject}
+                disabled={processing}
+              >
+                <Ionicons name="close-circle-outline" size={18} color={colors.coralRed} />
+                <Text style={[styles.actionText, { color: colors.coralRed }]}>Reject</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.resolveBtn} onPress={() => setResolveModal(true)} disabled={processing}>
+                <Ionicons name="checkmark-circle-outline" size={18} color="#FFF" />
+                <Text style={styles.resolveBtnText}>Resolve</Text>
+              </TouchableOpacity>
+            </View>
+          </>
         )}
     </AdminScreenLayout>
 
@@ -318,7 +511,17 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     padding: SPACING.md, color: colors.textPrimary,
     borderWidth: 1, borderColor: colors.border,
   },
-  actions: { flexDirection: 'row', gap: SPACING.md, marginTop: SPACING.xl },
+  actions: { flexDirection: 'row', gap: SPACING.md, marginTop: SPACING.md },
+  section: {
+    marginTop: SPACING.lg, padding: SPACING.md, borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface,
+  },
+  sectionTitle: { color: colors.textPrimary, fontWeight: FONT_WEIGHTS.bold, marginBottom: SPACING.xs },
+  small: { color: colors.textSecondary, fontSize: FONT_SIZES.small, lineHeight: 18, marginTop: 2 },
+  noteBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.xs, alignSelf: 'flex-end',
+    paddingVertical: SPACING.sm,
+  },
   investigateBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACING.xs,
     padding: SPACING.md, borderRadius: BORDER_RADIUS.md,

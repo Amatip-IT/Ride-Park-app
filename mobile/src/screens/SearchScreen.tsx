@@ -14,6 +14,7 @@ import { searchLocationByText, PlaceSuggestion } from '@/api/amazonLocation';
 import { useLocationBias } from '@/hooks/useLocationBias';
 import { getApiErrorMessage } from '@/utils/helpers';
 import { ProviderRating } from '@/components/ProviderRating';
+import { metersToMilesLabel, secondsToMinutesLabel } from '@/utils/fare';
 
 type ServiceType = 'parking' | 'driver' | 'taxi';
 
@@ -373,14 +374,23 @@ export function SearchScreen() {
             <Ionicons name="location-outline" size={13} color={colors.textSecondary} />
             <Text style={styles.badgeText}>{user.address?.town || user.postCode || 'N/A'}</Text>
           </View>
-          <View style={styles.badge}>
-            <Ionicons name="cash-outline" size={13} color={colors.textSecondary} />
-            <Text style={styles.badgeText}>£1.10/mile</Text>
-          </View>
+          {renderEtaBadge(item)}
         </View>
       </TouchableOpacity>
     );
   };
+
+  /** Road distance + drive time from the driver to the searched location (from the server). */
+  const renderEtaBadge = (item: any) =>
+    item.roadDistanceMeters != null ? (
+      <View style={styles.badge}>
+        <Ionicons name="time-outline" size={13} color={colors.electricTeal} />
+        <Text style={[styles.badgeText, { color: colors.electricTeal }]}>
+          {metersToMilesLabel(item.roadDistanceMeters)} · {secondsToMinutesLabel(item.etaSeconds)} away
+          {item.etaIsEstimate ? ' (est.)' : ''}
+        </Text>
+      </View>
+    ) : null;
 
   const renderTaxiCard = (item: any) => {
     const user = item.user || {};
@@ -415,10 +425,7 @@ export function SearchScreen() {
             <Ionicons name="location-outline" size={13} color={colors.textSecondary} />
             <Text style={styles.badgeText}>{user.address?.town || user.postCode || 'N/A'}</Text>
           </View>
-          <View style={styles.badge}>
-            <Ionicons name="cash-outline" size={13} color={colors.textSecondary} />
-            <Text style={styles.badgeText}>£1.10/mi + £0.20/min</Text>
-          </View>
+          {renderEtaBadge(item)}
         </View>
       </TouchableOpacity>
     );
@@ -737,9 +744,9 @@ export function SearchScreen() {
                     <View style={styles.modalPricingRow}>
                       <Ionicons name="cash-outline" size={18} color={colors.textSecondary} />
                       <Text style={styles.modalPricingText}>
-                        {serviceType === 'taxi'
-                          ? 'Rate: £1.10 per mile + £0.20 per minute'
-                          : 'Rate: £1.10 per mile'}
+                        {selectedDriver?.roadDistanceMeters != null
+                          ? `${metersToMilesLabel(selectedDriver.roadDistanceMeters)} away · arrives in about ${secondsToMinutesLabel(selectedDriver.etaSeconds)}. You'll see the full price before booking.`
+                          : "You'll see the full price before booking."}
                       </Text>
                     </View>
                     <View style={styles.modalPricingRow}>

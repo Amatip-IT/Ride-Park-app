@@ -267,9 +267,12 @@ export class WalletService {
       { type: 'wallet_top_up' },
     );
 
+    await this.getWallet(userId);
+    // Atomic increment: a read-modify-save here could overwrite a concurrent ride hold
+    await this.walletModel.updateOne({ providerId: new Types.ObjectId(userId) }, [
+      { $set: { balance: { $round: [{ $add: ['$balance', amount] }, 2] } } },
+    ] as any);
     const wallet = await this.getWallet(userId);
-    wallet.balance += amount;
-    await wallet.save();
 
     await this.transactionModel.create({
       providerId: new Types.ObjectId(userId),
@@ -664,10 +667,13 @@ export class WalletService {
     grossAmount: number,
     referenceId: string,
     stripePaymentIntentId?: string,
+    options?: { fundedByCustomerWallet?: boolean },
   ) {
+    // Wallet-funded rides were paid by earlier Stripe top-ups, settled server-side before this call
     if (
       grossAmount > 0 &&
       !stripePaymentIntentId &&
+      !options?.fundedByCustomerWallet &&
       process.env.NODE_ENV !== 'test'
     ) {
       throw new Error(

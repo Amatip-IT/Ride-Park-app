@@ -22,6 +22,33 @@ export class RidesController {
    * POST /rides/estimate
    * Get a price estimate for a ride
    */
+  /**
+   * POST /rides/quote
+   * Road-route quote (driver approach + trip) for every vehicle category.
+   */
+  @Post('quote')
+  @UseGuards(AuthGuard)
+  async getQuote(
+    @Body()
+    body: {
+      pickupLat: number;
+      pickupLng: number;
+      destinationLat: number;
+      destinationLng: number;
+      targetDriverId?: string;
+    },
+  ) {
+    const result = await this.ridesService.getQuote({
+      pickupLat: body.pickupLat,
+      pickupLng: body.pickupLng,
+      destinationLat: body.destinationLat,
+      destinationLng: body.destinationLng,
+      targetTaxiId: body.targetDriverId,
+    });
+    if (!result.success) throw new HttpException(result, HttpStatus.BAD_REQUEST);
+    return result;
+  }
+
   @Post('estimate')
   async getEstimate(
     @Body()
@@ -29,6 +56,7 @@ export class RidesController {
       serviceType: 'driver' | 'taxi';
       distanceMiles: number;
       durationMinutes: number;
+      vehicleCategory?: string;
     },
   ) {
     if (!body.serviceType || !body.distanceMiles) {
@@ -45,6 +73,7 @@ export class RidesController {
       body.serviceType,
       body.distanceMiles,
       body.durationMinutes || 0,
+      body.vehicleCategory,
     );
   }
 

@@ -35,12 +35,24 @@ export class AdminDisputesController {
     @Query('category') category?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('ride') rideReference?: string,
+    @Query('customerId') customerId?: string,
+    @Query('driverId') driverId?: string,
+    @Query('filedByRole') filedByRole?: string,
   ) {
     const result = await this.disputesService.getAdminDisputes({
       status,
       category,
       page: page ? parseInt(page, 10) : undefined,
       limit: limit ? parseInt(limit, 10) : undefined,
+      from,
+      to,
+      rideReference,
+      customerId,
+      driverId,
+      filedByRole,
     });
     if (!result.success) {
       throw new HttpException(result, HttpStatus.INTERNAL_SERVER_ERROR);
@@ -75,6 +87,35 @@ export class AdminDisputesController {
     if (!result.success) {
       throw new HttpException(result, HttpStatus.BAD_REQUEST);
     }
+    return result;
+  }
+
+  @Post(':id/assign')
+  @RateLimit({ limit: 30, windowMs: 60_000 })
+  async assignDispute(
+    @Param('id') id: string,
+    @Body() body: { adminId?: string },
+    @Req() req: any,
+  ) {
+    const audit = this.auditContext(req);
+    const result = await this.disputesService.assignDispute(id, body.adminId || audit.adminId, audit);
+    if (!result.success) throw new HttpException(result, HttpStatus.BAD_REQUEST);
+    return result;
+  }
+
+  @Post(':id/notes')
+  @RateLimit({ limit: 60, windowMs: 60_000 })
+  async addNote(@Param('id') id: string, @Body() body: { note: string }, @Req() req: any) {
+    const result = await this.disputesService.addInternalNote(id, body.note, this.auditContext(req));
+    if (!result.success) throw new HttpException(result, HttpStatus.BAD_REQUEST);
+    return result;
+  }
+
+  @Post(':id/reject')
+  @RateLimit({ limit: 20, windowMs: 60_000 })
+  async rejectDispute(@Param('id') id: string, @Body() body: { reason: string }, @Req() req: any) {
+    const result = await this.disputesService.rejectDispute(id, body.reason, this.auditContext(req));
+    if (!result.success) throw new HttpException(result, HttpStatus.BAD_REQUEST);
     return result;
   }
 

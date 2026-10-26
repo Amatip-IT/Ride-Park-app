@@ -2,6 +2,7 @@ import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { RidesService } from './rides.service';
 import { RidesController } from './rides.controller';
+import { RidePricingService } from './ride-pricing.service';
 import { Ride, RideSchema } from 'src/schemas/ride.schema';
 import {
   TaxiRideRequest,
@@ -29,7 +30,7 @@ import { PaymentsModule } from 'src/payments/payments.module';
     forwardRef(() => PaymentsModule),
   ],
   controllers: [RidesController],
-  providers: [RidesService],
-  exports: [RidesService],
+  providers: [RidesService, RidePricingService],
+  exports: [RidesService, RidePricingService],
 })
 export class RidesModule {}

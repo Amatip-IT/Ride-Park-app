@@ -40,6 +40,7 @@ export function WalletScreenContent() {
   const [refreshing, setRefreshing] = React.useState(false);
   const [loadError, setLoadError] = React.useState<string | null>(null);
   const [walletBalance, setWalletBalance] = React.useState(0);
+  const [heldBalance, setHeldBalance] = React.useState(0);
   const [isTopUpModalVisible, setTopUpModalVisible] = React.useState(false);
   const [topUpAmount, setTopUpAmount] = React.useState('');
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
@@ -72,6 +73,7 @@ export function WalletScreenContent() {
 
     if (walletResult.status === 'fulfilled' && walletResult.value.data?.success) {
       setWalletBalance(walletResult.value.data.data.balance || 0);
+      setHeldBalance(walletResult.value.data.data.heldBalance || 0);
     } else if (walletResult.status === 'rejected') {
       setLoadError(getApiErrorMessage(walletResult.reason, 'Failed to load wallet balance'));
     }
@@ -321,11 +323,17 @@ export function WalletScreenContent() {
           <View style={styles.balanceCard}>
             <Text style={styles.balanceLabel}>Available Balance</Text>
             <Text style={styles.balanceAmount}>{formatCurrency(walletBalance)}</Text>
+            {heldBalance > 0 && (
+              <Text style={styles.heldText}>
+                {formatCurrency(heldBalance)} held for a ride in progress
+              </Text>
+            )}
             <Text style={styles.balanceNote}>
-              Optional prepaid balance. Service bookings still charge your card — not this balance.
+              Taxi rides are paid from this balance: the estimated fare is held when your ride starts and settled
+              at the final fare. If your balance is short, we top it up from your saved card.
             </Text>
             <TouchableOpacity style={styles.topUpBtnSecondary} onPress={openTopUpModal} activeOpacity={0.8}>
-              <Text style={styles.topUpTextSecondary}>Add funds (optional)</Text>
+              <Text style={styles.topUpTextSecondary}>Add funds</Text>
             </TouchableOpacity>
           </View>
 
@@ -438,6 +446,7 @@ const makeStyles = (colors: ThemeColors) =>
     balanceLabel: { color: colors.textSecondary, fontSize: 14, fontWeight: FONT_WEIGHTS.medium, marginBottom: SPACING.xs },
     balanceAmount: { color: colors.textPrimary, fontSize: 28, fontWeight: FONT_WEIGHTS.bold, marginBottom: SPACING.sm },
     balanceNote: { color: colors.textTertiary, fontSize: 12, lineHeight: 17, marginBottom: SPACING.md },
+    heldText: { color: colors.amber, fontSize: 13, fontWeight: FONT_WEIGHTS.semibold, marginBottom: SPACING.sm },
     topUpBtnSecondary: {
       alignSelf: 'flex-start', paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm,
       borderRadius: BORDER_RADIUS.full, borderWidth: 1, borderColor: colors.border,

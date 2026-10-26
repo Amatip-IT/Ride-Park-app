@@ -69,8 +69,30 @@ export function DisputeDetailScreen() {
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.statusRow}>
           <Text style={styles.statusLabel}>Status</Text>
-          <Text style={styles.statusValue}>{dispute.status}</Text>
+          <Text style={styles.statusValue}>
+            {({ investigating: 'Under Review' } as Record<string, string>)[dispute.status] || dispute.status}
+          </Text>
         </View>
+
+        {dispute.rideReference ? (
+          <>
+            <Text style={styles.sectionLabel}>Ride</Text>
+            <Text style={styles.bodyText}>{dispute.rideReference}</Text>
+          </>
+        ) : null}
+
+        {Array.isArray(dispute.statusHistory) && dispute.statusHistory.length > 0 && (
+          <>
+            <Text style={styles.sectionLabel}>Updates</Text>
+            {dispute.statusHistory.map((entry: any, i: number) => (
+              <Text key={`${entry.status}-${i}`} style={styles.notesText}>
+                {new Date(entry.at).toLocaleString()} ·{' '}
+                {({ investigating: 'Under Review' } as Record<string, string>)[entry.status] || entry.status}
+                {entry.note ? ` — ${entry.note}` : ''}
+              </Text>
+            ))}
+          </>
+        )}
 
         <Text style={styles.sectionLabel}>Category</Text>
         <Text style={styles.bodyText}>{dispute.category?.replace(/_/g, ' ')}</Text>

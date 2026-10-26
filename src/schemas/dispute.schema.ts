@@ -12,10 +12,12 @@ export const DISPUTE_CATEGORIES = [
   'other',
 ] as const;
 
+/** investigating = "Under Review" in the apps. */
 export const DISPUTE_STATUSES = [
   'open',
   'investigating',
   'resolved',
+  'rejected',
   'closed',
 ] as const;
 
@@ -90,6 +92,51 @@ export class Dispute {
 
   @Prop({ type: Object })
   metadata?: Record<string, unknown>;
+
+  // ── Ride link (set when the dispute is about a taxi/chauffeur ride) ──
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Ride', index: true })
+  rideId?: string;
+
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'TaxiRideRequest', index: true })
+  rideRequestId?: string;
+
+  /** Short ride reference shown in the apps, e.g. GZ-4F2A9C. */
+  @Prop({ type: String, index: true })
+  rideReference?: string;
+
+  @Prop({ enum: ['customer', 'driver', 'other'], default: 'other' })
+  filedByRole: string;
+
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', index: true })
+  customerId?: string;
+
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', index: true })
+  driverId?: string;
+
+  @Prop({
+    type: [
+      {
+        status: String,
+        changedBy: { type: MongooseSchema.Types.ObjectId, ref: 'User' },
+        note: String,
+        at: { type: Date, default: Date.now },
+      },
+    ],
+    default: [],
+  })
+  statusHistory: Array<{ status: string; changedBy?: string; note?: string; at: Date }>;
+
+  @Prop({
+    type: [
+      {
+        adminId: { type: MongooseSchema.Types.ObjectId, ref: 'User' },
+        note: String,
+        at: { type: Date, default: Date.now },
+      },
+    ],
+    default: [],
+  })
+  internalNotes: Array<{ adminId: string; note: string; at: Date }>;
 }
 
 export const DisputeSchema = SchemaFactory.createForClass(Dispute);

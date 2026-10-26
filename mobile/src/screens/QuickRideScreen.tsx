@@ -9,9 +9,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, NavigationProp } from '@react-navigation/native';
 import * as Location from 'expo-location';
 import { searchLocationByText, PlaceSuggestion } from '@/api/amazonLocation';
-import { searchApi, taxiBookingsApi } from '@/api';
+import { searchApi, taxiBookingsApi, ridesApi } from '@/api';
+import { formatPence, metersToMilesLabel, secondsToMinutesLabel } from '@/utils/fare';
 import { useLocationBias } from '@/hooks/useLocationBias';
-import { getApiErrorMessage, haversineDistanceMiles, estimateDurationMinutes } from '@/utils/helpers';
+import { getApiErrorMessage } from '@/utils/helpers';
 import { secureStorage } from '@/utils/secureStorage';
 
 const RECENT_SEARCHES_KEY = 'gleezip_recent_destinations';
@@ -175,15 +176,53 @@ export function QuickRideScreen() {
         timestamp: Date.now(),
       });
 
-      // Calculate estimate
-      const distMiles = destLat && destLng
-        ? haversineDistanceMiles(userLocation.lat, userLocation.lng, destLat, destLng)
-        : 5;
-      const durMins = estimateDurationMinutes(distMiles);
-      const cost = Math.round((distMiles * 1.1 + durMins * 0.2) * 100) / 100;
+      if (destLat == null || destLng == null) {
+        Alert.alert('Destination', 'Please pick a destination from the suggestions so we can price your trip.');
+        return;
+      }
 
-      // Submit ride request
+      // Show the server's road-route price before booking
       setSubmitting(true);
+      let confirmed = false;
+      try {
+        const quoteRes = await ridesApi.getQuote({
+          pickupLat: userLocation.lat,
+          pickupLng: userLocation.lng,
+          destinationLat: destLat,
+          destinationLng: destLng,
+        });
+        const quote = quoteRes.data?.data;
+        if (!quoteRes.data?.success || !quote) {
+          Alert.alert('Price unavailable', quoteRes.data?.message || 'Could not calculate a price right now.');
+          return;
+        }
+        const fare = quote.fares.small;
+        const approach = quote.approach.small;
+        confirmed = await new Promise<boolean>((resolve) =>
+          Alert.alert(
+            `Ride for ${formatPence(fare.totalPence)}`,
+            [
+              `${metersToMilesLabel(quote.trip.distanceMeters)} trip · about ${secondsToMinutesLabel(quote.trip.durationSeconds)}`,
+              approach.source === 'none'
+                ? 'No drivers online nearby yet.'
+                : `Nearest driver ${metersToMilesLabel(approach.distanceMeters)} away · ${secondsToMinutesLabel(approach.durationSeconds)}`,
+              'The fare is held in your wallet when the ride starts.',
+            ].join('\n'),
+            [
+              { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+              { text: 'Book ride', onPress: () => resolve(true) },
+            ],
+            { cancelable: true, onDismiss: () => resolve(false) },
+          ),
+        );
+      } catch (err) {
+        Alert.alert('Error', getApiErrorMessage(err, 'Could not calculate a price right now.'));
+        return;
+      } finally {
+        if (!confirmed) setSubmitting(false);
+      }
+      if (!confirmed) return;
+
       try {
         const res = await taxiBookingsApi.createRequest({
           pickupAddress: userAddress || 'GPS Location',
@@ -196,9 +235,7 @@ export function QuickRideScreen() {
           destinationLng: destLng || undefined,
           timingType: 'now',
           taxiType: 'Normal car',
-          estimatedDistanceMiles: Math.round(distMiles * 10) / 10,
-          estimatedDurationMinutes: Math.round(durMins),
-          estimatedCost: cost,
+          vehicleCategory: 'small',
         });
 
         if (res.data?.success) {

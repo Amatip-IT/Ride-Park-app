@@ -108,6 +108,102 @@ export class Ride {
   @Prop({ type: Date })
   completedAt?: Date;
 
+  // ── Pricing (pence / metres / seconds). Legacy pound fields above are derived from these. ──
+  @Prop({ enum: ['small', 'medium', 'large'], default: 'small' })
+  vehicleCategory: string;
+
+  @Prop({ type: Object })
+  pricingSnapshot?: Record<string, any>;
+
+  /** Driver → pickup road distance fixed at acceptance; billed once. */
+  @Prop({ type: Number, default: 0 })
+  approachMeters: number;
+
+  /** Road route pickup → destination (estimate). */
+  @Prop({ type: Number })
+  estimatedTripMeters?: number;
+
+  /** Distance recorded from the driver's GPS during the trip. */
+  @Prop({ type: Number })
+  recordedTripMeters?: number;
+
+  /** Trip distance actually billed after reconciling estimate vs recording. */
+  @Prop({ type: Number })
+  billedTripMeters?: number;
+
+  @Prop({ type: Number })
+  tripSeconds?: number;
+
+  @Prop({ type: Object })
+  fareBreakdown?: Record<string, any>;
+
+  @Prop({ type: Number })
+  estimatedFarePence?: number;
+
+  @Prop({ type: Number })
+  totalCostPence?: number;
+
+  @Prop({
+    type: [
+      {
+        initiatedBy: { type: String, enum: ['customer', 'driver'], required: true },
+        initiatorId: { type: MongooseSchema.Types.ObjectId, ref: 'User', required: true },
+        startedAt: { type: Date, required: true },
+        endedAt: { type: Date, default: null },
+        durationSeconds: { type: Number, default: 0 },
+        ratePencePerMinute: { type: Number, default: 0 },
+        chargePence: { type: Number, default: 0 },
+        endedBy: { type: MongooseSchema.Types.ObjectId, ref: 'User' },
+      },
+    ],
+    default: [],
+  })
+  stops: Array<{
+    _id?: any;
+    initiatedBy: 'customer' | 'driver';
+    initiatorId: string;
+    startedAt: Date;
+    endedAt?: Date | null;
+    durationSeconds: number;
+    ratePencePerMinute: number;
+    chargePence: number;
+    endedBy?: string;
+  }>;
+
+  /** How the passenger pays: funds held in their wallet, or a card charge (legacy rides). */
+  @Prop({ enum: ['wallet', 'card'], default: 'card' })
+  paymentMethod: string;
+
+  @Prop({
+    type: {
+      status: {
+        type: String,
+        enum: ['none', 'holding', 'held', 'capturing', 'captured', 'releasing', 'released', 'failed'],
+        default: 'none',
+      },
+      amountPence: { type: Number, default: 0 },
+      topUpPaymentIntentId: { type: String },
+      heldAt: { type: Date },
+      capturedAt: { type: Date },
+      capturedAmountPence: { type: Number },
+      extraChargedPence: { type: Number },
+      releasedAt: { type: Date },
+      failureReason: { type: String },
+    },
+    default: () => ({ status: 'none', amountPence: 0 }),
+  })
+  hold: {
+    status: string;
+    amountPence: number;
+    topUpPaymentIntentId?: string;
+    heldAt?: Date;
+    capturedAt?: Date;
+    capturedAmountPence?: number;
+    extraChargedPence?: number;
+    releasedAt?: Date;
+    failureReason?: string;
+  };
+
   createdAt?: Date;
   updatedAt?: Date;
 }
