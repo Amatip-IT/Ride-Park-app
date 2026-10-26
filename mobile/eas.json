@@ -16,7 +16,10 @@
       },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://www.gleezip.com/api",
-        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_test_51SahnEIfn0kPvar74SnKFnUVDDi2DU5Ecwtcsx7iagGu8g91K8lffsBlQpLpv0Xv9or7IgJ49ymcYgzS8RPD4ydl00WgXBe80o"
+        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_test_51SahnEIfn0kPvar74SnKFnUVDDi2DU5Ecwtcsx7iagGu8g91K8lffsBlQpLpv0Xv9or7IgJ49ymcYgzS8RPD4ydl00WgXBe80o",
+        "EXPO_PUBLIC_AWS_LOCATION_KEY": "v1.public.eyJqdGkiOiI3MGJhYjE0ZC1lNGM3LTQ3NjYtOTIwZi0yZjY1MjRiZGI1YjAifUzC7VUUDjCfXZj0Q8lZqgqj2WgodV6wKu1aRl_Gi8-s3poqPWh0IqssKowKNrDR0YdcRNJG7hpiIYmVa99e4sjchfuW__0YLG_StdAOxcYAv_WfINIJ8Zov27g-HTuObISrA2KfTfK_gQ4RP01lwxYdbSk16BYXzGTIc7e6qBE6n_04qbByvK5LTTEX9WgefQpykFcCDW5XlVbaelbUrOE6clehgscba6Wgj_tu1WyXzocZGKa1unTeZQDe-H7u1L63eieqYm09aqqmBOhEcSZ3F7VTL4uSQF8QFZgZKqwOHfiCrXFCfoKyivVMZYRaThVwvSIYQ1KKNFaLOCNIB1I.ZWU0ZWIzMTktMWRhNi00Mzg0LTllMzYtNzlmMDU3MjRmYTkx",
+        "EXPO_PUBLIC_AWS_REGION": "us-east-1",
+        "EXPO_PUBLIC_AWS_PLACE_INDEX": "AmatipPlaceIndex"
       }
     },
     "preview": {
@@ -30,7 +33,10 @@
       },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://www.gleezip.com/api",
-        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_test_51SahnEIfn0kPvar74SnKFnUVDDi2DU5Ecwtcsx7iagGu8g91K8lffsBlQpLpv0Xv9or7IgJ49ymcYgzS8RPD4ydl00WgXBe80o"
+        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_test_51SahnEIfn0kPvar74SnKFnUVDDi2DU5Ecwtcsx7iagGu8g91K8lffsBlQpLpv0Xv9or7IgJ49ymcYgzS8RPD4ydl00WgXBe80o",
+        "EXPO_PUBLIC_AWS_LOCATION_KEY": "v1.public.eyJqdGkiOiI3MGJhYjE0ZC1lNGM3LTQ3NjYtOTIwZi0yZjY1MjRiZGI1YjAifUzC7VUUDjCfXZj0Q8lZqgqj2WgodV6wKu1aRl_Gi8-s3poqPWh0IqssKowKNrDR0YdcRNJG7hpiIYmVa99e4sjchfuW__0YLG_StdAOxcYAv_WfINIJ8Zov27g-HTuObISrA2KfTfK_gQ4RP01lwxYdbSk16BYXzGTIc7e6qBE6n_04qbByvK5LTTEX9WgefQpykFcCDW5XlVbaelbUrOE6clehgscba6Wgj_tu1WyXzocZGKa1unTeZQDe-H7u1L63eieqYm09aqqmBOhEcSZ3F7VTL4uSQF8QFZgZKqwOHfiCrXFCfoKyivVMZYRaThVwvSIYQ1KKNFaLOCNIB1I.ZWU0ZWIzMTktMWRhNi00Mzg0LTllMzYtNzlmMDU3MjRmYTkx",
+        "EXPO_PUBLIC_AWS_REGION": "us-east-1",
+        "EXPO_PUBLIC_AWS_PLACE_INDEX": "AmatipPlaceIndex"
       }
     },
     "production": {
@@ -44,7 +50,10 @@
       },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://www.gleezip.com/api",
-        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_live_51NXKolEvpzlSCOAbGL0SQmKYE8jg5mJeZOaR4ZgeoVztc3LC9R0MVCbPV0DnTC7WdUbY3Qa0qQqRGLSLOHk739uU00o371LeUm"
+        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_live_51NXKolEvpzlSCOAbGL0SQmKYE8jg5mJeZOaR4ZgeoVztc3LC9R0MVCbPV0DnTC7WdUbY3Qa0qQqRGLSLOHk739uU00o371LeUm",
+        "EXPO_PUBLIC_AWS_LOCATION_KEY": "v1.public.eyJqdGkiOiI3MGJhYjE0ZC1lNGM3LTQ3NjYtOTIwZi0yZjY1MjRiZGI1YjAifUzC7VUUDjCfXZj0Q8lZqgqj2WgodV6wKu1aRl_Gi8-s3poqPWh0IqssKowKNrDR0YdcRNJG7hpiIYmVa99e4sjchfuW__0YLG_StdAOxcYAv_WfINIJ8Zov27g-HTuObISrA2KfTfK_gQ4RP01lwxYdbSk16BYXzGTIc7e6qBE6n_04qbByvK5LTTEX9WgefQpykFcCDW5XlVbaelbUrOE6clehgscba6Wgj_tu1WyXzocZGKa1unTeZQDe-H7u1L63eieqYm09aqqmBOhEcSZ3F7VTL4uSQF8QFZgZKqwOHfiCrXFCfoKyivVMZYRaThVwvSIYQ1KKNFaLOCNIB1I.ZWU0ZWIzMTktMWRhNi00Mzg0LTllMzYtNzlmMDU3MjRmYTkx",
+        "EXPO_PUBLIC_AWS_REGION": "us-east-1",
+        "EXPO_PUBLIC_AWS_PLACE_INDEX": "AmatipPlaceIndex"
       }
     }
   },
@@ -52,4 +61,3 @@
     "production": {}
   }
 }
-
