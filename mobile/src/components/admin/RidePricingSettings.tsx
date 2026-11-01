@@ -16,6 +16,17 @@ type Rules = {
   updatedAt?: string | null;
 };
 
+const DEFAULT_RULES: Rules = {
+  ratePerMilePence: 110,
+  ratePerMinuteTaxiPence: 20,
+  minimumFarePence: 400,
+  vehicleSurchargePence: { small: 0, medium: 200, large: 400 },
+  customerStopRatePencePerMinute: 50,
+  driverStopRatePencePerMinute: 0,
+  version: 1,
+  updatedAt: null,
+};
+
 const FIELDS: Array<{ key: string; label: string; help: string }> = [
   { key: 'minimumFarePence', label: 'Minimum ride fare (£)', help: 'No ride is charged less than this (before waiting charges).' },
   { key: 'small', label: 'Normal car surcharge (£)', help: 'Smallest vehicle — normally £0.' },
@@ -28,6 +39,33 @@ const FIELDS: Array<{ key: string; label: string; help: string }> = [
 ];
 
 const toPounds = (pence?: number) => ((pence || 0) / 100).toFixed(2);
+
+function normalizeRules(raw: any): Rules {
+  const surcharges =
+    raw?.vehicleSurchargePence ||
+    raw?.vehicleSurchargesPence ||
+    DEFAULT_RULES.vehicleSurchargePence;
+  return {
+    ratePerMilePence: Number(raw?.ratePerMilePence ?? DEFAULT_RULES.ratePerMilePence),
+    ratePerMinuteTaxiPence: Number(
+      raw?.ratePerMinuteTaxiPence ?? DEFAULT_RULES.ratePerMinuteTaxiPence,
+    ),
+    minimumFarePence: Number(raw?.minimumFarePence ?? DEFAULT_RULES.minimumFarePence),
+    vehicleSurchargePence: {
+      small: Number(surcharges?.small ?? 0),
+      medium: Number(surcharges?.medium ?? 200),
+      large: Number(surcharges?.large ?? 400),
+    },
+    customerStopRatePencePerMinute: Number(
+      raw?.customerStopRatePencePerMinute ?? DEFAULT_RULES.customerStopRatePencePerMinute,
+    ),
+    driverStopRatePencePerMinute: Number(
+      raw?.driverStopRatePencePerMinute ?? DEFAULT_RULES.driverStopRatePencePerMinute,
+    ),
+    version: Number(raw?.version ?? raw?.pricingVersion ?? 1),
+    updatedAt: raw?.updatedAt ?? raw?.pricingUpdatedAt ?? null,
+  };
+}
 
 function valuesFrom(rules: Rules): Record<string, string> {
   return {
@@ -49,16 +87,58 @@ export function RidePricingSettings() {
   const [rules, setRules] = useState<Rules | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const applyRules = (next: Rules) => {
+    setRules(next);
+    setValues(valuesFrom(next));
+    setLoadError(null);
+  };
 
   const load = async () => {
+    setLoading(true);
+    setLoadError(null);
     try {
-      const res = await adminApi.getRidePricing();
-      if (res.data?.success) {
-        setRules(res.data.data);
-        setValues(valuesFrom(res.data.data));
+      // 1) Dedicated pricing endpoint
+      try {
+        const res = await adminApi.getRidePricing();
+        if (res.data?.success && res.data.data) {
+          applyRules(normalizeRules(res.data.data));
+          return;
+        }
+      } catch {
+        // Fall through — older backends may not have /settings/pricing yet
       }
-    } catch {
-      Alert.alert('Pricing', 'Could not load ride pricing.');
+
+      // 2) Same settings API that powers the service-fee card
+      const res = await adminApi.getPlatformSettings();
+      if (res.data?.success && res.data.data) {
+        const data = res.data.data as any;
+        if (data.ridePricing) {
+          applyRules(normalizeRules(data.ridePricing));
+          return;
+        }
+        // Raw schema fields after backend pricing migration
+        if (data.ratePerMilePence != null || data.minimumFarePence != null) {
+          applyRules(normalizeRules(data));
+          return;
+        }
+      }
+
+      setLoadError(
+        'Ride pricing API is not on this backend yet. Redeploy the API (GET/POST /admin/verifications/settings/pricing), then tap Retry.',
+      );
+    } catch (err: any) {
+      const status = err?.response?.status;
+      const msg =
+        err?.response?.data?.message ||
+        (status === 404
+          ? 'Ride pricing route missing on the API (404). Redeploy the backend, then tap Retry.'
+          : 'Could not load ride pricing.');
+      setLoadError(msg);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -105,7 +185,14 @@ export function RidePricingSettings() {
                 Alert.alert('Error', res.data?.message || 'Update failed');
               }
             } catch (err: any) {
-              Alert.alert('Error', err?.response?.data?.message || 'Update failed');
+              const status = err?.response?.status;
+              Alert.alert(
+                'Error',
+                err?.response?.data?.message ||
+                  (status === 404
+                    ? 'Save failed: pricing API not deployed yet.'
+                    : 'Update failed'),
+              );
             } finally {
               setSaving(false);
             }
@@ -115,13 +202,28 @@ export function RidePricingSettings() {
     );
   };
 
-  if (!rules) {
+  if (loading && !rules) {
     return (
       <View style={styles.card}>
-        <ActivityIndicator color={colors.electricTeal} />
+        <Text style={styles.title}>Ride pricing</Text>
+        <ActivityIndicator color={colors.electricTeal} style={{ marginVertical: SPACING.md }} />
       </View>
     );
   }
+
+  if (loadError && !rules) {
+    return (
+      <View style={styles.card}>
+        <Text style={styles.title}>Ride pricing</Text>
+        <Text style={styles.desc}>{loadError}</Text>
+        <TouchableOpacity style={styles.saveBtn} onPress={load}>
+          <Text style={styles.saveText}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  if (!rules) return null;
 
   return (
     <View style={styles.card}>

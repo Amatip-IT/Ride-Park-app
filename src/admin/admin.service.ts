@@ -1133,7 +1133,20 @@ export class AdminService {
         platformFeePercentage: 10,
       });
     }
-    return { success: true, data: settings, message: 'Settings retrieved' };
+    const json: any =
+      typeof (settings as any).toObject === 'function'
+        ? (settings as any).toObject()
+        : settings;
+    const ridePricing = {
+      ...this.pricingService.toRules(json),
+      updatedAt: json?.pricingUpdatedAt || null,
+      updatedBy: json?.pricingUpdatedBy || null,
+    };
+    return {
+      success: true,
+      data: { ...json, ridePricing },
+      message: 'Settings retrieved',
+    };
   }
 
   async updatePlatformFee(
@@ -1166,16 +1179,26 @@ export class AdminService {
   }
 
   async getRidePricing(): Promise<Response> {
-    const settings = await this.platformSettingsModel.findOne().lean().exec();
-    return {
-      success: true,
-      data: {
-        ...this.pricingService.toRules(settings as any),
-        updatedAt: (settings as any)?.pricingUpdatedAt || null,
-        updatedBy: (settings as any)?.pricingUpdatedBy || null,
-      },
-      message: 'Ride pricing retrieved',
-    };
+    try {
+      const settings = await this.platformSettingsModel.findOne().lean().exec();
+      return {
+        success: true,
+        data: {
+          ...this.pricingService.toRules(settings as any),
+          updatedAt: (settings as any)?.pricingUpdatedAt || null,
+          updatedBy: (settings as any)?.pricingUpdatedBy || null,
+        },
+        message: 'Ride pricing retrieved',
+      };
+    } catch (error) {
+      this.logger.error(
+        `getRidePricing failed: ${error instanceof Error ? error.message : error}`,
+      );
+      return {
+        success: false,
+        message: 'Could not load ride pricing',
+      };
+    }
   }
 
   async updateRidePricing(
