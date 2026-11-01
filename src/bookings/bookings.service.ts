@@ -19,6 +19,13 @@ import {
   CHAUFFEUR_MIN_HOURS,
 } from 'src/common/pricing.constants';
 import { toObjectIdString } from 'src/common/request.util';
+import {
+  gbp,
+  notificationLines,
+  priceLine,
+  scheduleLine,
+  serviceTypeLabel,
+} from 'src/notifications/notification-copy';
 
 @Injectable()
 export class BookingsService {
@@ -288,7 +295,18 @@ export class BookingsService {
           await this.notificationsService.sendNotification(
             providerId,
             '📥 New Booking Request',
-            `${requesterName} has requested to book "${serviceName}".`,
+            notificationLines(
+              `${requesterName} requested your ${serviceTypeLabel(data.serviceType)} "${serviceName}".`,
+              scheduleLine(booking.startDate, booking.endDate),
+              priceLine(quotedPrice, pricingUnit),
+              data.message || data.notes
+                ? `Note: ${data.message || data.notes}`
+                : undefined,
+              data.pickupAddress
+                ? `Pickup: ${data.pickupAddress}${data.pickupPostcode ? `, ${data.pickupPostcode}` : ''}`
+                : undefined,
+              'Open requests to accept or decline.',
+            ),
             'booking',
             {
               bookingId: booking._id.toString(),
@@ -497,16 +515,27 @@ export class BookingsService {
           await this.notificationsService.sendNotification(
             requesterId,
             '✅ Booking Accepted!',
-            `Your request for "${bookingName}" has been accepted! Your spot is confirmed.`,
+            notificationLines(
+              `Your ${serviceTypeLabel(booking.serviceType)} "${bookingName}" is confirmed.`,
+              scheduleLine(booking.startDate, booking.endDate),
+              priceLine(booking.quotedPrice, booking.pricingUnit),
+              responseMessage ? `Provider note: ${responseMessage}` : undefined,
+            ),
             'booking',
             { bookingId: booking._id.toString(), status: 'accepted' },
           );
         } else {
-          const reason = responseMessage ? ` Reason: ${responseMessage}` : '';
           await this.notificationsService.sendNotification(
             requesterId,
             '❌ Booking Declined',
-            `Your request for "${bookingName}" was declined.${reason}`,
+            notificationLines(
+              `Your ${serviceTypeLabel(booking.serviceType)} "${bookingName}" was declined.`,
+              scheduleLine(booking.startDate, booking.endDate),
+              priceLine(booking.quotedPrice, booking.pricingUnit),
+              responseMessage
+                ? `Reason: ${responseMessage}`
+                : 'No reason was given.',
+            ),
             'booking',
             { bookingId: booking._id.toString(), status: 'rejected' },
           );
@@ -517,7 +546,10 @@ export class BookingsService {
           await this.notificationsService.sendNotification(
             providerId,
             '🅿️ Space Full!',
-            `"${bookingName}" is now fully occupied. No new bookings will be accepted until a spot frees up.`,
+            notificationLines(
+              `"${bookingName}" is now full (${parkingSpace.occupiedSpots}/${parkingSpace.totalSpots}).`,
+              'New bookings are paused until a spot frees up.',
+            ),
             'system',
             { serviceId: booking.serviceId?.toString() },
           );
@@ -540,7 +572,14 @@ export class BookingsService {
               await this.notificationsService.sendNotification(
                 pendingBooking.requester.toString(),
                 '🅿️ Space No Longer Available',
-                `Sorry, "${bookingName}" is now fully booked. Your pending request has been automatically declined.`,
+                notificationLines(
+                  `"${bookingName}" is fully booked, so this pending request was declined.`,
+                  scheduleLine(
+                    pendingBooking.startDate,
+                    pendingBooking.endDate,
+                  ),
+                  'Choose another space or a different time.',
+                ),
                 'booking',
                 {
                   bookingId: pendingBooking._id.toString(),
@@ -706,9 +745,16 @@ export class BookingsService {
           await this.notificationsService.sendNotification(
             booking.provider.toString(),
             '🔄 Booking Cancelled',
-            wasAccepted
-              ? `A user cancelled their accepted ${serviceLabel} for "${booking.serviceName || 'your service'}".${booking.serviceType === 'parking' ? ' The spot is available again.' : ''}`
-              : `A user cancelled their pending ${serviceLabel} for "${booking.serviceName || 'your service'}".`,
+            notificationLines(
+              wasAccepted
+                ? `An accepted ${serviceLabel} for "${booking.serviceName || 'your service'}" was cancelled.`
+                : `A pending ${serviceLabel} for "${booking.serviceName || 'your service'}" was cancelled.`,
+              scheduleLine(booking.startDate, booking.endDate),
+              priceLine(booking.quotedPrice, booking.pricingUnit),
+              booking.serviceType === 'parking' && wasAccepted
+                ? 'The spot is available again.'
+                : undefined,
+            ),
             'booking',
             { bookingId: booking._id.toString(), status: 'cancelled' },
           );
@@ -804,7 +850,12 @@ export class BookingsService {
           await this.notificationsService.sendNotification(
             booking.requester.toString(),
             '💳 Payment Requested',
-            `Your ${serviceLabel} "${booking.serviceName || 'service'}" is complete. Confirm you are at the location, then pay £${(booking.quotedPrice || 0).toFixed(2)}.`,
+            notificationLines(
+              `Your ${serviceLabel} "${booking.serviceName || 'service'}" is complete.`,
+              scheduleLine(booking.startDate, booking.endDate),
+              `Amount due: ${gbp(booking.quotedPrice || 0)}`,
+              'Confirm you are at the location, then pay in the app.',
+            ),
             'payment',
             {
               bookingId: booking._id.toString(),
@@ -845,7 +896,12 @@ export class BookingsService {
         await this.notificationsService.sendNotification(
           booking.requester.toString(),
           '🏁 Booking Completed',
-          `Your booking for "${booking.serviceName || 'service'}" has been completed. Thank you for using Gleezip!`,
+          notificationLines(
+            `Your ${serviceTypeLabel(booking.serviceType)} "${booking.serviceName || 'service'}" is complete.`,
+            scheduleLine(booking.startDate, booking.endDate),
+            priceLine(booking.quotedPrice, booking.pricingUnit),
+            'Thank you for using Gleezip.',
+          ),
           'booking',
           { bookingId: booking._id.toString(), status: 'completed' },
         );
@@ -1063,7 +1119,11 @@ export class BookingsService {
           await this.notificationsService.sendNotification(
             booking.provider.toString(),
             '✅ Payment Received',
-            `Payment of £${booking.quotedPrice.toFixed(2)} confirmed for "${booking.serviceName || 'parking'}". Earnings credited to your wallet.`,
+            notificationLines(
+              `${gbp(booking.quotedPrice)} was paid for "${booking.serviceName || 'parking'}".`,
+              scheduleLine(booking.startDate, booking.endDate),
+              'The earnings have been added to your wallet.',
+            ),
             'payment',
             { bookingId: booking._id.toString(), status: 'completed' },
           );
@@ -1080,7 +1140,11 @@ export class BookingsService {
         await this.notificationsService.sendNotification(
           booking.requester.toString(),
           '🧾 Payment Successful',
-          `£${booking.quotedPrice.toFixed(2)} charged for "${booking.serviceName || 'parking'}". Your receipt is ready.`,
+          notificationLines(
+            `${gbp(booking.quotedPrice)} was charged for "${booking.serviceName || 'parking'}".`,
+            scheduleLine(booking.startDate, booking.endDate),
+            'Your receipt is ready in the app.',
+          ),
           'payment',
           {
             bookingId: booking._id.toString(),
@@ -1213,9 +1277,13 @@ export class BookingsService {
             paymentRequired
               ? '💳 Parking Payment Required'
               : '🏁 Parking Session Ended',
-            paymentRequired
-              ? `Your parking session at "${booking.serviceName || 'the parking space'}" has ended. Pay £${(booking.quotedPrice || 0).toFixed(2)} to complete it.`
-              : `Your parking session at "${booking.serviceName || 'the parking space'}" has ended. Thank you!`,
+            notificationLines(
+              `Your parking session at "${booking.serviceName || 'the parking space'}" has ended.`,
+              scheduleLine(booking.startDate, booking.endDate),
+              paymentRequired
+                ? `Amount due: ${gbp(booking.quotedPrice || 0)}. Pay in the app to complete it.`
+                : 'No payment is due. Thank you for using Gleezip.',
+            ),
             paymentRequired ? 'payment' : 'booking',
             {
               bookingId: booking._id.toString(),

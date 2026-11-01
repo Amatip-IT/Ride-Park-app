@@ -10,6 +10,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { providerApi } from '@/api';
 import { searchLocationByPosition } from '@/api/amazonLocation';
 import { getApiErrorMessage } from '@/utils/helpers';
+import { LiveMap } from '@/components/LiveMap';
+import { distanceMeters, LatLng } from '@/utils/routing';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import * as Location from 'expo-location';
 
@@ -35,6 +37,7 @@ interface ParkingSpace {
   parkingType?: string;
   photos: string[];
   stats: SpaceStats;
+  coordinates?: { lat: number; lng: number };
 }
 
 interface Verification {
@@ -62,6 +65,7 @@ export function ProviderSpaceManagementScreen() {
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [locatingGps, setLocatingGps] = useState(false);
+  const [editPin, setEditPin] = useState<LatLng | null>(null);
 
   const fetchSpaces = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -116,6 +120,11 @@ export function ProviderSpaceManagementScreen() {
       address: (space as any).address || '',
       postCode: space.postCode || '',
     });
+    setEditPin(
+      space.coordinates?.lat && space.coordinates?.lng
+        ? { lat: space.coordinates.lat, lng: space.coordinates.lng }
+        : null,
+    );
     setEditModal(true);
   };
 
@@ -129,6 +138,7 @@ export function ProviderSpaceManagementScreen() {
       }
 
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      setEditPin({ lat: loc.coords.latitude, lng: loc.coords.longitude });
       const result = await searchLocationByPosition(loc.coords.latitude, loc.coords.longitude);
 
       if (result) {
@@ -176,6 +186,13 @@ export function ProviderSpaceManagementScreen() {
       }
       if (editForm.postCode && editForm.postCode !== editingSpace.postCode) {
         updates.postCode = editForm.postCode;
+      }
+      const savedPin = editingSpace.coordinates;
+      if (
+        editPin &&
+        (!savedPin?.lat || !savedPin?.lng || distanceMeters(savedPin, editPin) > 1)
+      ) {
+        updates.coordinates = editPin;
       }
 
       if (Object.keys(updates).length === 0) {
@@ -327,6 +344,22 @@ export function ProviderSpaceManagementScreen() {
                   </View>
                 </View>
 
+                {/* Exact location customers are navigated to */}
+                {space.coordinates?.lat && space.coordinates?.lng ? (
+                  <View style={styles.spaceMap}>
+                    <LiveMap
+                      locationLat={space.coordinates.lat}
+                      locationLng={space.coordinates.lng}
+                      interactive={false}
+                    />
+                  </View>
+                ) : (
+                  <TouchableOpacity style={styles.noPinBanner} onPress={() => openEditModal(space)}>
+                    <Ionicons name="location-outline" size={16} color={colors.amber} />
+                    <Text style={styles.noPinText}>No map pin yet — tap to set the exact entrance</Text>
+                  </TouchableOpacity>
+                )}
+
                 {/* Occupancy Bar */}
                 <View style={styles.occupancySection}>
                   <View style={styles.occupancyLabelRow}>
@@ -465,6 +498,27 @@ export function ProviderSpaceManagementScreen() {
                   {locatingGps ? 'Getting location...' : 'Use my current location'}
                 </Text>
               </TouchableOpacity>
+
+              {/* Exact map pin */}
+              <Text style={styles.fieldLabel}>Exact location</Text>
+              {editPin ? (
+                <>
+                  <View style={styles.editMap}>
+                    <LiveMap
+                      locationLat={editPin.lat}
+                      locationLng={editPin.lng}
+                      onLocationChange={setEditPin}
+                    />
+                  </View>
+                  <Text style={styles.mapHint}>
+                    Drag the P pin (or tap the map) to the entrance customers should drive to.
+                  </Text>
+                </>
+              ) : (
+                <Text style={styles.mapHint}>
+                  Use "Use my current location" while standing at the entrance to drop a pin.
+                </Text>
+              )}
 
               {/* Address */}
               <Text style={styles.fieldLabel}>Address</Text>
@@ -613,6 +667,22 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: SPACING.md },
   spaceName: { color: colors.textPrimary, fontSize: 18, fontWeight: FONT_WEIGHTS.bold },
   spacePostcode: { color: colors.textSecondary, fontSize: 13, marginTop: 2 },
+
+  spaceMap: {
+    height: 140, borderRadius: BORDER_RADIUS.md, overflow: 'hidden',
+    marginBottom: SPACING.md, borderWidth: 1, borderColor: colors.border,
+  },
+  noPinBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.xs,
+    padding: SPACING.sm, marginBottom: SPACING.md, borderRadius: BORDER_RADIUS.md,
+    backgroundColor: `${colors.amber}15`,
+  },
+  noPinText: { flex: 1, color: colors.amber, fontSize: 13, fontWeight: FONT_WEIGHTS.medium },
+  editMap: {
+    height: 200, borderRadius: BORDER_RADIUS.md, overflow: 'hidden',
+    borderWidth: 1, borderColor: colors.border,
+  },
+  mapHint: { color: colors.textSecondary, fontSize: 12, marginTop: 6 },
 
   availBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
   availDot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },

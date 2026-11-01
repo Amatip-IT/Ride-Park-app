@@ -13,8 +13,17 @@ const getStatusColors = (colors: ThemeColors): Record<string, string> => ({
   open: colors.amber,
   investigating: colors.info,
   resolved: colors.success,
+  rejected: colors.coralRed,
   closed: colors.textTertiary,
 });
+
+const STATUS_LABELS: Record<string, string> = {
+  open: 'Open',
+  investigating: 'Under Review',
+  resolved: 'Resolved',
+  rejected: 'Rejected',
+  closed: 'Closed',
+};
 
 const CATEGORY_LABELS: Record<string, string> = {
   unfair_rejection: 'Unfair Rejection',
@@ -33,6 +42,7 @@ type Dispute = {
   resolution?: string;
   resolutionNotes?: string;
   createdAt?: string;
+  rideReference?: string;
   complaintAbout?: { firstName?: string; lastName?: string };
 };
 
@@ -71,10 +81,11 @@ export function DisputesScreen() {
         <Text style={styles.categoryText}>{CATEGORY_LABELS[item.category] || item.category}</Text>
         <View style={[styles.statusPill, { backgroundColor: `${STATUS_COLORS[item.status] || colors.textTertiary}20` }]}>
           <Text style={[styles.statusText, { color: STATUS_COLORS[item.status] || colors.textTertiary }]}>
-            {item.status}
+            {STATUS_LABELS[item.status] || item.status}
           </Text>
         </View>
       </View>
+      {item.rideReference ? <Text style={styles.dateText}>Ride {item.rideReference}</Text> : null}
       <Text style={styles.descText} numberOfLines={2}>{item.description}</Text>
       <Text style={styles.dateText}>
         {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : ''}

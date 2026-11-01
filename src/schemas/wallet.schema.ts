@@ -14,6 +14,18 @@ export class Wallet {
   @Prop({ default: 0 })
   totalEarnings: number; // Gross total earnings in GBP (e.g., 100.00)
 
+  /** Customer funds reserved for rides in progress (GBP). Not spendable, not paid out. */
+  @Prop({ default: 0 })
+  heldBalance: number;
+
+  /** Ride ids whose hold has been applied to this wallet (idempotency). */
+  @Prop({ type: [String], default: [], select: false })
+  appliedHolds: string[];
+
+  /** Ride ids whose hold has been captured or released (idempotency). */
+  @Prop({ type: [String], default: [], select: false })
+  settledHolds: string[];
+
   @Prop({ type: Object, default: null })
   bankDetails: {
     accountName: string;

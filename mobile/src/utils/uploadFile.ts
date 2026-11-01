@@ -1,7 +1,10 @@
 import * as FileSystem from 'expo-file-system/legacy';
+import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { useAuthStore } from '@/store/authStore';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5001/api';
+/** Stay under a 1MB reverse-proxy limit, including multipart overhead. */
+const MAX_UPLOAD_BYTES = 800_000;
 
 function mimeFromFileName(fileName: string, fallback = 'image/jpeg') {
   const ext = fileName.split('.').pop()?.toLowerCase() || '';
@@ -10,6 +13,39 @@ function mimeFromFileName(fileName: string, fallback = 'image/jpeg') {
   if (ext === 'pdf') return 'application/pdf';
   if (ext === 'jpg' || ext === 'jpeg') return 'image/jpeg';
   return fallback;
+}
+
+async function fileSize(uri: string): Promise<number> {
+  const info = await FileSystem.getInfoAsync(uri);
+  return info.exists && 'size' in info && typeof info.size === 'number' ? info.size : 0;
+}
+
+/** Phone photos are often several MB. Shrink them before the server rejects the upload. */
+async function shrinkImage(uri: string, fileName: string): Promise<{ uri: string; fileName: string; mimeType: string }> {
+  const originalSize = await fileSize(uri);
+  if (originalSize > 0 && originalSize <= MAX_UPLOAD_BYTES) {
+    return { uri, fileName, mimeType: mimeFromFileName(fileName) };
+  }
+
+  let width = 1600;
+  let compress = 0.6;
+  let current = uri;
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const result = await manipulateAsync(
+      uri,
+      [{ resize: { width } }],
+      { compress, format: SaveFormat.JPEG },
+    );
+    current = result.uri;
+    const size = await fileSize(current);
+    if (size > 0 && size <= MAX_UPLOAD_BYTES) break;
+    width = Math.round(width * 0.7);
+    compress = Math.max(0.35, compress - 0.15);
+  }
+
+  const jpegName = fileName.replace(/\.\w+$/i, '') + '.jpg';
+  return { uri: current, fileName: jpegName, mimeType: 'image/jpeg' };
 }
 
 /**
@@ -23,10 +59,14 @@ export async function uploadLocalFile(
   mimeType?: string,
 ): Promise<{ success: boolean; url?: string; message?: string }> {
   const token = useAuthStore.getState().token;
-  const type = mimeType || mimeFromFileName(fileName);
+  const isImage = (mimeType || mimeFromFileName(fileName)).startsWith('image/');
+  const prepared = isImage
+    ? await shrinkImage(uri, fileName)
+    : { uri, fileName, mimeType: mimeType || mimeFromFileName(fileName) };
+  const type = prepared.mimeType;
   const url = `${API_BASE_URL}${endpoint}`;
 
-  const result = await FileSystem.uploadAsync(url, uri, {
+  const result = await FileSystem.uploadAsync(url, prepared.uri, {
     httpMethod: 'POST',
     uploadType: FileSystem.FileSystemUploadType.MULTIPART,
     fieldName: 'file',
@@ -41,6 +81,9 @@ export async function uploadLocalFile(
   try {
     data = result.body ? JSON.parse(result.body) : {};
   } catch {
+    if (result.status === 413) {
+      throw new Error('That file is too large for the server. Try a smaller photo.');
+    }
     throw new Error(`Server returned non-JSON response (HTTP ${result.status})`);
   }
 

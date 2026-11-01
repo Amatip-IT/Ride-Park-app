@@ -5,8 +5,11 @@ import {
   Query,
   HttpException,
   HttpStatus,
+  UseGuards,
 } from '@nestjs/common';
 import { SearchService } from './search.service';
+import { RoutesService } from './routes.service';
+import { AuthGuard } from 'src/guards/auth.guard';
 import { ReviewsService } from 'src/reviews/reviews.service';
 import { Response } from 'src/common/interfaces/response.interface';
 
@@ -15,7 +18,42 @@ export class SearchController {
   constructor(
     private readonly searchService: SearchService,
     private readonly reviewsService: ReviewsService,
+    private readonly routesService: RoutesService,
   ) {}
+
+  /**
+   * GET /search/route?fromLat=..&fromLng=..&toLat=..&toLng=..
+   * Driving route polyline + distance/duration for the in-app maps.
+   */
+  @Get('route')
+  @UseGuards(AuthGuard)
+  async getRoute(
+    @Query('fromLat') fromLat: string,
+    @Query('fromLng') fromLng: string,
+    @Query('toLat') toLat: string,
+    @Query('toLng') toLng: string,
+  ): Promise<Response> {
+    const values = [fromLat, fromLng, toLat, toLng].map((v) => parseFloat(v));
+    const valid =
+      values.every((v) => Number.isFinite(v)) &&
+      Math.abs(values[0]) <= 90 &&
+      Math.abs(values[2]) <= 90 &&
+      Math.abs(values[1]) <= 180 &&
+      Math.abs(values[3]) <= 180;
+    if (!valid) {
+      throw new HttpException(
+        { message: 'fromLat, fromLng, toLat and toLng must be valid coordinates' },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const [fLat, fLng, tLat, tLng] = values;
+    const route = await this.routesService.getDrivingRoute(
+      { lat: fLat, lng: fLng },
+      { lat: tLat, lng: tLng },
+    );
+    return { success: true, data: route, message: 'Route calculated' };
+  }
 
   private async withRatings(
     serviceType: 'parking' | 'driver' | 'taxi',

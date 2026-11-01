@@ -11,7 +11,7 @@ import { useRoute, RouteProp, useNavigation } from '@react-navigation/native';
 import { searchApi, bookingsApi } from '@/api';
 import { calculateBookingPrice, formatCurrency, getApiErrorMessage, openMapsNavigation } from '@/utils/helpers';
 import { useAuthStore } from '@/store/authStore';
-import { AmazonMap } from '@/components/AmazonMap';
+import { LiveMap } from '@/components/LiveMap';
 import { ProviderRating } from '@/components/ProviderRating';
 
 type ParkingDetailParams = {
@@ -287,12 +287,34 @@ export function ParkingDetailScreen() {
 
             {/* Embedded Map */}
             {space.coordinates?.lat && space.coordinates?.lng ? (
-              <View style={styles.mapContainer}>
-                <AmazonMap
-                  locationLat={space.coordinates.lat}
-                  locationLng={space.coordinates.lng}
-                />
-              </View>
+              <>
+                <View style={styles.mapContainer}>
+                  <LiveMap
+                    locationLat={space.coordinates.lat}
+                    locationLng={space.coordinates.lng}
+                    showsUserLocation
+                    interactive={false}
+                  />
+                </View>
+                <TouchableOpacity
+                  style={styles.navigateButton}
+                  onPress={() =>
+                    (navigation as any).navigate('ParkingNavigation', {
+                      spaceId: space._id || spaceId,
+                      name: space.name,
+                      address: [space.addressLine1 || space.name, space.town, space.postCode]
+                        .filter(Boolean)
+                        .join(', '),
+                      lat: space.coordinates.lat,
+                      lng: space.coordinates.lng,
+                    })
+                  }
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="navigate" size={18} color="#FFF" />
+                  <Text style={styles.navigateButtonText}>Navigate here in the app</Text>
+                </TouchableOpacity>
+              </>
             ) : (
               <View style={styles.mapPlaceholder}>
                 <Ionicons name="map-outline" size={32} color={colors.softSlate} />
@@ -560,6 +582,12 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     width: '100%', height: 220, borderRadius: BORDER_RADIUS.lg, overflow: 'hidden',
     marginTop: SPACING.md, borderWidth: 1, borderColor: colors.border,
   },
+  navigateButton: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACING.sm,
+    marginTop: SPACING.md, paddingVertical: SPACING.md,
+    borderRadius: BORDER_RADIUS.lg, backgroundColor: colors.electricTeal,
+  },
+  navigateButtonText: { color: '#FFF', fontSize: FONT_SIZES.body, fontWeight: FONT_WEIGHTS.bold },
   mapPlaceholder: {
     width: '100%', height: 200, borderRadius: BORDER_RADIUS.lg,
     backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center',

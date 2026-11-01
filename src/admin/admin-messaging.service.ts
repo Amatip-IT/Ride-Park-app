@@ -12,6 +12,7 @@ import {
 import { User, UserDocument } from 'src/schemas/user.schema';
 import { Response } from 'src/common/interfaces/response.interface';
 import { NotificationsService } from 'src/notifications/notifications.service';
+import { notificationLines } from 'src/notifications/notification-copy';
 import { EmailService } from 'src/verification/services/email/email.service';
 import { AdminAuditService } from './admin-audit.service';
 import { AdminAuditContext } from './admin-audit.types';
@@ -260,7 +261,12 @@ export class AdminMessagingService {
           await this.notificationsService.sendNotification(
             input.userId,
             subject,
-            input.message,
+            notificationLines(
+              `Hi ${user.firstName || 'there'},`,
+              input.message,
+              templateName ? `Regarding: ${templateName}` : undefined,
+              'Gleezip Admin Team',
+            ),
             'system',
             { source: 'admin_message' },
           );

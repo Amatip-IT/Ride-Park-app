@@ -10,8 +10,10 @@ import {
 import { Server, Socket } from 'socket.io';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
+import { forwardRef, Inject } from '@nestjs/common';
 import { Taxi, TaxiDocument } from 'src/schemas/taxi.schema';
 import { Chauffeur, ChauffeurDocument } from 'src/schemas/chauffeur.schema';
+import { TaxiBookingsService } from './taxi-bookings.service';
 
 @WebSocketGateway({
   cors: { origin: '*' },
@@ -30,6 +32,8 @@ export class TaxiBookingsGateway
     @InjectModel(Taxi.name) private taxiModel: Model<TaxiDocument>,
     @InjectModel(Chauffeur.name)
     private chauffeurModel: Model<ChauffeurDocument>,
+    @Inject(forwardRef(() => TaxiBookingsService))
+    private readonly taxiBookingsService: TaxiBookingsService,
   ) {}
 
   handleConnection(client: Socket) {
@@ -61,6 +65,14 @@ export class TaxiBookingsGateway
     }
     this.userSockets.get(userId)!.add(client.id);
     console.log(`Taxi user ${userId} authenticated with socket ${client.id}`);
+
+    // Replay cancellations the driver missed while offline
+    this.taxiBookingsService
+      .getUnacknowledgedCancellations(userId)
+      .then((pending) => {
+        pending.forEach((payload) => client.emit('ride_cancelled', payload));
+      })
+      .catch(() => {});
   }
 
   @SubscribeMessage('join_ride')
@@ -152,6 +164,23 @@ export class TaxiBookingsGateway
         this.server.to(socketId).emit('new_ride_request', payload);
       });
     }
+  }
+
+  /** Tell the assigned driver, on every connected device, that the customer cancelled. */
+  pushRideCancelledToDriver(
+    driverUserId: string,
+    payload: {
+      requestId: string;
+      rideReference: string;
+      title: string;
+      message: string;
+      cancelledAt?: Date;
+    },
+  ) {
+    if (!this.server) return;
+    this.userSockets.get(driverUserId)?.forEach((socketId) => {
+      this.server.to(socketId).emit('ride_cancelled', payload);
+    });
   }
 
   /**

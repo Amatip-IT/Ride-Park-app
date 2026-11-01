@@ -7,7 +7,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { AmazonMap } from '@/components/AmazonMap';
+import { LiveMap } from '@/components/LiveMap';
 import { LocationAutocompleteInput, PlaceSuggestion } from '@/components/LocationAutocompleteInput';
 import { SPACING, FONT_SIZES, FONT_WEIGHTS, BORDER_RADIUS, ThemeColors } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
@@ -89,11 +89,13 @@ export function MapPreviewScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.mapContainer}>
-        <AmazonMap
+        <LiveMap
           pickupLat={location.lat}
           pickupLng={location.lng}
           destinationLat={destination?.lat}
           destinationLng={destination?.lng}
+          showsUserLocation
+          overlayPadding={{ top: Math.max(insets.top, 12) + 72, bottom: 320 }}
         />
       </View>
 

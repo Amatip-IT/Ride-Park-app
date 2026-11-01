@@ -22,7 +22,11 @@ export class AmazonLocationService {
   constructor(private configService: ConfigService) {
     this.apiKey = this.configService.get<string>('AWS_LOCATION_KEY') || '';
     // Places API v2 keys for this project are authorized in us-east-1
-    this.region = this.configService.get<string>('AWS_REGION') || 'us-east-1';
+    // Same region resolution as RoutesService; AWS_REGION alone may point at the S3 bucket's region
+    this.region =
+      this.configService.get<string>('AWS_LOCATION_REGION') ||
+      this.configService.get<string>('AWS_REGION') ||
+      'us-east-1';
 
     if (!this.apiKey) {
       this.logger.warn(

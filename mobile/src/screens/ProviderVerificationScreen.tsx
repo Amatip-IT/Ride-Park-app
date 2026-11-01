@@ -10,7 +10,7 @@ import { useAuthStore } from '@/store/authStore';
 import { providerApi } from '@/api';
 import { searchLocationByPosition } from '@/api/amazonLocation';
 import { LocationAutocompleteInput, PlaceSuggestion } from '@/components/LocationAutocompleteInput';
-import { AmazonMap } from '@/components/AmazonMap';
+import { LiveMap } from '@/components/LiveMap';
 import { useLocationBias } from '@/hooks/useLocationBias';
 import { useFocusEffect, useNavigation, NavigationProp } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
@@ -461,9 +461,24 @@ export function ProviderVerificationScreen() {
                       </TouchableOpacity>
 
                       {hasParkCoordinates && (
-                        <View style={styles.mapPreviewContainer}>
-                          <AmazonMap locationLat={parkLat} locationLng={parkLng} />
-                        </View>
+                        <>
+                          <View style={styles.mapPreviewContainer}>
+                            <LiveMap
+                              locationLat={parkLat}
+                              locationLng={parkLng}
+                              onLocationChange={(point) =>
+                                setFormData(prev => ({
+                                  ...prev,
+                                  parkLat: String(point.lat),
+                                  parkLng: String(point.lng),
+                                }))
+                              }
+                            />
+                          </View>
+                          <Text style={styles.mapHint}>
+                            Drag the P pin (or tap the map) to the exact entrance. Customers navigate to this spot.
+                          </Text>
+                        </>
                       )}
                     </>
                   )}
@@ -700,12 +715,17 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   mapPreviewContainer: {
     width: '100%',
-    height: 180,
+    height: 240,
     borderRadius: BORDER_RADIUS.lg,
     overflow: 'hidden',
-    marginBottom: SPACING.lg,
+    marginBottom: SPACING.sm,
     borderWidth: 1,
     borderColor: colors.border,
+  },
+  mapHint: {
+    color: colors.textSecondary,
+    fontSize: FONT_SIZES.small,
+    marginBottom: SPACING.lg,
   },
 
   fieldContainer: { marginBottom: SPACING.xl },

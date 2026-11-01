@@ -118,7 +118,7 @@ export function NotificationsScreen() {
             <Text style={[styles.cardTitle, !item.read && styles.cardTitleUnread]}>{item.title}</Text>
             {!item.read && <View style={styles.unreadDot} />}
           </View>
-          <Text style={styles.cardBody} numberOfLines={2}>{item.body}</Text>
+          <Text style={styles.cardBody}>{item.body}</Text>
           <Text style={styles.cardTime}>{timeAgo(item.createdAt)}</Text>
         </View>
       </TouchableOpacity>
@@ -240,7 +240,7 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     width: 8, height: 8, borderRadius: 4, backgroundColor: colors.electricTeal,
   },
   cardBody: {
-    color: colors.textSecondary, fontSize: 13, marginTop: 3, lineHeight: 18,
+    color: colors.textSecondary, fontSize: 13, marginTop: 6, lineHeight: 19,
   },
   cardTime: {
     color: colors.textTertiary, fontSize: 11, marginTop: 4,

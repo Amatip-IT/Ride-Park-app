@@ -702,9 +702,27 @@ export class ProviderService {
       chargesDescription?: string;
       photos?: string[];
       cctvPhotos?: string[];
+      coordinates?: { lat: number; lng: number };
     },
   ): Promise<Response> {
     try {
+      if (updates.coordinates !== undefined) {
+        const lat = Number(updates.coordinates?.lat);
+        const lng = Number(updates.coordinates?.lng);
+        if (
+          !Number.isFinite(lat) ||
+          !Number.isFinite(lng) ||
+          Math.abs(lat) > 90 ||
+          Math.abs(lng) > 180
+        ) {
+          return {
+            success: false,
+            message: 'Map location must have a valid latitude and longitude',
+          };
+        }
+        updates.coordinates = { lat, lng };
+      }
+
       const space = await this.parkingSpaceModel.findOne({
         _id: spaceId,
         owner: userId,
@@ -739,6 +757,8 @@ export class ProviderService {
       if (updates.photos !== undefined) space.photos = updates.photos;
       if (updates.cctvPhotos !== undefined)
         space.cctvPhotos = updates.cctvPhotos;
+      if (updates.coordinates !== undefined)
+        space.coordinates = updates.coordinates;
 
       // Handle totalSpots change carefully
       if (updates.totalSpots !== undefined) {

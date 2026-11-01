@@ -42,6 +42,17 @@ import { Response } from 'src/common/interfaces/response.interface';
 import { What3WordsService } from 'src/utility/what3words.service';
 import { AmazonLocationService } from 'src/utility/amazon-location.service';
 import { NotificationsService } from 'src/notifications/notifications.service';
+import {
+  PricingRulesUpdate,
+  PricingService,
+  validatePricingUpdate,
+} from 'src/pricing/pricing.service';
+import {
+  documentLabel,
+  formatWhen,
+  notificationLines,
+  placeLine,
+} from 'src/notifications/notification-copy';
 import { EmailService } from 'src/verification/services/email/email.service';
 import { AdminAuditService } from './admin-audit.service';
 import { AdminAuditContext } from './admin-audit.types';
@@ -111,6 +122,7 @@ export class AdminService {
     private emailService: EmailService,
     private auditService: AdminAuditService,
     private walletService: WalletService,
+    private pricingService: PricingService,
   ) {}
 
   // ══════════════════════════════════════════════
@@ -363,7 +375,11 @@ export class AdminService {
           await this.notificationsService.sendNotification(
             user._id.toString(),
             '❌ Parking Verification Rejected',
-            `Your parking space verification was not approved. Check your email for details.`,
+            notificationLines(
+              `Your parking space${placeLine(verification.address, verification.postcode) ? ` at ${placeLine(verification.address, verification.postcode)}` : ''} was not approved.`,
+              `Reason: ${reason}`,
+              'Update the listing and resubmit it for review.',
+            ),
             'system',
             { verificationId: id, reason },
           );
@@ -652,7 +668,11 @@ export class AdminService {
           await this.notificationsService.sendNotification(
             user._id.toString(),
             '❌ Verification Rejected',
-            `Your ${providerType === 'taxi_driver' ? 'taxi driver' : 'driver'} verification was not approved. Check your email for details.`,
+            notificationLines(
+              `Your ${providerType === 'taxi_driver' ? 'taxi driver' : 'chauffeur'} verification was not approved.`,
+              `Reason: ${reason}`,
+              'Open verification in the app and resubmit the documents that were rejected.',
+            ),
             'system',
             { recordId, reason },
           );
@@ -877,7 +897,11 @@ export class AdminService {
           await this.notificationsService.sendNotification(
             user._id.toString(),
             '❌ Document Rejected',
-            `Your ${docLabel} document was rejected. Please resubmit.`,
+            notificationLines(
+              `Your ${docLabel} was rejected.`,
+              `Reason: ${reason}`,
+              'Upload a new copy so you can keep accepting trips.',
+            ),
             'system',
             { docField, reason },
           );
@@ -1034,7 +1058,11 @@ export class AdminService {
         await this.notificationsService.sendNotification(
           userId,
           '❌ Identity Verification Rejected',
-          `Your identity verification was not approved. Check your email for details.`,
+          notificationLines(
+            'Your identity check was not approved.',
+            `Reason: ${reason}`,
+            'Resubmit your identity document and proof of address from your profile.',
+          ),
           'system',
           { reason },
         );
@@ -1134,6 +1162,75 @@ export class AdminService {
       success: true,
       data: settings,
       message: `Platform fee updated to ${percentage}%`,
+    };
+  }
+
+  async getRidePricing(): Promise<Response> {
+    const settings = await this.platformSettingsModel.findOne().lean().exec();
+    return {
+      success: true,
+      data: {
+        ...this.pricingService.toRules(settings as any),
+        updatedAt: (settings as any)?.pricingUpdatedAt || null,
+        updatedBy: (settings as any)?.pricingUpdatedBy || null,
+      },
+      message: 'Ride pricing retrieved',
+    };
+  }
+
+  async updateRidePricing(
+    update: PricingRulesUpdate,
+    audit: AdminAuditContext,
+  ): Promise<Response> {
+    const error = validatePricingUpdate(update);
+    if (error) return { success: false, message: error };
+
+    const current = await this.platformSettingsModel.findOne().lean().exec();
+    const oldRules = this.pricingService.toRules(current as any);
+
+    const $set: Record<string, unknown> = {
+      pricingUpdatedBy: audit.adminId,
+      pricingUpdatedAt: new Date(),
+    };
+    for (const key of [
+      'ratePerMilePence',
+      'ratePerMinuteTaxiPence',
+      'minimumFarePence',
+      'customerStopRatePencePerMinute',
+      'driverStopRatePencePerMinute',
+    ] as const) {
+      if (update[key] !== undefined) $set[key] = update[key];
+    }
+    if (update.vehicleSurchargePence) {
+      $set.vehicleSurchargesPence = {
+        ...oldRules.vehicleSurchargePence,
+        ...update.vehicleSurchargePence,
+      };
+    }
+
+    const settings = await this.platformSettingsModel
+      .findOneAndUpdate(
+        {},
+        { $set, $inc: { pricingVersion: 1 } },
+        { upsert: true, new: true, setDefaultsOnInsert: true },
+      )
+      .lean()
+      .exec();
+
+    this.pricingService.invalidate();
+    const newRules = this.pricingService.toRules(settings as any);
+
+    await this.auditService.log(audit, {
+      action: 'update_ride_pricing',
+      targetType: 'platform_settings',
+      oldValue: { ...oldRules },
+      newValue: { ...newRules },
+    });
+
+    return {
+      success: true,
+      data: newRules,
+      message: 'Ride pricing updated. New quotes use these values immediately.',
     };
   }
 
@@ -1306,7 +1403,16 @@ export class AdminService {
         await this.notificationsService.sendNotification(
           userId,
           '⚠️ Account Suspended',
-          `Your account has been suspended. Reason: ${reason}`,
+          notificationLines(
+            durationDays
+              ? `Your Gleezip account is suspended for ${durationDays} days.`
+              : 'Your Gleezip account is suspended until an admin restores it.',
+            `Reason: ${reason}`,
+            suspensionEndDate
+              ? `Access returns: ${formatWhen(suspensionEndDate)}`
+              : undefined,
+            'You cannot book or accept trips until the suspension ends.',
+          ),
           'system',
         );
       } catch (notifErr) {
@@ -1362,7 +1468,10 @@ export class AdminService {
         await this.notificationsService.sendNotification(
           userId,
           '✅ Account Restored',
-          'Your account suspension has been lifted. Welcome back!',
+          notificationLines(
+            'Your suspension has been lifted.',
+            'You can sign in, book, and accept trips again.',
+          ),
           'system',
         );
       } catch (notifErr) {
@@ -1425,7 +1534,11 @@ export class AdminService {
         await this.notificationsService.sendNotification(
           userId,
           '🚫 Account Banned',
-          `Your account has been permanently banned. Reason: ${reason}`,
+          notificationLines(
+            'Your Gleezip account has been permanently banned.',
+            `Reason: ${reason}`,
+            'You can no longer sign in, book, or receive payouts.',
+          ),
           'system',
         );
       } catch (notifErr) {
@@ -1656,7 +1769,13 @@ export class AdminService {
           await this.notificationsService.sendNotification(
             user._id.toString(),
             '✅ Document Renewed',
-            `Your ${docField} has been approved for renewal. New expiry date: ${newExpiryDate.toLocaleDateString()}`,
+            notificationLines(
+              `Your ${documentLabel(docField)} renewal was approved.`,
+              `New expiry: ${formatWhen(newExpiryDate) || newExpiryDate.toLocaleDateString()}`,
+              allDocsValid
+                ? 'You can accept rides again.'
+                : 'Other documents still need to be valid before you can accept rides.',
+            ),
             'system',
           );
         } catch (notifErr) {
@@ -1712,7 +1831,10 @@ export class AdminService {
         await this.notificationsService.sendNotification(
           userId,
           '✅ Ban Lifted',
-          'Your account ban has been lifted. You may now use the platform again.',
+          notificationLines(
+            'Your account ban has been lifted.',
+            'You can sign in and use Gleezip again.',
+          ),
           'system',
         );
       } catch (notifErr) {
@@ -1987,7 +2109,11 @@ export class AdminService {
         await this.notificationsService.sendNotification(
           user._id.toString(),
           'Message from Gleezip Admin',
-          message,
+          notificationLines(
+            `Hi ${user.firstName || 'there'},`,
+            message,
+            'Gleezip Admin Team',
+          ),
           'system',
         );
 

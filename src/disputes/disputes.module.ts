@@ -14,6 +14,12 @@ import { AdminModule } from 'src/admin/admin.module';
 import { NotificationsModule } from 'src/notifications/notifications.module';
 import { AdminGuard } from 'src/guards/admin.guard';
 import { PaymentsModule } from 'src/payments/payments.module';
+import { WalletModule } from 'src/wallet/wallet.module';
+import {
+  TaxiRideRequest,
+  TaxiRideRequestSchema,
+} from 'src/schemas/taxi-ride-request.schema';
+import { Transaction, TransactionSchema } from 'src/schemas/transaction.schema';
 
 @Module({
   imports: [
@@ -22,10 +28,13 @@ import { PaymentsModule } from 'src/payments/payments.module';
       { name: User.name, schema: UserSchema },
       { name: Ride.name, schema: RideSchema },
       { name: BookingRequest.name, schema: BookingRequestSchema },
+      { name: TaxiRideRequest.name, schema: TaxiRideRequestSchema },
+      { name: Transaction.name, schema: TransactionSchema },
     ]),
     AdminModule,
     NotificationsModule,
     PaymentsModule,
+    WalletModule,
   ],
   controllers: [DisputesController, AdminDisputesController],
   providers: [DisputesService, AdminGuard],

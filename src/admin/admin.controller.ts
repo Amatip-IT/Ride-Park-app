@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
   Param,
   Body,
   Query,
@@ -478,6 +479,38 @@ export class AdminController {
     );
     if (!result.success)
       throw new HttpException(result, HttpStatus.INTERNAL_SERVER_ERROR);
+    return result;
+  }
+
+  @Get('settings/pricing')
+  async getRidePricing() {
+    return this.adminService.getRidePricing();
+  }
+
+  @Patch('settings/pricing')
+  async updateRidePricing(@Body() body: Record<string, unknown>, @Req() req: any) {
+    const pick = (key: string) =>
+      body[key] === undefined || body[key] === null ? undefined : Number(body[key]);
+    const surcharges = body.vehicleSurchargePence as Record<string, unknown> | undefined;
+    const result = await this.adminService.updateRidePricing(
+      {
+        ratePerMilePence: pick('ratePerMilePence'),
+        ratePerMinuteTaxiPence: pick('ratePerMinuteTaxiPence'),
+        minimumFarePence: pick('minimumFarePence'),
+        customerStopRatePencePerMinute: pick('customerStopRatePencePerMinute'),
+        driverStopRatePencePerMinute: pick('driverStopRatePencePerMinute'),
+        vehicleSurchargePence:
+          surcharges && typeof surcharges === 'object'
+            ? {
+                small: surcharges.small === undefined ? undefined : Number(surcharges.small),
+                medium: surcharges.medium === undefined ? undefined : Number(surcharges.medium),
+                large: surcharges.large === undefined ? undefined : Number(surcharges.large),
+              }
+            : undefined,
+      },
+      this.auditContext(req),
+    );
+    if (!result.success) throw new HttpException(result, HttpStatus.BAD_REQUEST);
     return result;
   }
 

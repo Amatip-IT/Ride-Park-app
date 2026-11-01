@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Platform, SafeAreaView, ActivityIndicator, Alert, TextInput,
@@ -9,8 +9,10 @@ import { useThemeColors } from '@/hooks/useThemeColors';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, NavigationProp, useFocusEffect } from '@react-navigation/native';
 import { taxiBookingsApi, providerApi } from '@/api';
-import { AmazonMap } from '@/components/AmazonMap';
+import { LiveMap } from '@/components/LiveMap';
 import { getApiErrorMessage, getCurrentCoords } from '@/utils/helpers';
+import { fetchRouteDetails } from '@/utils/routing';
+import { metersToMilesLabel, secondsToMinutesLabel, VEHICLE_OPTIONS } from '@/utils/fare';
 import * as Haptics from 'expo-haptics';
 import { useDriverLocationSync } from '@/hooks/useDriverLocationSync';
 
@@ -33,6 +35,42 @@ export function DriverRideRequestsScreen() {
 
   // Accept form state (ETA)
   const [etaMinutes, setEtaMinutes] = useState('5');
+
+  // Road distance/time from this driver to the selected pickup
+  const [approach, setApproach] = useState<{
+    distanceMeters: number;
+    durationSeconds: number;
+    from: { lat: number; lng: number };
+  } | null>(null);
+  const [approachLoading, setApproachLoading] = useState(false);
+
+  useEffect(() => {
+    setApproach(null);
+    if (!selectedRequest?.pickupLat || !selectedRequest?.pickupLng) return;
+    let cancelled = false;
+    setApproachLoading(true);
+    (async () => {
+      try {
+        const me = await getCurrentCoords();
+        if (!me || cancelled) return;
+        const route = await fetchRouteDetails(me, {
+          lat: selectedRequest.pickupLat,
+          lng: selectedRequest.pickupLng,
+        });
+        if (cancelled || route.distanceMeters == null) return;
+        const seconds = route.durationSeconds ?? route.distanceMeters / 11;
+        setApproach({ distanceMeters: route.distanceMeters, durationSeconds: seconds, from: me });
+        setEtaMinutes(String(Math.max(1, Math.round(seconds / 60))));
+      } catch {
+        // The server also calculates the approach when the ride is accepted
+      } finally {
+        if (!cancelled) setApproachLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedRequest?._id]);
 
   const loadDriverStatus = async () => {
     try {
@@ -213,6 +251,20 @@ export function DriverRideRequestsScreen() {
               </Text>
             </View>
           )}
+          {req.approachPreviewMeters != null && (
+            <View style={styles.metaBadge}>
+              <Text style={styles.metaText}>
+                ~{metersToMilesLabel(req.approachPreviewMeters)} to pickup
+              </Text>
+            </View>
+          )}
+          {req.vehicleCategory && req.vehicleCategory !== 'small' && (
+            <View style={styles.metaBadge}>
+              <Text style={styles.metaText}>
+                {VEHICLE_OPTIONS.find((o) => o.category === req.vehicleCategory)?.label}
+              </Text>
+            </View>
+          )}
           <Text style={styles.timeAgo}>
             {new Date(req.createdAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
           </Text>
@@ -305,11 +357,14 @@ export function DriverRideRequestsScreen() {
         <View style={styles.modalContainer}>
           {/* Map Background */}
           {selectedRequest && (
-            <AmazonMap
+            <LiveMap
               pickupLat={selectedRequest.pickupLat}
               pickupLng={selectedRequest.pickupLng}
               destinationLat={selectedRequest.destinationLat}
               destinationLng={selectedRequest.destinationLng}
+              driverLat={approach?.from.lat}
+              driverLng={approach?.from.lng}
+              overlayPadding={{ bottom: 340 }}
             />
           )}
 
@@ -333,8 +388,13 @@ export function DriverRideRequestsScreen() {
               {/* Pickup Line */}
               <View style={styles.matchRouteItem}>
                 <View style={styles.matchNode} />
-                <Text style={styles.matchRouteText} numberOfLines={1}>
-                  5 min (1.4 mi) {selectedRequest?.pickupAddress || selectedRequest?.pickupPostcode || 'Current Location'}
+                <Text style={styles.matchRouteText} numberOfLines={2}>
+                  {approach
+                    ? `${secondsToMinutesLabel(approach.durationSeconds)} (${metersToMilesLabel(approach.distanceMeters)}) to pickup\n`
+                    : approachLoading
+                      ? 'Working out your route to pickup…\n'
+                      : ''}
+                  {selectedRequest?.pickupAddress || selectedRequest?.pickupPostcode || 'Current Location'}
                 </Text>
               </View>
               
@@ -344,7 +404,9 @@ export function DriverRideRequestsScreen() {
               <View style={styles.matchRouteItem}>
                 <View style={[styles.matchNode, { backgroundColor: '#FFF' }]} />
                 <Text style={styles.matchRouteText} numberOfLines={2}>
-                  {Math.round(selectedRequest?.estimatedDurationMinutes || 12)} mins ({selectedRequest?.estimatedDistanceMiles?.toFixed(1) || 4.3} mi){'\n'}
+                  {selectedRequest?.estimatedDurationMinutes
+                    ? `${Math.round(selectedRequest.estimatedDurationMinutes)} mins (${Number(selectedRequest.estimatedDistanceMiles || 0).toFixed(1)} mi) trip\n`
+                    : ''}
                   {selectedRequest?.destinationAddress || selectedRequest?.destinationPostcode}
                 </Text>
               </View>

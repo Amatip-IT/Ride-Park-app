@@ -1,14 +1,17 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, SafeAreaView,
-  ActivityIndicator, Alert, Linking, Animated,
+  ActivityIndicator, Alert, Linking, Animated, ScrollView,
 } from 'react-native';
 import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, ThemeColors } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
 import { taxiBookingsApi, ridesApi, reviewsApi } from '@/api';
-import { AmazonMap } from '@/components/AmazonMap';
+import { LiveMap } from '@/components/LiveMap';
+import { RideStopControl } from '@/components/RideStopControl';
+import { FareBreakdownCard } from '@/components/FareBreakdownCard';
+import { formatPence } from '@/utils/fare';
 import { useTaxiStore } from '@/store/taxiStore';
 import { useAuthStore } from '@/store/authStore';
 import { RatingModal } from '@/components/RatingModal';
@@ -140,6 +143,21 @@ export function PassengerTrackingScreen() {
       : request?.estimatedCost || 0;
   const paymentStatus =
     typeof linkedRide === 'object' ? linkedRide?.paymentStatus : undefined;
+  const rideDetails = typeof linkedRide === 'object' ? linkedRide : null;
+  const paysFromWallet = rideDetails?.paymentMethod === 'wallet';
+  const heldPence: number | undefined =
+    rideDetails?.hold?.status === 'held' || rideDetails?.hold?.status === 'capturing'
+      ? rideDetails.hold.amountPence
+      : undefined;
+
+  const reportIssue = () => {
+    navigation.navigate('FileDispute', {
+      category: 'service_quality',
+      relatedServiceType: 'ride',
+      relatedServiceId: rideRecordId ? String(rideRecordId) : requestId,
+      metadata: { requestId, rideReference: `GZ-${String(requestId).slice(-6).toUpperCase()}` },
+    });
+  };
 
   const handleConfirmArrival = async () => {
     if (confirmLoading) return;
@@ -183,7 +201,9 @@ export function PassengerTrackingScreen() {
 
     Alert.alert(
       'Confirm Payment',
-      `Pay £${rideFare.toFixed(2)} for your taxi ride?\n\nThis will be charged to your saved card.`,
+      paysFromWallet
+        ? `Pay £${rideFare.toFixed(2)} for your taxi ride?\n\nThis is taken from the amount held in your wallet${heldPence != null ? ` (${formatPence(heldPence)})` : ''}; any difference is settled from your wallet balance.`
+        : `Pay £${rideFare.toFixed(2)} for your taxi ride?\n\nThis will be charged to your saved card.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -238,6 +258,7 @@ export function PassengerTrackingScreen() {
       case 'in_progress': return '🛣️ Ride in progress';
       case 'awaiting_payment': return '💳 Confirm location and pay';
       case 'completed': return '✅ Ride completed';
+      case 'cancelled': return 'Ride cancelled';
       default: return '🔍 Finding a driver...';
     }
   };
@@ -330,7 +351,7 @@ export function PassengerTrackingScreen() {
     <SafeAreaView style={styles.safeArea}>
       {/* Live Map */}
       <View style={styles.mapContainer}>
-        <AmazonMap
+        <LiveMap
           pickupLat={request.pickupLat}
           pickupLng={request.pickupLng}
           destinationLat={request.destinationLat}
@@ -339,11 +360,16 @@ export function PassengerTrackingScreen() {
           driverLng={driverLocation?.lng}
           driverRotation={driverLocation?.rotation}
           routeCoordinates={routeCoordinates}
+          followDriver
         />
       </View>
 
       {/* Bottom Details Sheet */}
-      <View style={styles.detailsSheet}>
+      <ScrollView
+        style={styles.detailsSheet}
+        contentContainerStyle={styles.detailsContent}
+        bounces={false}
+      >
         {fetchError && (
           <TouchableOpacity style={styles.errorBanner} onPress={fetchRequest}>
             <Ionicons name="cloud-offline-outline" size={18} color={colors.coralRed} />
@@ -433,6 +459,26 @@ export function PassengerTrackingScreen() {
           )}
         </View>
 
+        {request.status === 'in_progress' && rideDetails && (
+          <>
+            {heldPence != null && (
+              <Text style={styles.holdText}>
+                {formatPence(heldPence)} is held in your wallet until the trip ends.
+              </Text>
+            )}
+            <RideStopControl
+              requestId={requestId}
+              ride={rideDetails}
+              role="customer"
+              onChanged={fetchRequest}
+            />
+          </>
+        )}
+
+        {request.status === 'awaiting_payment' && rideDetails?.fareBreakdown && (
+          <FareBreakdownCard fare={rideDetails.fareBreakdown} heldPence={heldPence} />
+        )}
+
         {/* Live tracking indicator */}
         {driverLocation && ['accepted', 'in_progress'].includes(request.status) && (
           <View style={styles.liveTrackingBar}>
@@ -481,9 +527,9 @@ export function PassengerTrackingScreen() {
                   <ActivityIndicator color="#FFF" />
                 ) : (
                   <>
-                    <Ionicons name="card-outline" size={18} color="#FFF" />
+                    <Ionicons name={paysFromWallet ? 'wallet-outline' : 'card-outline'} size={18} color="#FFF" />
                     <Text style={[styles.receiptBtnText, { color: '#FFF' }]}>
-                      Pay £{rideFare.toFixed(2)}
+                      Pay £{rideFare.toFixed(2)}{paysFromWallet ? ' from wallet' : ''}
                     </Text>
                   </>
                 )}
@@ -499,6 +545,13 @@ export function PassengerTrackingScreen() {
           >
             <Ionicons name="receipt-outline" size={18} color={colors.electricTeal} />
             <Text style={styles.receiptBtnText}>View trip receipt</Text>
+          </TouchableOpacity>
+        )}
+
+        {['completed', 'cancelled', 'awaiting_payment'].includes(request.status) && (
+          <TouchableOpacity style={styles.reportLink} onPress={reportIssue}>
+            <Ionicons name="flag-outline" size={14} color={colors.textSecondary} />
+            <Text style={styles.reportLinkText}>Report an issue with this ride</Text>
           </TouchableOpacity>
         )}
 
@@ -525,7 +578,7 @@ export function PassengerTrackingScreen() {
             </TouchableOpacity>
           )}
         </View>
-      </View>
+      </ScrollView>
 
       {driverId && !alreadyReviewed && (
         <RatingModal
@@ -556,13 +609,15 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   mapContainer: { flex: 1, backgroundColor: '#E2E8F0' },
 
   detailsSheet: {
+    flexGrow: 0,
+    maxHeight: '62%',
     backgroundColor: colors.surface,
-    padding: SPACING.xl,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     shadowColor: '#000', shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.1, shadowRadius: 12, elevation: 12,
   },
+  detailsContent: { padding: SPACING.xl },
   errorBanner: {
     flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
     padding: SPACING.sm, marginBottom: SPACING.md,
@@ -695,6 +750,12 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     fontWeight: FONT_WEIGHTS.semibold,
   },
 
+  holdText: { color: colors.textSecondary, fontSize: 12, marginBottom: SPACING.sm, textAlign: 'center' },
+  reportLink: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    paddingVertical: SPACING.sm, marginBottom: SPACING.sm,
+  },
+  reportLinkText: { color: colors.textSecondary, fontSize: 13, textDecorationLine: 'underline' },
   backButton: {
     alignItems: 'center', paddingVertical: SPACING.md,
     borderRadius: BORDER_RADIUS.lg, borderWidth: 1, borderColor: colors.border,

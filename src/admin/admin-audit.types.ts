@@ -13,6 +13,7 @@ export type AdminAuditAction =
   | 'unban_user'
   | 'renew_document'
   | 'update_platform_fee'
+  | 'update_ride_pricing'
   | 'approve_withdrawal'
   | 'reject_withdrawal'
   | 'bulk_approve_drivers'
@@ -21,7 +22,11 @@ export type AdminAuditAction =
   | 'send_admin_message'
   | 'create_message_template'
   | 'investigate_dispute'
-  | 'resolve_dispute';
+  | 'resolve_dispute'
+  | 'reject_dispute'
+  | 'assign_dispute'
+  | 'dispute_note'
+  | 'dispute_refund_wallet';
 
 export interface AdminAuditContext {
   adminId: string;

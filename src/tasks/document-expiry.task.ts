@@ -6,6 +6,10 @@ import { Chauffeur, ChauffeurDocument } from '../schemas/chauffeur.schema';
 import { Taxi, TaxiDocument } from '../schemas/taxi.schema';
 import { User, UserDocument } from '../schemas/user.schema';
 import { NotificationsService } from '../notifications/notifications.service';
+import {
+  documentLabel,
+  notificationLines,
+} from '../notifications/notification-copy';
 
 // Default expiry durations by document type (in days)
 const DEFAULT_EXPIRY_DAYS: Record<string, number> = {
@@ -161,7 +165,10 @@ export class DocumentExpiryTask {
         await this.notificationsService.sendNotification(
           user._id.toString(),
           '⚠️ Document Expired',
-          `Your ${docField} document has expired. You can no longer accept rides until you renew it.`,
+          notificationLines(
+            `Your ${documentLabel(docField)} has expired.`,
+            'You can no longer accept rides until you upload a renewed copy and it is approved.',
+          ),
           'system',
           { docField },
         );
@@ -182,10 +189,17 @@ export class DocumentExpiryTask {
     if (!user) return;
 
     const urgency = daysRemaining <= 7 ? 'URGENT' : '';
+    const label = documentLabel(docField);
     const message =
       daysRemaining <= 7
-        ? `⚠️ URGENT: Your ${docField} document expires in ${daysRemaining} days. Renew now to avoid service interruption.`
-        : `Your ${docField} document will expire in ${daysRemaining} days. Please renew it.`;
+        ? notificationLines(
+            `Your ${label} expires in ${daysRemaining} day${daysRemaining === 1 ? '' : 's'}.`,
+            'Renew it now. Once it expires you will not be able to accept rides.',
+          )
+        : notificationLines(
+            `Your ${label} expires in ${daysRemaining} days.`,
+            'Upload a renewed copy before the expiry date so your account stays active.',
+          );
 
     try {
       await this.notificationsService.sendNotification(

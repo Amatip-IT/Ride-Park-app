@@ -26,6 +26,7 @@ import { ServiceChoiceScreen } from '@/screens/ServiceChoiceScreen';
 import { DriverRequestScreen } from '@/screens/DriverRequestScreen';
 import { TaxiBookingScreen } from '@/screens/TaxiBookingScreen';
 import { ParkingDetailScreen } from '@/screens/ParkingDetailScreen';
+import { ParkingNavigationScreen } from '@/screens/ParkingNavigationScreen';
 import { PassengerTrackingScreen } from '@/screens/PassengerTrackingScreen';
 import { TripReceiptScreen } from '@/screens/TripReceiptScreen';
 import { ServiceReviewsScreen } from '@/screens/ServiceReviewsScreen';
@@ -58,6 +59,7 @@ import { AdminDisputesScreen } from '@/screens/AdminDisputesScreen';
 import { AdminDisputeDetailScreen } from '@/screens/AdminDisputeDetailScreen';
 import { DisputesScreen } from '@/screens/DisputesScreen';
 import { FileDisputeScreen } from '@/screens/FileDisputeScreen';
+import { RideCancelledModal } from '@/components/RideCancelledModal';
 import { DisputeDetailScreen } from '@/screens/DisputeDetailScreen';
 
 // Lazy-loaded admin sub-screens (may or may not exist yet)
@@ -163,6 +165,7 @@ const ConsumerNavigator = () => {
     <ConsumerStack.Screen name="QuickRide" component={QuickRideScreen} />
     {/* Search result details */}
     <ConsumerStack.Screen name="ParkingDetail" component={ParkingDetailScreen} />
+    <ConsumerStack.Screen name="ParkingNavigation" component={ParkingNavigationScreen} />
     <ConsumerStack.Screen name="ServiceReviews" component={ServiceReviewsScreen} />
     {/* Tracking */}
     <ConsumerStack.Screen name="PassengerTracking" component={PassengerTrackingScreen} />
@@ -407,6 +410,7 @@ export const RootNavigator = () => {
           options={{ presentation: 'modal' }}
         />
       </Stack.Navigator>
+      <RideCancelledModal />
     </NavigationContainer>
   );
 };
@@ -427,6 +431,7 @@ export type RootStackParamList = {
   DriverRequest: undefined;
   TaxiBooking: undefined;
   ParkingDetail: { spaceId: string; space?: any };
+  ParkingNavigation: { spaceId?: string; name?: string; address?: string; lat: number; lng: number };
   ServiceReviews: { serviceType: 'parking' | 'driver' | 'taxi'; serviceId: string; serviceName?: string };
   PassengerTracking: { requestId: string };
   TripReceipt: { requestId?: string; rideId?: string; bookingId?: string };

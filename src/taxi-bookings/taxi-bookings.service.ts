@@ -1,4 +1,4 @@
-import { Injectable, forwardRef, Inject } from '@nestjs/common';
+import { Injectable, forwardRef, Inject, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import {
@@ -15,10 +15,35 @@ import { TaxiBookingsGateway } from './taxi-bookings.gateway';
 import { PaymentsService } from 'src/payments/payments.service';
 import { WalletService } from 'src/wallet/wallet.service';
 import { toObjectIdString } from 'src/common/request.util';
+import {
+  notificationLines,
+  tripFactLines,
+  vehicleLine,
+} from 'src/notifications/notification-copy';
 
-// Pricing constants
-const RATE_PER_MILE = 1.1;
-const RATE_PER_MINUTE = 0.2;
+import { RidesService } from 'src/rides/rides.service';
+import {
+  CATEGORY_RANK,
+  RidePricingService,
+} from 'src/rides/ride-pricing.service';
+import {
+  calculateFare,
+  metersToMiles,
+  penceToPounds,
+  PricingRules,
+  VEHICLE_CATEGORY_LABELS,
+  VehicleCategory,
+  vehicleCategoryFrom,
+} from 'src/pricing/fare';
+import { estimatedLeg, isValidLatLng } from 'src/search/routes.service';
+
+function personName(
+  person?: { firstName?: string; lastName?: string } | null,
+  fallback = 'Your driver',
+): string {
+  if (!person?.firstName) return fallback;
+  return `${person.firstName} ${person.lastName || ''}`.trim();
+}
 
 const TAXI_REQUEST_TRANSITIONS: Record<string, readonly string[]> = {
   accepted: ['arrived'],
@@ -28,6 +53,8 @@ const TAXI_REQUEST_TRANSITIONS: Record<string, readonly string[]> = {
 
 @Injectable()
 export class TaxiBookingsService {
+  private readonly logger = new Logger(TaxiBookingsService.name);
+
   constructor(
     @InjectModel(TaxiRideRequest.name)
     private taxiRequestModel: Model<TaxiRideRequestDocument>,
@@ -41,7 +68,20 @@ export class TaxiBookingsService {
     private readonly walletService: WalletService,
     @Inject(forwardRef(() => TaxiBookingsGateway))
     private readonly taxiGateway: TaxiBookingsGateway,
+    private readonly ridesService: RidesService,
+    private readonly ridePricing: RidePricingService,
   ) {}
+
+  /** Category a driver's vehicle belongs to (from their registered taxi type). */
+  private async driverCategoryFor(userId: string): Promise<VehicleCategory> {
+    const user = await this.userModel.findById(userId).select('taxiType').lean().exec();
+    return vehicleCategoryFrom((user as any)?.taxiType);
+  }
+
+  /** Short human reference shown to drivers and passengers, e.g. "GZ-4F2A9C". */
+  private rideReference(requestId: string): string {
+    return `GZ-${requestId.slice(-6).toUpperCase()}`;
+  }
 
   /**
    * Passenger creates a ride request (broadcast to nearby drivers)
@@ -64,8 +104,11 @@ export class TaxiBookingsService {
     estimatedDistanceMiles?: number;
     estimatedDurationMinutes?: number;
     estimatedCost?: number;
+    taxiType?: string;
+    vehicleCategory?: string;
   }): Promise<Response> {
     try {
+      const vehicleCategory = vehicleCategoryFrom(data.vehicleCategory || data.taxiType);
       // 1. Verify passenger has a payment method BEFORE allowing them to request a ride
       try {
         const paymentMethods = await this.paymentsService.getPaymentMethods(
@@ -103,14 +146,6 @@ export class TaxiBookingsService {
           success: false,
           message: 'You already have an active ride request. Cancel it first.',
         };
-      }
-
-      // Calculate estimated cost if distance is provided
-      let estimatedCost: number | undefined = data.estimatedCost;
-      if (estimatedCost == null && data.estimatedDistanceMiles) {
-        const distanceCost = data.estimatedDistanceMiles * RATE_PER_MILE;
-        const timeCost = (data.estimatedDurationMinutes || 0) * RATE_PER_MINUTE;
-        estimatedCost = Math.round((distanceCost + timeCost) * 100) / 100;
       }
 
       let targetDriverUserId: string | undefined;
@@ -155,6 +190,66 @@ export class TaxiBookingsService {
             message: `This driver is not available at the moment (${statusLabel}). Try "Near me" to find an available taxi nearby.`,
           };
         }
+
+        const targetCategory = await this.driverCategoryFor(targetDriverUserId!);
+        if (CATEGORY_RANK[targetCategory] < CATEGORY_RANK[vehicleCategory]) {
+          return {
+            success: false,
+            message: `This driver's vehicle is smaller than a ${VEHICLE_CATEGORY_LABELS[vehicleCategory]}. Choose a different vehicle type or driver.`,
+          };
+        }
+      }
+
+      // Server-side quote: the client's estimate is never trusted for pricing
+      const pickup = { lat: Number(data.pickupLat), lng: Number(data.pickupLng) };
+      const destination = { lat: Number(data.destinationLat), lng: Number(data.destinationLng) };
+      const rules: PricingRules = await this.ridePricing.getRules();
+      let quoteFields: Record<string, unknown> = { pricingSnapshot: rules, vehicleCategory };
+      let estimatedCost: number | undefined;
+
+      if (isValidLatLng(pickup) && isValidLatLng(destination)) {
+        const quote = await this.ridePricing.quote({
+          pickup,
+          destination,
+          targetTaxiId: data.targetDriverId,
+          rules,
+        });
+        const fare = quote.fares[vehicleCategory];
+        const approach = quote.approach[vehicleCategory];
+        estimatedCost = penceToPounds(fare.totalPence);
+        quoteFields = {
+          ...quoteFields,
+          estimatedTripMeters: quote.trip.distanceMeters,
+          estimatedTripSeconds: quote.trip.durationSeconds,
+          approachMeters: approach.distanceMeters,
+          approachSeconds: approach.durationSeconds,
+          approachSource: approach.source,
+          quoteBreakdown: fare,
+          estimatedCostPence: fare.totalPence,
+          estimatedDistanceMiles: metersToMiles(quote.trip.distanceMeters),
+          estimatedDurationMinutes: Math.max(1, Math.round(quote.trip.durationSeconds / 60)),
+        };
+      } else if (data.estimatedDistanceMiles) {
+        // No coordinates (postcode-only booking): price the passenger's stated distance
+        const fare = calculateFare(
+          {
+            serviceType: 'taxi',
+            vehicleCategory,
+            approachMeters: 0,
+            tripMeters: data.estimatedDistanceMiles * 1609.344,
+            tripMinutes: data.estimatedDurationMinutes || 0,
+          },
+          rules,
+        );
+        estimatedCost = penceToPounds(fare.totalPence);
+        quoteFields = {
+          ...quoteFields,
+          approachSource: 'none',
+          quoteBreakdown: fare,
+          estimatedCostPence: fare.totalPence,
+          estimatedDistanceMiles: data.estimatedDistanceMiles,
+          estimatedDurationMinutes: data.estimatedDurationMinutes,
+        };
       }
 
       const request = new this.taxiRequestModel({
@@ -177,6 +272,7 @@ export class TaxiBookingsService {
         targetDriver: targetDriverUserId || undefined,
         estimatedDistanceMiles: data.estimatedDistanceMiles,
         estimatedDurationMinutes: data.estimatedDurationMinutes,
+        ...quoteFields,
         estimatedCost,
         status: 'searching',
       });
@@ -197,7 +293,11 @@ export class TaxiBookingsService {
         await this.notificationsService.sendNotification(
           targetDriverUserId,
           '🚖 Direct Ride Request',
-          `${passengerName} requested you specifically${targetDriverNumber ? ` (Taxi #${targetDriverNumber})` : ''}. Open Ride Requests to accept.`,
+          notificationLines(
+            `${passengerName} asked for you specifically${targetDriverNumber ? ` (Taxi #${targetDriverNumber})` : ''}.`,
+            ...tripFactLines(request),
+            'Open Ride Requests to accept or decline.',
+          ),
           'ride',
           { rideRequestId: request._id.toString(), targeted: true },
         );
@@ -212,18 +312,32 @@ export class TaxiBookingsService {
         };
       }
 
-      // Broadcast — notify all online, approved taxi drivers
-      const onlineDrivers = await this.taxiModel
+      // Broadcast — notify online, approved taxi drivers whose vehicle is big enough
+      const onlineDriverRecords = await this.taxiModel
         .find({ status: 'approved', availability: 'online' })
         .select('user')
+        .populate('user', 'taxiType')
         .exec();
+      const onlineDrivers = onlineDriverRecords
+        .filter(
+          (driver) =>
+            CATEGORY_RANK[vehicleCategoryFrom((driver.user as any)?.taxiType)] >=
+            CATEGORY_RANK[vehicleCategory],
+        )
+        .map((driver) => ({
+          user: toObjectIdString((driver.user as any)?._id || driver.user),
+        }));
 
       await Promise.all(
         onlineDrivers.map((driver) =>
           this.notificationsService.sendNotification(
             driver.user.toString(),
             '🚖 New Ride Request Nearby',
-            `${passengerName} is looking for a taxi nearby. Open Ride Requests to accept.`,
+            notificationLines(
+              `${passengerName} needs a taxi nearby.`,
+              ...tripFactLines(request),
+              'Open Ride Requests to accept.',
+            ),
             'ride',
             { rideRequestId: request._id.toString(), targeted: false },
           ),
@@ -320,6 +434,20 @@ export class TaxiBookingsService {
         filter.pickupPostcode = { $regex: new RegExp(`^${outwardCode}`, 'i') };
       }
 
+      // Drivers only see requests their vehicle can serve (a larger vehicle may take a smaller job)
+      const driverCategory = await this.driverCategoryFor(normalizedDriverId);
+      const servable = (['small', 'medium', 'large'] as VehicleCategory[]).filter(
+        (c) => CATEGORY_RANK[c] <= CATEGORY_RANK[driverCategory],
+      );
+      filter.$and = [
+        {
+          $or: [
+            { vehicleCategory: { $in: servable } },
+            { vehicleCategory: { $exists: false } },
+          ],
+        },
+      ];
+
       const requests = await this.taxiRequestModel
         .find(filter)
         .populate('passenger', 'firstName lastName phoneNumber')
@@ -327,9 +455,23 @@ export class TaxiBookingsService {
         .limit(50)
         .exec();
 
+      // Straight-line approach preview for the list; the app fetches the road route on open
+      const driverPosition = this.ridePricing.driverPosition(driverRecord);
+      const data = requests.map((r) => {
+        const item: any = r.toObject();
+        const pickup = { lat: Number(r.pickupLat), lng: Number(r.pickupLng) };
+        if (driverPosition && isValidLatLng(pickup)) {
+          const preview = estimatedLeg(driverPosition, pickup);
+          item.approachPreviewMeters = preview.distanceMeters;
+          item.approachPreviewSeconds = preview.durationSeconds;
+        }
+        item.rideReference = this.rideReference(r._id.toString());
+        return item;
+      });
+
       return {
         success: true,
-        data: requests,
+        data,
         message: `${requests.length} ride request(s) available`,
       };
     } catch (error) {
@@ -420,10 +562,78 @@ export class TaxiBookingsService {
         };
       }
 
+      if (existingRequest.status !== 'searching') {
+        return {
+          success: false,
+          message:
+            existingRequest.status === 'accepted'
+              ? 'This ride has already been accepted by another driver'
+              : `This ride request is ${existingRequest.status}`,
+        };
+      }
+
+      const driverCategory = await this.driverCategoryFor(normalizedDriverId);
+      if (
+        CATEGORY_RANK[driverCategory] <
+        CATEGORY_RANK[vehicleCategoryFrom(existingRequest.vehicleCategory)]
+      ) {
+        return {
+          success: false,
+          message: 'Your vehicle is smaller than the vehicle type the passenger booked.',
+        };
+      }
+
+      // Billable approach starts where the driver is when they accept
+      const pickup = {
+        lat: Number(existingRequest.pickupLat),
+        lng: Number(existingRequest.pickupLng),
+      };
+      const driverPosition = this.ridePricing.driverPosition(driverRecord);
+      const pricingFields: Record<string, unknown> = {};
+      let etaMinutes = data.etaMinutes;
+
+      if (driverPosition && isValidLatLng(pickup)) {
+        const approach = await this.ridePricing.leg(driverPosition, pickup);
+        const rules =
+          (existingRequest.pricingSnapshot as PricingRules) || (await this.ridePricing.getRules());
+        const tripMeters =
+          existingRequest.estimatedTripMeters ??
+          (existingRequest.estimatedDistanceMiles || 0) * 1609.344;
+        const tripSeconds =
+          existingRequest.estimatedTripSeconds ??
+          (existingRequest.estimatedDurationMinutes || 0) * 60;
+        const fare = calculateFare(
+          {
+            serviceType: 'taxi',
+            vehicleCategory: vehicleCategoryFrom(existingRequest.vehicleCategory),
+            approachMeters: approach.distanceMeters,
+            tripMeters,
+            tripMinutes: tripSeconds / 60,
+          },
+          rules,
+        );
+        etaMinutes = Math.max(1, Math.round(approach.durationSeconds / 60));
+        Object.assign(pricingFields, {
+          approachMeters: approach.distanceMeters,
+          approachSeconds: approach.durationSeconds,
+          approachSource: 'accepted_driver',
+          driverStartLocation: { ...driverPosition, capturedAt: new Date() },
+          pricingSnapshot: rules,
+          quoteBreakdown: fare,
+          estimatedCostPence: fare.totalPence,
+          estimatedCost: penceToPounds(fare.totalPence),
+        });
+      } else {
+        this.logger.warn(
+          JSON.stringify({ event: 'accept_without_gps', requestId, driverId: normalizedDriverId }),
+        );
+      }
+
       // Atomic status update to prevent two drivers accepting the same ride
       const request = await this.taxiRequestModel.findOneAndUpdate(
         { _id: requestId, status: 'searching' },
         {
+          ...pricingFields,
           status: 'accepted',
           acceptedDriver: normalizedDriverId,
           driverVehicle: {
@@ -435,7 +645,7 @@ export class TaxiBookingsService {
               driverRecord?.vehicleInfo?.registration ||
               'N/A',
           },
-          driverEtaMinutes: data.etaMinutes,
+          driverEtaMinutes: etaMinutes,
           driverNumber: driverRecord?.driverNumber || undefined,
           acceptedAt: new Date(),
         },
@@ -471,11 +681,37 @@ export class TaxiBookingsService {
       // Trigger real-time socket updates for passenger
       this.taxiGateway.pushRequestUpdate(request._id.toString(), populated);
 
-      // Notify passenger
+      const driverUser = populated?.acceptedDriver as
+        | { firstName?: string; lastName?: string }
+        | undefined;
+      const driverName = driverUser?.firstName
+        ? `${driverUser.firstName} ${driverUser.lastName || ''}`.trim()
+        : 'Your driver';
+      const acceptedVehicle = {
+        color: driverRecord?.vehicleInfo?.color,
+        make: driverRecord?.vehicleInfo?.make || 'Standard',
+        model: driverRecord?.vehicleInfo?.model || 'Vehicle',
+        plateNumber:
+          driverRecord?.vehicleInfo?.plateNumber ||
+          driverRecord?.vehicleInfo?.registration ||
+          'N/A',
+      };
+
       await this.notificationsService.sendNotification(
         request.passenger.toString(),
         'Ride Accepted!',
-        `A driver is on their way. ETA: ${data.etaMinutes} mins. Vehicle: ${driverRecord?.vehicleInfo?.make || 'Standard'} ${driverRecord?.vehicleInfo?.model || 'Vehicle'} (${driverRecord?.vehicleInfo?.plateNumber || driverRecord?.vehicleInfo?.registration || 'N/A'})`,
+        notificationLines(
+          `${driverName} accepted your ride and is on the way.`,
+          vehicleLine(acceptedVehicle),
+          driverRecord?.driverNumber
+            ? `Taxi number: ${driverRecord.driverNumber}`
+            : undefined,
+          `ETA: ${etaMinutes} min`,
+          request.estimatedCostPence != null
+            ? `Updated fare estimate: £${penceToPounds(request.estimatedCostPence).toFixed(2)} (includes the driver's ${metersToMiles(request.approachMeters || 0).toFixed(1)} mi to you)`
+            : undefined,
+          ...tripFactLines(request, { includeEstimate: false }),
+        ),
         'ride',
         { rideId: request._id },
       );
@@ -501,14 +737,14 @@ export class TaxiBookingsService {
     passengerId: string,
   ): Promise<Response> {
     try {
-      const request = await this.taxiRequestModel.findById(requestId);
+      const existing = await this.taxiRequestModel.findById(requestId);
 
-      if (!request) {
+      if (!existing) {
         return { success: false, message: 'Ride request not found' };
       }
 
       if (
-        toObjectIdString(request.passenger) !== toObjectIdString(passengerId)
+        toObjectIdString(existing.passenger) !== toObjectIdString(passengerId)
       ) {
         return {
           success: false,
@@ -516,57 +752,113 @@ export class TaxiBookingsService {
         };
       }
 
-      if (!['searching', 'accepted', 'arrived'].includes(request.status)) {
+      if (existing.status === 'cancelled') {
+        return { success: true, data: existing, message: 'Ride request already cancelled' };
+      }
+
+      if (!['searching', 'accepted', 'arrived'].includes(existing.status)) {
         return {
           success: false,
           message:
-            request.status === 'in_progress'
+            existing.status === 'in_progress'
               ? 'Your trip has already started — contact support if you need help.'
-              : `Cannot cancel a ${request.status} ride`,
+              : `Cannot cancel a ${existing.status} ride`,
         };
       }
 
-      // Cancel linked ride record if the trip had not finished
-      if (request.ride) {
+      // Single conditional transition: concurrent cancels / driver status updates can't both win
+      const cancelled = await this.taxiRequestModel.findOneAndUpdate(
+        { _id: requestId, status: { $in: ['searching', 'accepted', 'arrived'] } },
+        {
+          $set: {
+            status: 'cancelled',
+            cancelledAt: new Date(),
+            cancelledBy: 'passenger',
+          },
+        },
+        { new: true },
+      );
+
+      if (!cancelled) {
+        const latest = await this.taxiRequestModel.findById(requestId);
+        if (latest?.status === 'cancelled') {
+          return { success: true, data: latest, message: 'Ride request already cancelled' };
+        }
+        return {
+          success: false,
+          message:
+            latest?.status === 'in_progress'
+              ? 'Your trip has already started — contact support if you need help.'
+              : `Cannot cancel a ${latest?.status || 'missing'} ride`,
+        };
+      }
+
+      // Cancel the linked ride (it may exist before the request is linked, mid-start) and return held funds
+      const linkedRide =
+        (cancelled.ride && (await this.rideModel.findById(cancelled.ride).select('_id').lean().exec())) ||
+        (await this.rideModel.findOne({ booking: cancelled._id }).select('_id').lean().exec());
+      if (linkedRide) {
         await this.rideModel.updateOne(
-          { _id: request.ride, status: { $in: ['pending', 'in_progress'] } },
+          { _id: linkedRide._id, status: { $in: ['pending', 'in_progress'] } },
           { $set: { status: 'cancelled' } },
+        );
+        await this.ridesService.releaseHoldForRide(
+          linkedRide._id.toString(),
+          'ride cancelled by passenger',
         );
       }
 
-      // If a driver had accepted, free them up
-      if (request.acceptedDriver) {
+      this.taxiGateway.pushRequestUpdate(cancelled._id.toString(), cancelled);
+
+      // If a driver had accepted, free them up and tell them immediately
+      if (cancelled.acceptedDriver) {
+        const driverId = cancelled.acceptedDriver.toString();
         await this.taxiModel.updateOne(
-          { user: request.acceptedDriver },
+          { user: cancelled.acceptedDriver },
           { $set: { availability: 'online' } },
         );
         await this.chauffeurModel.updateOne(
-          { user: request.acceptedDriver },
+          { user: cancelled.acceptedDriver },
           { $set: { availability: 'online' } },
         );
 
+        this.taxiGateway.pushRideCancelledToDriver(driverId, {
+          requestId: cancelled._id.toString(),
+          rideReference: this.rideReference(cancelled._id.toString()),
+          title: 'Ride Cancelled',
+          message: 'The customer has cancelled this booking.',
+          cancelledAt: cancelled.cancelledAt,
+        });
+
         await this.notificationsService.sendNotification(
-          request.acceptedDriver.toString(),
+          driverId,
           'Ride Cancelled',
-          'The passenger has cancelled the ride request.',
+          notificationLines(
+            `The customer has cancelled this booking (${this.rideReference(cancelled._id.toString())}).`,
+            ...tripFactLines(cancelled, { includeEstimate: false }),
+            'You are available for new requests again.',
+          ),
           'ride',
-          { rideId: request._id },
+          { rideId: cancelled._id, requestId: cancelled._id.toString(), status: 'cancelled' },
         );
       }
 
-      request.status = 'cancelled';
-      await request.save();
+      this.logger.log(
+        JSON.stringify({ event: 'ride_cancelled', requestId, by: 'passenger', hadDriver: !!cancelled.acceptedDriver }),
+      );
+      const request = cancelled;
 
       await this.notificationsService.sendNotification(
         request.passenger.toString(),
         'Ride Cancelled',
-        'Your ride request has been cancelled.',
+        notificationLines(
+          'Your ride request has been cancelled.',
+          ...tripFactLines(request, { includeEstimate: false }),
+          'You can request another taxi whenever you are ready.',
+        ),
         'ride',
         { rideId: request._id, status: 'cancelled' },
       );
-
-      // Trigger real-time socket updates for driver/passenger
-      this.taxiGateway.pushRequestUpdate(request._id.toString(), request);
 
       return {
         success: true,
@@ -579,6 +871,63 @@ export class TaxiBookingsService {
         message: `Failed to cancel: ${error instanceof Error ? error.message : 'Unknown error'}`,
       };
     }
+  }
+
+  /**
+   * Start or end a stop on the trip linked to this request, then push the change
+   * to both apps through the ride room.
+   */
+  async changeStop(
+    requestId: string,
+    userId: string,
+    action: 'start' | 'end',
+  ): Promise<Response> {
+    const request = await this.taxiRequestModel.findById(requestId).select('ride status').lean().exec();
+    if (!request?.ride) {
+      return { success: false, message: 'Stops are available once the ride has started' };
+    }
+    const rideId = request.ride.toString();
+    const result =
+      action === 'start'
+        ? await this.ridesService.startStop(rideId, userId)
+        : await this.ridesService.endStop(rideId, userId);
+
+    if (result.success) {
+      const populated = await this.getRideRequest(requestId);
+      if (populated.success) this.taxiGateway.pushRequestUpdate(requestId, populated.data);
+    }
+    return result;
+  }
+
+  /** Cancelled rides the driver hasn't acknowledged yet (replayed when they reconnect). */
+  async getUnacknowledgedCancellations(driverId: string) {
+    const since = new Date(Date.now() - 24 * 60 * 60_000);
+    const requests = await this.taxiRequestModel
+      .find({
+        acceptedDriver: driverId,
+        status: 'cancelled',
+        cancelledBy: 'passenger',
+        cancelledAt: { $gte: since },
+        driverCancelAcknowledgedAt: null,
+      })
+      .select('_id cancelledAt')
+      .lean()
+      .exec();
+    return requests.map((r) => ({
+      requestId: r._id.toString(),
+      rideReference: this.rideReference(r._id.toString()),
+      title: 'Ride Cancelled',
+      message: 'The customer has cancelled this booking.',
+      cancelledAt: r.cancelledAt,
+    }));
+  }
+
+  async acknowledgeCancellation(requestId: string, driverId: string): Promise<Response> {
+    await this.taxiRequestModel.updateOne(
+      { _id: requestId, acceptedDriver: driverId, status: 'cancelled' },
+      { $set: { driverCancelAcknowledgedAt: new Date() } },
+    );
+    return { success: true, message: 'Cancellation acknowledged' };
   }
 
   /**
@@ -758,7 +1107,17 @@ export class TaxiBookingsService {
         await this.notificationsService.sendNotification(
           request.passenger.toString(),
           'Driver Arrived',
-          'Your driver has arrived at the pickup location!',
+          notificationLines(
+            `${personName(populated?.acceptedDriver as { firstName?: string; lastName?: string } | undefined)} is waiting at the pickup.`,
+            vehicleLine(request.driverVehicle),
+            request.driverNumber
+              ? `Taxi number: ${request.driverNumber}`
+              : undefined,
+            ...tripFactLines(request, {
+              includeTiming: false,
+              includeEstimate: false,
+            }),
+          ),
           'ride',
           { rideId: request._id },
         );
@@ -766,7 +1125,15 @@ export class TaxiBookingsService {
         await this.notificationsService.sendNotification(
           request.passenger.toString(),
           'Ride Started',
-          'Your ride is now in progress. Have a safe trip!',
+          notificationLines(
+            `${personName(populated?.acceptedDriver as { firstName?: string; lastName?: string } | undefined)} has started the trip.`,
+            vehicleLine(request.driverVehicle),
+            ...tripFactLines(request, {
+              includeTiming: false,
+              includeEstimate: false,
+            }),
+            'Have a safe journey.',
+          ),
           'ride',
           { rideId: request._id },
         );
