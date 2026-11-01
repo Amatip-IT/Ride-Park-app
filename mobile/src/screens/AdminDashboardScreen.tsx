@@ -114,8 +114,15 @@ const NAV_SECTIONS: NavSection[] = [
         route: 'AdminAuditLogs',
       },
       {
+        title: 'Ride Pricing',
+        subtitle: 'Per-mile, per-minute, min fare, vehicles, stops',
+        icon: 'pricetags-outline',
+        colorKey: 'electricTeal',
+        route: 'AdminPlatformSettings',
+      },
+      {
         title: 'Platform Settings',
-        subtitle: 'Fees and configuration',
+        subtitle: 'Service fee & ride pricing',
         icon: 'settings-outline',
         colorKey: 'coralRed',
         route: 'AdminPlatformSettings',

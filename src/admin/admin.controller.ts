@@ -484,9 +484,13 @@ export class AdminController {
 
   @Get('settings/pricing')
   async getRidePricing() {
-    return this.adminService.getRidePricing();
+    const result = await this.adminService.getRidePricing();
+    if (!result.success)
+      throw new HttpException(result, HttpStatus.INTERNAL_SERVER_ERROR);
+    return result;
   }
 
+  @Post('settings/pricing')
   @Patch('settings/pricing')
   async updateRidePricing(@Body() body: Record<string, unknown>, @Req() req: any) {
     const pick = (key: string) =>

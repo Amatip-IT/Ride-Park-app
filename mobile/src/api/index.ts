@@ -230,7 +230,7 @@ export const adminApi = {
   updatePlatformFee: (percentage: number) =>
     api.post<ApiResponse>('/admin/verifications/settings/fee', { percentage }),
 
-  // Ride pricing (all values in pence)
+  // Ride pricing (all values in pence). POST matches other settings writes; PATCH kept on API for compat.
   getRidePricing: () =>
     api.get<ApiResponse>('/admin/verifications/settings/pricing'),
 
@@ -241,7 +241,7 @@ export const adminApi = {
     customerStopRatePencePerMinute?: number;
     driverStopRatePencePerMinute?: number;
     vehicleSurchargePence?: { small?: number; medium?: number; large?: number };
-  }) => api.patch<ApiResponse>('/admin/verifications/settings/pricing', data),
+  }) => api.post<ApiResponse>('/admin/verifications/settings/pricing', data),
 
   // ── Payouts (Withdrawals) ──
   getPendingWithdrawals: () =>
