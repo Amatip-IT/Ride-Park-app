@@ -6,7 +6,8 @@ import {
 import { SPACING, BORDER_RADIUS, FONT_SIZES, FONT_WEIGHTS, ThemeColors } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/useThemeColors';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation, NavigationProp } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Location from 'expo-location';
 import { searchLocationByText, PlaceSuggestion } from '@/api/amazonLocation';
 import { searchApi, taxiBookingsApi, ridesApi } from '@/api';
@@ -27,7 +28,7 @@ interface RecentDestination {
 }
 
 export function QuickRideScreen() {
-  const navigation = useNavigation<NavigationProp<any>>();
+  const navigation = useNavigation<NativeStackNavigationProp<any>>();
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const biasPosition = useLocationBias();
@@ -358,7 +359,7 @@ export function QuickRideScreen() {
             ListHeaderComponent={
               recentSearches.length > 0 ? (
                 <Text style={styles.sectionLabel}>Recent</Text>
-              ) : null
+              ) : undefined
             }
             ListEmptyComponent={
               <View style={styles.emptyState}>
@@ -529,7 +530,7 @@ const makeStyles = (colors: ThemeColors) =>
       lineHeight: 20,
     },
     overlay: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       backgroundColor: colors.background === '#FFFFFF' ? 'rgba(255,255,255,0.9)' : 'rgba(13,27,42,0.9)',
       justifyContent: 'center',
       alignItems: 'center',

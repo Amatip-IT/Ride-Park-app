@@ -150,7 +150,7 @@ class AuthService {
       return {
         success: false,
         message: this.extractErrorMessage(error, 'Failed to send OTP'),
-        retryAfter: error?.retryAfter,
+        retryAfter: (error as { retryAfter?: number })?.retryAfter,
       };
     }
   }
@@ -181,7 +181,7 @@ class AuthService {
       return {
         success: false,
         message: this.extractErrorMessage(error, 'Failed to resend OTP'),
-        retryAfter: error?.retryAfter,
+        retryAfter: (error as { retryAfter?: number })?.retryAfter,
       };
     }
   }

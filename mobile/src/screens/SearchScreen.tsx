@@ -946,7 +946,7 @@ const makeStyles = (colors: ThemeColors) =>
 
     // Modal
     modalOverlay: { flex: 1, justifyContent: 'flex-end' },
-    modalBg: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0, 0, 0, 0.55)' },
+    modalBg: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0, 0, 0, 0.55)' },
     modalContent: {
       backgroundColor: colors.surface, borderTopLeftRadius: 30, borderTopRightRadius: 30,
       padding: SPACING.xl, paddingBottom: Platform.OS === 'ios' ? 40 : SPACING.xl,

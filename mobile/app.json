@@ -22,7 +22,6 @@
     },
     "android": {
       "package": "com.gleezip.mobile",
-      "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -72,6 +71,14 @@
         {
           "merchantIdentifier": "merchant.com.gleezip.mobile",
           "enableGooglePay": true
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
         }
       ]
     ],
