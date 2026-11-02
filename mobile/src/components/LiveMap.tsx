@@ -26,31 +26,40 @@ export interface LiveMapProps {
   overlayPadding?: Partial<Padding>;
 }
 
+type NativeMapComponent = React.ComponentType<LiveMapProps>;
+
+let cachedNativeMap: NativeMapComponent | null | undefined;
+
+function getNativeMap(): NativeMapComponent | null {
+  if (cachedNativeMap !== undefined) return cachedNativeMap;
+  try {
+    cachedNativeMap = require('./LiveMapNative').LiveMapNative as NativeMapComponent;
+  } catch {
+    cachedNativeMap = null;
+  }
+  return cachedNativeMap;
+}
+
+function MapUnavailable() {
+  return (
+    <View style={styles.unavailable}>
+      <Text style={styles.title}>Map unavailable in Expo Go</Text>
+      <Text style={styles.body}>The live map is in the TestFlight and Android builds.</Text>
+    </View>
+  );
+}
+
 /**
  * Expo Go has no MapLibre native module (MLRNCameraModule).
  * The real map loads only in a dev client, TestFlight, or Android build.
  */
 export function LiveMap(props: LiveMapProps) {
-  if (isExpoGo()) {
-    return (
-      <View style={styles.unavailable}>
-        <Text style={styles.title}>Map unavailable in Expo Go</Text>
-        <Text style={styles.body}>The live map is in the TestFlight and Android builds.</Text>
-      </View>
-    );
-  }
+  if (isExpoGo()) return <MapUnavailable />;
 
-  try {
-    const { LiveMapNative } = require('./LiveMapNative') as typeof import('./LiveMapNative');
-    return <LiveMapNative {...props} />;
-  } catch {
-    return (
-      <View style={styles.unavailable}>
-        <Text style={styles.title}>Map unavailable in Expo Go</Text>
-        <Text style={styles.body}>The live map is in the TestFlight and Android builds.</Text>
-      </View>
-    );
-  }
+  const NativeMap = getNativeMap();
+  if (!NativeMap) return <MapUnavailable />;
+
+  return <NativeMap {...props} />;
 }
 
 const styles = StyleSheet.create({
