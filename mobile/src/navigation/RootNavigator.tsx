@@ -353,9 +353,10 @@ export const RootNavigator = () => {
         <Stack.Screen
           name="Auth"
           component={AuthScreen}
-          getId={({ params }) =>
-            `${params?.isLogin ? 'login' : 'register'}-${params?.role ?? 'user'}`
-          }
+          getId={({ params }) => {
+            const routeParams = params as { isLogin?: boolean; role?: string } | undefined;
+            return `${routeParams?.isLogin ? 'login' : 'register'}-${routeParams?.role ?? 'user'}`;
+          }}
         />
         <Stack.Screen
           name="ForgotPassword"

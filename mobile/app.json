@@ -103,7 +103,8 @@
         {
           "android": {
             "kotlinVersion": "2.0.21",
-            "agpVersion": "8.5.2"
+            "agpVersion": "8.5.2",
+            "usesCleartextTraffic": true
           }
         }
       ],
@@ -124,7 +125,7 @@
         }
       ],
       [
-      "expo-notifications",
+        "expo-notifications"
       ],
       [
         "expo-document-picker",
@@ -156,4 +157,3 @@
     }
   }
 }
-

@@ -91,7 +91,7 @@ export async function uploadLocalFile(
     throw new Error(data?.message || `Upload failed with HTTP ${result.status}`);
   }
 
-  return data;
+  return { success: true, url: data.url, message: data.message };
 }
 
 export async function uploadFileToS3(

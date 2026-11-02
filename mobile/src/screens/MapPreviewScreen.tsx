@@ -195,7 +195,7 @@ const makeStyles = (colors: ThemeColors) =>
       backgroundColor: '#E8EEF5',
     },
     mapContainer: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       zIndex: 0,
       backgroundColor: '#E8EEF5',
     },

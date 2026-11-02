@@ -64,7 +64,7 @@ export function AnimatedSplashScreen({ onAnimationComplete }: AnimatedSplashScre
 
 const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: '#002B49', // A dark premium background matching 'anime.png' vibes or standard theme
     alignItems: 'center',
     justifyContent: 'center',

@@ -9,7 +9,8 @@ import { LiveMap } from '@/components/LiveMap';
 import { LocationAutocompleteInput } from '@/components/LocationAutocompleteInput';
 import { useLocationBias } from '@/hooks/useLocationBias';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation, NavigationProp, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { taxiBookingsApi, ridesApi } from '@/api';
 import * as Location from 'expo-location';
 import { getApiErrorMessage } from '@/utils/helpers';
@@ -44,7 +45,7 @@ type RouteParams = {
 export function TaxiBookingScreen() {
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const navigation = useNavigation<NavigationProp<any>>();
+  const navigation = useNavigation<NativeStackNavigationProp<any>>();
   const route = useRoute<RouteProp<RouteParams, 'TaxiBooking'>>();
   const targetServiceId = route.params?.serviceId;
   const targetName = route.params?.prefilledName;

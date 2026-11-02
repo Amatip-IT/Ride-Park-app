@@ -185,7 +185,7 @@ export function ServiceReviewsScreen() {
           ListFooterComponent={
             loadingMore ? (
               <ActivityIndicator style={{ marginVertical: SPACING.lg }} color={colors.electricTeal} />
-            ) : null
+            ) : undefined
           }
         />
       )}

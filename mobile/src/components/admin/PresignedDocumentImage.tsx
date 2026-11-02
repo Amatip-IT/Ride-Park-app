@@ -104,7 +104,7 @@ export function DocumentViewerModal({ visible, sourceUrl, title, onClose }: View
       onRequestClose={onClose}
       statusBarTranslucent
     >
-      <StatusBar barStyle="light-content" backgroundColor="#0B1220" />
+      <StatusBar barStyle="light-content" />
       <View style={styles.root}>
         {/* Sticky top bar — always above WebView/image */}
         <View style={[styles.topBar, { paddingTop: headerPad }]}>
@@ -413,7 +413,7 @@ const makeViewerStyles = (colors: ThemeColors) =>
       backgroundColor: '#FFF',
     },
     webviewLoading: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: '#0B1220',
