@@ -99,19 +99,21 @@ export function RidePricingSettings() {
   const load = async () => {
     setLoading(true);
     setLoadError(null);
+    let pricingFailure = '';
     try {
-      // 1) Dedicated pricing endpoint
       try {
         const res = await adminApi.getRidePricing();
         if (res.data?.success && res.data.data) {
           applyRules(normalizeRules(res.data.data));
           return;
         }
-      } catch {
-        // Fall through — older backends may not have /settings/pricing yet
+        pricingFailure = res.data?.message || 'Pricing response had no data.';
+      } catch (err: any) {
+        const status = err?.status || err?.response?.status;
+        const message = err?.message || err?.response?.data?.message;
+        pricingFailure = [status, message].filter(Boolean).join(' ');
       }
 
-      // 2) Same settings API that powers the service-fee card
       const res = await adminApi.getPlatformSettings();
       if (res.data?.success && res.data.data) {
         const data = res.data.data as any;
@@ -119,7 +121,6 @@ export function RidePricingSettings() {
           applyRules(normalizeRules(data.ridePricing));
           return;
         }
-        // Raw schema fields after backend pricing migration
         if (data.ratePerMilePence != null || data.minimumFarePence != null) {
           applyRules(normalizeRules(data));
           return;
@@ -127,16 +128,14 @@ export function RidePricingSettings() {
       }
 
       setLoadError(
-        'Ride pricing API is not on this backend yet. Redeploy the API (GET/POST /admin/verifications/settings/pricing), then tap Retry.',
+        pricingFailure
+          ? `Could not load ride pricing. ${pricingFailure}`
+          : 'Could not load ride pricing.',
       );
     } catch (err: any) {
-      const status = err?.response?.status;
-      const msg =
-        err?.response?.data?.message ||
-        (status === 404
-          ? 'Ride pricing route missing on the API (404). Redeploy the backend, then tap Retry.'
-          : 'Could not load ride pricing.');
-      setLoadError(msg);
+      const status = err?.status || err?.response?.status;
+      const message = err?.message || err?.response?.data?.message || 'Could not load ride pricing.';
+      setLoadError([status, message].filter(Boolean).join(' '));
     } finally {
       setLoading(false);
     }
@@ -185,14 +184,9 @@ export function RidePricingSettings() {
                 Alert.alert('Error', res.data?.message || 'Update failed');
               }
             } catch (err: any) {
-              const status = err?.response?.status;
-              Alert.alert(
-                'Error',
-                err?.response?.data?.message ||
-                  (status === 404
-                    ? 'Save failed: pricing API not deployed yet.'
-                    : 'Update failed'),
-              );
+              const status = err?.status || err?.response?.status;
+              const message = err?.message || err?.response?.data?.message || 'Update failed';
+              Alert.alert('Error', [status, message].filter(Boolean).join(' '));
             } finally {
               setSaving(false);
             }
